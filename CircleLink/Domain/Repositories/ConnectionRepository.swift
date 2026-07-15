@@ -1,0 +1,8 @@
+import Foundation
+
+protocol ConnectionRepository: Sendable {
+    func fetchCandidates(communityId: String) async throws -> [User]
+    func sendConnect(to userId: String, in communityId: String) async throws
+    func fetchIncomingRequests() async throws -> [ConnectionRequest]
+    func respond(to requestId: String, accept: Bool) async throws
+}
