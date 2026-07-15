@@ -34,6 +34,7 @@ final class FirebaseAuthRepository: AuthRepository, @unchecked Sendable {
             id: firebaseUser.uid,
             displayName: firebaseUser.displayName ?? "",
             avatarURL: nil,
+            avatarBase64: nil,
             interests: [],
             ageConfirmedAt: nil
         )

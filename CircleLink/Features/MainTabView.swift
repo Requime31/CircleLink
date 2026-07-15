@@ -27,7 +27,7 @@ struct MainTabView: View {
                     Label("Connect", systemImage: "link")
                 }
 
-            ProfilePlaceholderView(viewModel: profileViewModel, onSignOut: onSignOut)
+            ProfileView(viewModel: profileViewModel, onSignOut: onSignOut)
                 .tabItem {
                     Label("Profile", systemImage: "person.circle")
                 }

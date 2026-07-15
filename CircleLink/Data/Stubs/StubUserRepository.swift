@@ -6,6 +6,7 @@ final class StubUserRepository: UserRepository, @unchecked Sendable {
             id: userId,
             displayName: "User \(userId)",
             avatarURL: nil,
+            avatarBase64: nil,
             interests: [],
             ageConfirmedAt: nil
         )

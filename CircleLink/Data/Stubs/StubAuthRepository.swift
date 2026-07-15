@@ -32,6 +32,7 @@ final class StubAuthRepository: AuthRepository, @unchecked Sendable {
         id: "stub-user",
         displayName: "CircleLink User",
         avatarURL: nil,
+        avatarBase64: nil,
         interests: ["Swift", "iOS"],
         ageConfirmedAt: Date()
     )

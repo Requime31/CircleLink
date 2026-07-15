@@ -8,6 +8,7 @@ enum FirestoreUserMapper {
             id: document.documentID,
             displayName: data["displayName"] as? String ?? "",
             avatarURL: (data["avatarURL"] as? String).flatMap(URL.init(string:)),
+            avatarBase64: data["avatarBase64"] as? String,
             interests: data["interests"] as? [String] ?? [],
             ageConfirmedAt: (data["ageConfirmedAt"] as? Timestamp)?.dateValue()
         )
@@ -17,6 +18,7 @@ enum FirestoreUserMapper {
         [
             "displayName": displayName,
             "avatarURL": NSNull(),
+            "avatarBase64": NSNull(),
             "interests": [String](),
             "ageConfirmedAt": NSNull(),
             "createdAt": Timestamp(date: Date())

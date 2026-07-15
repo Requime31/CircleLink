@@ -40,7 +40,7 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
         }
 
         var data: [String: Any] = [
-            "displayName": user.displayName,
+            "displayName": user.displayName.trimmingCharacters(in: .whitespacesAndNewlines),
             "interests": user.interests
         ]
 
@@ -50,7 +50,25 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
             data["avatarURL"] = NSNull()
         }
 
-        try await db.collection(usersCollection).document(user.id).updateData(data)
+        if let avatarBase64 = user.avatarBase64 {
+            data["avatarBase64"] = avatarBase64
+        } else {
+            data["avatarBase64"] = NSNull()
+        }
+
+        let document = db.collection(usersCollection).document(user.id)
+        let snapshot = try await document.getDocument()
+
+        if snapshot.exists {
+            try await document.updateData(data)
+        } else {
+            var createData = FirestoreUserMapper.defaultProfileData(displayName: user.displayName)
+            createData["displayName"] = data["displayName"] as Any
+            createData["interests"] = data["interests"] as Any
+            createData["avatarURL"] = data["avatarURL"] as Any
+            createData["avatarBase64"] = data["avatarBase64"] as Any
+            try await document.setData(createData)
+        }
     }
 
     func confirmAge() async throws {
