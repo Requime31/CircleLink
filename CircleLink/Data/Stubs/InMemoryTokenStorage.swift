@@ -1,17 +1,24 @@
 import Foundation
 
 final class InMemoryTokenStorage: SecureTokenStorage, @unchecked Sendable {
-    private var storage: [TokenStorageKey: String] = [:]
+    private let lock = NSLock()
+    private nonisolated(unsafe) var storage: [TokenStorageKey: String] = [:]
 
-    func save(token: String, for key: TokenStorageKey) throws {
-        storage[key] = token
+    nonisolated func save(token: String, for key: TokenStorageKey) throws {
+        lock.withLock {
+            storage[key] = token
+        }
     }
 
-    func load(for key: TokenStorageKey) throws -> String? {
-        storage[key]
+    nonisolated func load(for key: TokenStorageKey) throws -> String? {
+        lock.withLock {
+            storage[key]
+        }
     }
 
-    func delete(for key: TokenStorageKey) throws {
-        storage[key] = nil
+    nonisolated func delete(for key: TokenStorageKey) throws {
+        lock.withLock {
+            storage[key] = nil
+        }
     }
 }

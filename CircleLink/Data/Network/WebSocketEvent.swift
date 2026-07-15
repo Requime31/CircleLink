@@ -1,7 +1,8 @@
 import Foundation
 
 /// JSON event protocol for WebSocket communication (MVP events only).
-enum WebSocketEvent: Codable, Equatable, Sendable {
+/// Opts out of default `@MainActor` isolation — used from background WebSocket I/O.
+nonisolated enum WebSocketEvent: Codable, Equatable, Sendable {
     // MARK: - Client → Server
 
     case auth(token: String)

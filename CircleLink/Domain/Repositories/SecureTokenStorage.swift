@@ -5,7 +5,7 @@ enum TokenStorageKey: String, Sendable {
 }
 
 protocol SecureTokenStorage: Sendable {
-    func save(token: String, for key: TokenStorageKey) throws
-    func load(for key: TokenStorageKey) throws -> String?
-    func delete(for key: TokenStorageKey) throws
+    nonisolated func save(token: String, for key: TokenStorageKey) throws
+    nonisolated func load(for key: TokenStorageKey) throws -> String?
+    nonisolated func delete(for key: TokenStorageKey) throws
 }

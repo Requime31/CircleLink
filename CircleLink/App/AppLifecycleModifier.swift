@@ -19,7 +19,10 @@ struct AppLifecycleModifier: ViewModifier {
         switch phase {
         case .active:
             return .foreground
-        case .background, .inactive:
+        case .inactive:
+            // Keep WebSocket alive during brief transitions (launch, sheets, Control Center).
+            return .foreground
+        case .background:
             return .background
         @unknown default:
             return .background

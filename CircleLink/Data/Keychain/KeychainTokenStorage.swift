@@ -24,7 +24,7 @@ enum KeychainError: LocalizedError {
 final class KeychainTokenStorage: SecureTokenStorage, @unchecked Sendable {
     private let service = "com.roman.helloswift.CircleLink.tokens"
 
-    func save(token: String, for key: TokenStorageKey) throws {
+    nonisolated func save(token: String, for key: TokenStorageKey) throws {
         guard let data = token.data(using: .utf8) else {
             throw KeychainError.encodingFailed
         }
@@ -53,7 +53,7 @@ final class KeychainTokenStorage: SecureTokenStorage, @unchecked Sendable {
         }
     }
 
-    func load(for key: TokenStorageKey) throws -> String? {
+    nonisolated func load(for key: TokenStorageKey) throws -> String? {
         var query = baseQuery(for: key)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -73,14 +73,14 @@ final class KeychainTokenStorage: SecureTokenStorage, @unchecked Sendable {
         return token
     }
 
-    func delete(for key: TokenStorageKey) throws {
+    nonisolated func delete(for key: TokenStorageKey) throws {
         let status = SecItemDelete(baseQuery(for: key) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError.deleteFailed(status)
         }
     }
 
-    private func baseQuery(for key: TokenStorageKey) -> [String: Any] {
+    nonisolated private func baseQuery(for key: TokenStorageKey) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

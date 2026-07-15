@@ -1,23 +1,25 @@
 import Foundation
 
 final class StubWebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
-    private(set) var isConnected = false
+    private nonisolated(unsafe) var _isConnected = false
 
-    func connect(token: String) async throws {
-        isConnected = true
+    nonisolated var isConnected: Bool { _isConnected }
+
+    nonisolated func connect(token: String) async throws {
+        _isConnected = true
     }
 
-    func disconnect() {
-        isConnected = false
+    nonisolated func disconnect() {
+        _isConnected = false
     }
 
-    func join(chatId: String) {}
+    nonisolated func join(chatId: String) {}
 
-    func leave(chatId: String) {}
+    nonisolated func leave(chatId: String) {}
 
-    func send(event: WebSocketEvent) {}
+    nonisolated func send(event: WebSocketEvent) {}
 
-    func observeEvents() -> AsyncStream<WebSocketEvent> {
+    nonisolated func observeEvents() -> AsyncStream<WebSocketEvent> {
         AsyncStream { _ in }
     }
 }
