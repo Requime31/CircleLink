@@ -10,6 +10,7 @@ struct MainTabView: View {
     let onChatSelected: (String) -> Void
     let onCommunitySelected: (String) -> Void
     let onOpenGroupChat: (String) -> Void
+    let onOpenDebugChat: () -> Void
     let onSignOut: () -> Void
 
     var body: some View {
@@ -34,7 +35,11 @@ struct MainTabView: View {
                     Label("Connect", systemImage: "link")
                 }
 
-            ProfileView(viewModel: profileViewModel, onSignOut: onSignOut)
+            ProfileView(
+                viewModel: profileViewModel,
+                onSignOut: onSignOut,
+                onOpenDebugChat: onOpenDebugChat
+            )
                 .tabItem {
                     Label("Profile", systemImage: "person.circle")
                 }

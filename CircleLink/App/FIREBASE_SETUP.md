@@ -60,6 +60,13 @@ Fields used in Phase 2–3:
 Avatars are stored as **compressed JPEG base64** in Firestore field `avatarBase64`.
 This works on the free Spark plan — Firebase Storage is **not** required.
 
+### Chat images (Phase 6 — Supabase Storage)
+
+Chat image attachments are stored in **Supabase Storage** (free tier).
+Firestore message documents store only `imageURL`.
+
+See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for bucket and API key setup.
+
 ### Communities (Phase 5)
 
 Community documents path: `communities/{communityId}`

@@ -1,18 +1,70 @@
 import UIKit
 
 enum ImageCompressor {
-    private static let maxDimension: CGFloat = 256
-    private static let jpegQuality: CGFloat = 0.55
-    private static let maxBytes = 120_000
+    private static let avatarMaxDimension: CGFloat = 256
+    private static let avatarJpegQuality: CGFloat = 0.55
+    private static let avatarMaxBytes = 120_000
+
+    private static let chatMaxDimension: CGFloat = 1_200
+    private static let chatJpegQuality: CGFloat = 0.7
+    private static let chatMaxBytes = 500_000
 
     /// Downscales and JPEG-compresses image data for Firestore avatar storage.
     static func compressForAvatar(_ data: Data) throws -> Data {
+        try compress(
+            data,
+            maxDimension: avatarMaxDimension,
+            jpegQuality: avatarJpegQuality,
+            maxBytes: avatarMaxBytes
+        )
+    }
+
+    /// Downscales and JPEG-compresses image data for chat attachments.
+    static func compressForChat(_ data: Data) throws -> Data {
+        try compress(
+            data,
+            maxDimension: chatMaxDimension,
+            jpegQuality: chatJpegQuality,
+            maxBytes: chatMaxBytes
+        )
+    }
+
+    /// Downscales and JPEG-compresses a picked `UIImage` (handles HDR / HEIC).
+    static func compressForChat(_ image: UIImage) throws -> Data {
+        try encodeJPEG(
+            image: image,
+            maxDimension: chatMaxDimension,
+            jpegQuality: chatJpegQuality,
+            maxBytes: chatMaxBytes
+        )
+    }
+
+    private static func compress(
+        _ data: Data,
+        maxDimension: CGFloat,
+        jpegQuality: CGFloat,
+        maxBytes: Int
+    ) throws -> Data {
         guard let image = UIImage(data: data) else {
             throw ImageCompressorError.invalidImageData
         }
 
-        let resized = resize(image, maxDimension: maxDimension)
-        guard let compressed = resized.jpegData(compressionQuality: jpegQuality) else {
+        return try encodeJPEG(
+            image: image,
+            maxDimension: maxDimension,
+            jpegQuality: jpegQuality,
+            maxBytes: maxBytes
+        )
+    }
+
+    private static func encodeJPEG(
+        image: UIImage,
+        maxDimension: CGFloat,
+        jpegQuality: CGFloat,
+        maxBytes: Int
+    ) throws -> Data {
+        let prepared = prepareForJPEG(image, maxDimension: maxDimension)
+        guard let compressed = prepared.jpegData(compressionQuality: jpegQuality) else {
             throw ImageCompressorError.compressionFailed
         }
 
@@ -23,15 +75,21 @@ enum ImageCompressor {
         return compressed
     }
 
-    private static func resize(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+    /// Flattens HDR/extended-range photos into a standard bitmap before JPEG encoding.
+    private static func prepareForJPEG(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
         let size = image.size
         let longest = max(size.width, size.height)
-        guard longest > maxDimension else { return image }
-
-        let scale = maxDimension / longest
+        let scale = longest > maxDimension ? maxDimension / longest : 1
         let newSize = CGSize(width: size.width * scale, height: size.height * scale)
 
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        if #available(iOS 17.0, *) {
+            format.preferredRange = .standard
+        }
+
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: newSize))
         }

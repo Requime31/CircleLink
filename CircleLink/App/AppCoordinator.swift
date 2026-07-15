@@ -14,6 +14,10 @@ final class AppCoordinator: ObservableObject {
 
     @Published private(set) var route: Route
     @Published private(set) var currentProfile: User?
+    @Published var presentedChatId: String?
+
+    /// Temporary Phase 6 debug chat — replace with real chat creation in Phase 8.
+    static let debugChatId = "debug-chat"
 
     private let dependencies: AppDependencies
 
@@ -83,6 +87,7 @@ final class AppCoordinator: ObservableObject {
                     onChatSelected: onChatSelected,
                     onCommunitySelected: onCommunitySelected,
                     onOpenGroupChat: onOpenGroupChat,
+                    onOpenDebugChat: openDebugChat,
                     onSignOut: signOut
                 )
             }
@@ -96,6 +101,27 @@ final class AppCoordinator: ObservableObject {
         }
         .onAppear {
             self.updateWebSocketAuthState()
+        }
+        .sheet(isPresented: Binding(
+            get: { self.presentedChatId != nil },
+            set: { if !$0 { self.presentedChatId = nil } }
+        )) {
+            if let chatId = self.presentedChatId,
+               let chatViewModel = self.dependencies.makeChatViewModel(chatId: chatId) {
+                NavigationStack {
+                    ChatViewControllerWrapper(viewModel: chatViewModel)
+                        .ignoresSafeArea(.keyboard, edges: .bottom)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Close") {
+                                    self.presentedChatId = nil
+                                }
+                            }
+                        }
+                }
+            } else {
+                Text("Unable to open chat.")
+            }
         }
     }
 
@@ -184,7 +210,7 @@ final class AppCoordinator: ObservableObject {
     // MARK: - Navigation callbacks (stubs for future phases)
 
     func onChatSelected(chatId: String) {
-        print("[AppCoordinator] onChatSelected: \(chatId)")
+        presentedChatId = chatId
     }
 
     func onCommunitySelected(communityId: String) {
@@ -192,6 +218,10 @@ final class AppCoordinator: ObservableObject {
     }
 
     func onOpenGroupChat(communityId: String) {
-        print("[AppCoordinator] onOpenGroupChat: \(communityId) — Phase 10 stub")
+        presentedChatId = "group-\(communityId)"
+    }
+
+    func openDebugChat() {
+        presentedChatId = Self.debugChatId
     }
 }

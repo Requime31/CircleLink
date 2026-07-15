@@ -2,6 +2,10 @@
 import FirebaseCore
 #endif
 
+#if canImport(FirebaseFirestore)
+import FirebaseFirestore
+#endif
+
 import Foundation
 
 enum FirebaseBootstrap {
@@ -37,6 +41,7 @@ enum FirebaseBootstrap {
         }
 
         FirebaseApp.configure(options: options)
+        configureFirestorePersistence()
         print("[CircleLink] Firebase configured (project: \(options.projectID ?? "unknown")).")
         #else
         print(
@@ -47,4 +52,13 @@ enum FirebaseBootstrap {
         )
         #endif
     }
+
+    #if canImport(FirebaseFirestore)
+    private static func configureFirestorePersistence() {
+        let db = Firestore.firestore()
+        let settings = FirestoreSettings()
+        settings.cacheSettings = PersistentCacheSettings()
+        db.settings = settings
+    }
+    #endif
 }

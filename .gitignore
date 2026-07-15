@@ -33,6 +33,8 @@ Carthage/Build/
 GoogleService-Info.plist
 **/GoogleService-Info.plist
 GoogleService-Info-*.plist
+SupabaseSecrets.plist
+**/SupabaseSecrets.plist
 
 # Environment
 .env
