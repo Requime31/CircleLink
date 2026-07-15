@@ -1,8 +1,14 @@
 import Foundation
 
 extension User {
-    /// Profile setup is complete when display name and at least 3 interests are set (Phase 3).
+    static let minInterests = 3
+    static let maxInterests = 5
+
+    /// Profile setup is complete when display name and 3–5 interests are set (Phase 3).
     var isProfileComplete: Bool {
-        !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && interests.count >= 3
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !trimmedName.isEmpty
+            && interests.count >= Self.minInterests
+            && interests.count <= Self.maxInterests
     }
 }

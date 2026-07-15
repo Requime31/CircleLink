@@ -30,6 +30,10 @@ final class AppCoordinator: ObservableObject {
         self?.handleAgeConfirmed(user: user)
     }
 
+    private lazy var profileSetupViewModel = dependencies.makeProfileViewModel { [weak self] user in
+        self?.handleProfileSaved(user: user)
+    }
+
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
 
@@ -64,7 +68,10 @@ final class AppCoordinator: ObservableObject {
                 }
             case .profileSetup:
                 NavigationStack {
-                    ProfileSetupPlaceholderView(onSignOut: signOut)
+                    ProfileSetupView(
+                        viewModel: profileSetupViewModel,
+                        onSignOut: signOut
+                    )
                 }
             case .mainTab:
                 MainTabView(
@@ -80,6 +87,13 @@ final class AppCoordinator: ObservableObject {
         }
         .task {
             await self.bootstrapIfNeeded()
+        }
+        .trackAppLifecycle(connectionManager: dependencies.webSocketConnectionManager)
+        .onChange(of: route) { _ in
+            updateWebSocketAuthState()
+        }
+        .onAppear {
+            updateWebSocketAuthState()
         }
     }
 
@@ -123,11 +137,24 @@ final class AppCoordinator: ObservableObject {
         applyRoute(for: user)
     }
 
+    func handleProfileSaved(user: User) {
+        currentProfile = user
+        applyRoute(for: user)
+    }
+
     func handleSignedOut() {
         currentProfile = nil
+        dependencies.webSocketConnectionManager.setUserAuthenticated(false)
         authViewModel.resetForm()
         ageGateViewModel.resetForm()
+        profileSetupViewModel.resetForm()
+        profileViewModel.resetForm()
         route = .auth
+    }
+
+    private func updateWebSocketAuthState() {
+        let authenticated = route != .auth && route != .bootstrapping
+        dependencies.webSocketConnectionManager.setUserAuthenticated(authenticated)
     }
 
     func signOut() {

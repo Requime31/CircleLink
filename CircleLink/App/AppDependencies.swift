@@ -11,6 +11,7 @@ final class AppDependencies {
     let connectionRepository: ConnectionRepository
     let chatRepository: ChatRepository
     let webSocketClient: WebSocketClientProtocol
+    let webSocketConnectionManager: WebSocketConnectionManager
     let pushNotificationHandler: PushNotificationHandler
 
     init(
@@ -21,10 +22,12 @@ final class AppDependencies {
         connectionRepository: ConnectionRepository? = nil,
         chatRepository: ChatRepository? = nil,
         webSocketClient: WebSocketClientProtocol? = nil,
+        webSocketConnectionManager: WebSocketConnectionManager? = nil,
         pushNotificationHandler: PushNotificationHandler? = nil
     ) {
         let resolvedTokenStorage = tokenStorage ?? KeychainTokenStorage()
         let resolvedUserRepository = userRepository ?? FirestoreUserRepository()
+        let resolvedWebSocketClient = webSocketClient ?? WebSocketClient()
 
         self.tokenStorage = resolvedTokenStorage
         self.userRepository = resolvedUserRepository
@@ -36,7 +39,12 @@ final class AppDependencies {
         self.communityRepository = communityRepository ?? StubCommunityRepository()
         self.connectionRepository = connectionRepository ?? StubConnectionRepository()
         self.chatRepository = chatRepository ?? StubChatRepository()
-        self.webSocketClient = webSocketClient ?? StubWebSocketClient()
+        self.webSocketClient = resolvedWebSocketClient
+        self.webSocketConnectionManager = webSocketConnectionManager ?? WebSocketConnectionManager(
+            client: resolvedWebSocketClient,
+            tokenProvider: FirebaseIDTokenProvider(),
+            tokenStorage: resolvedTokenStorage
+        )
         self.pushNotificationHandler = pushNotificationHandler ?? PushNotificationHandler()
     }
 
@@ -75,7 +83,11 @@ final class AppDependencies {
         ConnectViewModel(connectionRepository: connectionRepository)
     }
 
-    func makeProfileViewModel() -> ProfileViewModel {
-        ProfileViewModel(authRepository: authRepository)
+    func makeProfileViewModel(onProfileSaved: ((User) -> Void)? = nil) -> ProfileViewModel {
+        ProfileViewModel(
+            authRepository: authRepository,
+            userRepository: userRepository,
+            onProfileSaved: onProfileSaved
+        )
     }
 }

@@ -1,6 +1,6 @@
 # Firebase Setup (Phase 1+)
 
-CircleLink uses Firebase for Auth, Firestore, FCM, and Storage.
+CircleLink uses Firebase for Auth and Firestore (Spark plan OK).
 
 ## 1. Add Firebase iOS SDK (SPM)
 
@@ -51,9 +51,14 @@ Create Firestore database (test mode OK for development).
 
 User documents path: `users/{userId}`
 
-Fields used in Phase 2:
+Fields used in Phase 2–3:
 
-- `displayName`, `avatarURL`, `interests`, `ageConfirmedAt`, `createdAt`
+- `displayName`, `avatarURL`, `avatarBase64`, `interests`, `ageConfirmedAt`, `createdAt`
+
+### Avatars (Phase 3, no Storage required)
+
+Avatars are stored as **compressed JPEG base64** in Firestore field `avatarBase64`.
+This works on the free Spark plan — Firebase Storage is **not** required.
 
 ## 6. Verify
 
