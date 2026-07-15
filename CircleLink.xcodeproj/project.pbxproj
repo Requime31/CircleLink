@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C9A458F5E218EDD93C7E877E /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 7BDC6A25BF3786F00C95AA56 /* Supabase */; };
 		F95630FC30079F430074C843 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000100000001 /* FirebaseCore */; };
 		F95630FD30079F430074C843 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000100000002 /* FirebaseAuth */; };
 		F95630FE30079F430074C843 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000100000003 /* FirebaseFirestore */; };
@@ -32,6 +33,7 @@
 				F95630FE30079F430074C843 /* FirebaseFirestore in Frameworks */,
 				F95630FD30079F430074C843 /* FirebaseAuth in Frameworks */,
 				F95630FC30079F430074C843 /* FirebaseCore in Frameworks */,
+				C9A458F5E218EDD93C7E877E /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +79,7 @@
 				A1B2C3D40000000100000001 /* FirebaseCore */,
 				A1B2C3D40000000100000002 /* FirebaseAuth */,
 				A1B2C3D40000000100000003 /* FirebaseFirestore */,
+				7BDC6A25BF3786F00C95AA56 /* Supabase */,
 			);
 			productName = CircleLink;
 			productReference = F931237830069F9C002688D5 /* CircleLink.app */;
@@ -108,6 +111,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A1B2C3D40000000100000004 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				F75FC0181D11AD7F448F52CD /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F931237930069F9C002688D5 /* Products */;
@@ -272,6 +276,7 @@
 				DEVELOPMENT_TEAM = 7ZMD5KP5YT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "CircleLink needs photo access to send images in chat.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -284,6 +289,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.roman.helloswift.CircleLink;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -307,6 +313,7 @@
 				DEVELOPMENT_TEAM = 7ZMD5KP5YT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "CircleLink needs photo access to send images in chat.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -319,6 +326,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.roman.helloswift.CircleLink;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -363,9 +371,22 @@
 				minimumVersion = 11.0.0;
 			};
 		};
+		F75FC0181D11AD7F448F52CD /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		7BDC6A25BF3786F00C95AA56 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F75FC0181D11AD7F448F52CD /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
 		A1B2C3D40000000100000001 /* FirebaseCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D40000000100000004 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
