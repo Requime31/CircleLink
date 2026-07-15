@@ -16,15 +16,31 @@ struct ProfileFormFields: View {
 
     private var avatarSection: some View {
         VStack(spacing: 12) {
-            avatarPreview
+            AvatarImageView(
+                localPreview: viewModel.localAvatarPreview,
+                avatarBase64: viewModel.profile?.avatarBase64,
+                avatarURL: viewModel.profile?.avatarURL,
+                size: 96
+            )
+            .accessibilityLabel(viewModel.hasAvatarToRemove ? "Profile photo" : "No profile photo")
 
-            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                Text(viewModel.localAvatarPreview == nil ? "Add Photo (Optional)" : "Change Photo")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+            if viewModel.localAvatarPreview == nil {
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                    Text("Add Photo (Optional)")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Choose profile photo")
+            } else {
+                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                    Text("Change Photo")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Choose profile photo")
             }
-            .buttonStyle(.bordered)
-            .accessibilityLabel("Choose profile photo")
 
             if viewModel.hasAvatarToRemove {
                 Button("Remove Photo", role: .destructive) {
@@ -36,24 +52,13 @@ struct ProfileFormFields: View {
         }
         .frame(maxWidth: .infinity)
         .onChange(of: selectedPhotoItem) { newItem in
-            Task {
-                guard let newItem else { return }
+            guard let newItem else { return }
+            Task { @MainActor in
                 if let data = try? await newItem.loadTransferable(type: Data.self) {
                     viewModel.setAvatarData(data)
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private var avatarPreview: some View {
-        AvatarImageView(
-            localPreview: viewModel.localAvatarPreview,
-            avatarBase64: viewModel.profile?.avatarBase64,
-            avatarURL: viewModel.profile?.avatarURL,
-            size: 96
-        )
-        .accessibilityLabel(viewModel.hasAvatarToRemove ? "Profile photo" : "No profile photo")
     }
 
     private var displayNameSection: some View {

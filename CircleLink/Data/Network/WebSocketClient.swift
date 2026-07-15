@@ -1,6 +1,6 @@
 import Foundation
 
-enum WebSocketClientError: LocalizedError {
+nonisolated enum WebSocketClientError: LocalizedError {
     case missingToken
     case notConnected
     case encodingFailed
@@ -21,26 +21,27 @@ enum WebSocketClientError: LocalizedError {
 }
 
 /// URLSession-based WebSocket transport with exponential-backoff reconnect.
+/// Opts out of default `@MainActor` isolation — all socket I/O stays off the main thread.
 final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
     private let url: URL
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private let lock = NSLock()
 
-    private var urlSession: URLSession?
-    private var webSocketTask: URLSessionWebSocketTask?
-    private var eventContinuation: AsyncStream<WebSocketEvent>.Continuation?
-    private var receiveTask: Task<Void, Never>?
-    private var reconnectTask: Task<Void, Never>?
+    private nonisolated(unsafe) var urlSession: URLSession?
+    private nonisolated(unsafe) var webSocketTask: URLSessionWebSocketTask?
+    private nonisolated(unsafe) var eventContinuation: AsyncStream<WebSocketEvent>.Continuation?
+    private nonisolated(unsafe) var receiveTask: Task<Void, Never>?
+    private nonisolated(unsafe) var reconnectTask: Task<Void, Never>?
 
-    private var authToken: String?
-    private var joinedChatIds: Set<String> = []
-    private var intentionalDisconnect = false
-    private var reconnectEnabled = false
-    private var backoffAttempt = 0
-    private var _isConnected = false
+    private nonisolated(unsafe) var authToken: String?
+    private nonisolated(unsafe) var joinedChatIds: Set<String> = []
+    private nonisolated(unsafe) var intentionalDisconnect = false
+    private nonisolated(unsafe) var reconnectEnabled = false
+    private nonisolated(unsafe) var backoffAttempt = 0
+    private nonisolated(unsafe) var _isConnected = false
 
-    init(url: URL = WebSocketConfiguration.serverURL) {
+    nonisolated init(url: URL) {
         self.url = url
     }
 
@@ -48,58 +49,58 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
         tearDown(cancelReconnect: true, finishStream: true)
     }
 
-    var isConnected: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return _isConnected
+    nonisolated var isConnected: Bool {
+        lock.withLock { _isConnected }
     }
 
     // MARK: - WebSocketClientProtocol
 
-    func connect(token: String) async throws {
-        lock.lock()
-        intentionalDisconnect = false
-        reconnectEnabled = true
-        authToken = token
-        backoffAttempt = 0
-        lock.unlock()
+    nonisolated func connect(token: String) async throws {
+        lock.withLock {
+            intentionalDisconnect = false
+            reconnectEnabled = true
+            authToken = token
+            backoffAttempt = 0
+        }
 
         reconnectTask?.cancel()
         try await establishConnection(sendAuth: true)
     }
 
-    func disconnect() {
-        lock.lock()
-        intentionalDisconnect = true
-        reconnectEnabled = false
-        lock.unlock()
+    nonisolated func disconnect() {
+        receiveTask?.cancel()
+        receiveTask = nil
+
+        lock.withLock {
+            intentionalDisconnect = true
+            reconnectEnabled = false
+        }
 
         tearDown(cancelReconnect: true, finishStream: false)
     }
 
-    func join(chatId: String) {
-        lock.lock()
-        joinedChatIds.insert(chatId)
-        lock.unlock()
+    nonisolated func join(chatId: String) {
+        lock.withLock {
+            _ = joinedChatIds.insert(chatId)
+        }
 
         send(event: .join(chatId: chatId))
     }
 
-    func leave(chatId: String) {
-        lock.lock()
-        joinedChatIds.remove(chatId)
-        lock.unlock()
+    nonisolated func leave(chatId: String) {
+        lock.withLock {
+            _ = joinedChatIds.remove(chatId)
+        }
 
         send(event: .leave(chatId: chatId))
     }
 
-    func send(event: WebSocketEvent) {
+    nonisolated func send(event: WebSocketEvent) {
         guard let payload = encode(event) else { return }
 
-        lock.lock()
-        let task = webSocketTask
-        let connected = _isConnected
-        lock.unlock()
+        let (task, connected) = lock.withLock {
+            (webSocketTask, _isConnected)
+        }
 
         guard connected, let task else { return }
 
@@ -110,74 +111,74 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
         }
     }
 
-    func observeEvents() -> AsyncStream<WebSocketEvent> {
+    nonisolated func observeEvents() -> AsyncStream<WebSocketEvent> {
         AsyncStream { continuation in
-            lock.lock()
-            eventContinuation = continuation
-            lock.unlock()
+            lock.withLock {
+                eventContinuation = continuation
+            }
 
             continuation.onTermination = { [weak self] _ in
-                self?.lock.lock()
-                self?.eventContinuation = nil
-                self?.lock.unlock()
+                self?.lock.withLock {
+                    self?.eventContinuation = nil
+                }
             }
         }
     }
 
     // MARK: - Connection
 
-    private func establishConnection(sendAuth: Bool) async throws {
+    nonisolated private func establishConnection(sendAuth: Bool) async throws {
         tearDownSocket()
 
         let session = URLSession(configuration: .default)
         let task = session.webSocketTask(with: url)
         task.resume()
 
-        lock.lock()
-        urlSession = session
-        webSocketTask = task
-        lock.unlock()
+        lock.withLock {
+            urlSession = session
+            webSocketTask = task
+        }
 
         if sendAuth {
-            let token: String
-            lock.lock()
-            guard let authToken else {
-                lock.unlock()
+            let token = lock.withLock { () -> String in
+                guard let authToken else {
+                    return ""
+                }
+                return authToken
+            }
+
+            guard !token.isEmpty else {
                 throw WebSocketClientError.missingToken
             }
-            token = authToken
-            lock.unlock()
 
             try await sendAndWait(.auth(token: token), on: task)
         }
 
-        lock.lock()
-        _isConnected = true
-        backoffAttempt = 0
-        let roomsToRejoin = joinedChatIds
-        lock.unlock()
+        let roomsToRejoin = lock.withLock { () -> Set<String> in
+            _isConnected = true
+            backoffAttempt = 0
+            return joinedChatIds
+        }
 
         startReceiveLoop()
 
-        for chatId in roomsToRejoin where sendAuth {
-            send(event: .join(chatId: chatId))
+        if sendAuth {
+            for chatId in roomsToRejoin {
+                send(event: .join(chatId: chatId))
+            }
         }
     }
 
-    private func startReceiveLoop() {
+    nonisolated private func startReceiveLoop() {
         receiveTask?.cancel()
         receiveTask = Task { [weak self] in
             await self?.receiveMessages()
         }
     }
 
-    private func receiveMessages() async {
+    nonisolated private func receiveMessages() async {
         while !Task.isCancelled {
-            let task: URLSessionWebSocketTask?
-            lock.lock()
-            task = webSocketTask
-            lock.unlock()
-
+            let task = lock.withLock { webSocketTask }
             guard let task else { break }
 
             do {
@@ -196,38 +197,46 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
                 }
             } catch {
                 guard !Task.isCancelled else { break }
+
+                if self.isIntentionalDisconnect() {
+                    break
+                }
+
+                if Self.isBenignDisconnectError(error) {
+                    break
+                }
+
                 handleUnexpectedDisconnect(error: error)
                 break
             }
         }
     }
 
-    private func handleIncoming(_ text: String) {
+    nonisolated private func handleIncoming(_ text: String) {
         guard let data = text.data(using: .utf8),
               let event = try? decoder.decode(WebSocketEvent.self, from: data) else {
             return
         }
 
-        lock.lock()
-        let continuation = eventContinuation
-        lock.unlock()
-
+        let continuation = lock.withLock { eventContinuation }
         continuation?.yield(event)
 
         if case let .error(code) = event, code == "auth_failed" {
-            lock.lock()
-            _isConnected = false
-            lock.unlock()
+            lock.withLock {
+                _isConnected = false
+            }
         }
     }
 
-    private func handleUnexpectedDisconnect(error: Error) {
+    nonisolated private func handleUnexpectedDisconnect(error: Error) {
+        guard !isIntentionalDisconnect() else { return }
+
         print("[WebSocketClient] disconnected: \(error.localizedDescription)")
 
-        lock.lock()
-        _isConnected = false
-        let shouldReconnect = reconnectEnabled && !intentionalDisconnect
-        lock.unlock()
+        let shouldReconnect = lock.withLock { () -> Bool in
+            _isConnected = false
+            return reconnectEnabled && !intentionalDisconnect
+        }
 
         tearDownSocket()
 
@@ -238,13 +247,14 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
 
     // MARK: - Reconnect
 
-    private func scheduleReconnect() {
+    nonisolated private func scheduleReconnect() {
         reconnectTask?.cancel()
 
-        lock.lock()
-        let attempt = backoffAttempt
-        backoffAttempt += 1
-        lock.unlock()
+        let attempt = lock.withLock { () -> Int in
+            let current = backoffAttempt
+            backoffAttempt += 1
+            return current
+        }
 
         let delay = Self.backoffDelay(forAttempt: attempt)
 
@@ -252,10 +262,9 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard !Task.isCancelled, let self else { return }
 
-            let shouldProceed: Bool
-            self.lock.lock()
-            shouldProceed = self.reconnectEnabled && !self.intentionalDisconnect
-            self.lock.unlock()
+            let shouldProceed = self.lock.withLock {
+                self.reconnectEnabled && !self.intentionalDisconnect
+            }
 
             guard shouldProceed else { return }
 
@@ -268,7 +277,7 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
         }
     }
 
-    private static func backoffDelay(forAttempt attempt: Int) -> Double {
+    nonisolated private static func backoffDelay(forAttempt attempt: Int) -> Double {
         let cappedAttempt = min(attempt, 5)
         let base = min(30.0, pow(2.0, Double(cappedAttempt)))
         let jitter = Double.random(in: 0...1)
@@ -277,7 +286,7 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
 
     // MARK: - Teardown
 
-    private func tearDown(cancelReconnect: Bool, finishStream: Bool) {
+    nonisolated private func tearDown(cancelReconnect: Bool, finishStream: Bool) {
         if cancelReconnect {
             reconnectTask?.cancel()
             reconnectTask = nil
@@ -288,22 +297,23 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
 
         tearDownSocket()
 
-        lock.lock()
-        _isConnected = false
-        if finishStream {
-            eventContinuation?.finish()
-            eventContinuation = nil
+        lock.withLock {
+            _isConnected = false
+            if finishStream {
+                eventContinuation?.finish()
+                eventContinuation = nil
+            }
         }
-        lock.unlock()
     }
 
-    private func tearDownSocket() {
-        lock.lock()
-        let task = webSocketTask
-        let session = urlSession
-        webSocketTask = nil
-        urlSession = nil
-        lock.unlock()
+    nonisolated private func tearDownSocket() {
+        let (task, session) = lock.withLock {
+            let task = webSocketTask
+            let session = urlSession
+            webSocketTask = nil
+            urlSession = nil
+            return (task, session)
+        }
 
         task?.cancel(with: .goingAway, reason: nil)
         session?.invalidateAndCancel()
@@ -311,7 +321,7 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
 
     // MARK: - Encoding
 
-    private func encode(_ event: WebSocketEvent) -> String? {
+    nonisolated private func encode(_ event: WebSocketEvent) -> String? {
         guard let data = try? encoder.encode(event),
               let string = String(data: data, encoding: .utf8) else {
             return nil
@@ -319,7 +329,7 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
         return string
     }
 
-    private func sendAndWait(_ event: WebSocketEvent, on task: URLSessionWebSocketTask) async throws {
+    nonisolated private func sendAndWait(_ event: WebSocketEvent, on task: URLSessionWebSocketTask) async throws {
         guard let payload = encode(event) else {
             throw WebSocketClientError.encodingFailed
         }
@@ -333,5 +343,31 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
                 }
             }
         }
+    }
+
+    nonisolated private func isIntentionalDisconnect() -> Bool {
+        lock.withLock { intentionalDisconnect }
+    }
+
+    /// Errors expected when we cancel the socket during lifecycle disconnect.
+    nonisolated private static func isBenignDisconnectError(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled {
+            return true
+        }
+
+        if nsError.domain == NSPOSIXErrorDomain, nsError.code == 57 {
+            return true
+        }
+
+        if nsError.localizedDescription.contains("Socket is not connected") {
+            return true
+        }
+
+        return false
     }
 }

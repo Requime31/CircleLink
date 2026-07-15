@@ -27,7 +27,7 @@ final class AppDependencies {
     ) {
         let resolvedTokenStorage = tokenStorage ?? KeychainTokenStorage()
         let resolvedUserRepository = userRepository ?? FirestoreUserRepository()
-        let resolvedWebSocketClient = webSocketClient ?? WebSocketClient()
+        let resolvedWebSocketClient = webSocketClient ?? WebSocketClient(url: WebSocketConfiguration.serverURL)
 
         self.tokenStorage = resolvedTokenStorage
         self.userRepository = resolvedUserRepository

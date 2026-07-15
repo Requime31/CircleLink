@@ -1,6 +1,7 @@
 import Foundation
 
 /// WebSocket server URL resolved from the app bundle.
+/// Read from `@MainActor` composition root (`AppDependencies`) and injected into clients.
 enum WebSocketConfiguration {
     /// Reads `WEBSOCKET_URL` from Info.plist. Falls back to localhost for development.
     static var serverURL: URL {

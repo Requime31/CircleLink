@@ -1,7 +1,7 @@
 import Foundation
 
 /// App lifecycle state without importing SwiftUI.
-enum AppLifecycleState: Sendable {
+nonisolated enum AppLifecycleState: Sendable, Equatable {
     case foreground
     case background
 }
@@ -19,12 +19,13 @@ final class WebSocketConnectionManager: @unchecked Sendable {
     private let tokenStorage: SecureTokenStorage
     private let lock = NSLock()
 
-    private var observationTask: Task<Void, Never>?
-    private var reconnectTask: Task<Void, Never>?
-    private var lifecycleState: AppLifecycleState = .background
-    private var isUserAuthenticated = false
+    private nonisolated(unsafe) var observationTask: Task<Void, Never>?
+    private nonisolated(unsafe) var reconnectTask: Task<Void, Never>?
+    private nonisolated(unsafe) var connectTask: Task<Void, Never>?
+    private nonisolated(unsafe) var lifecycleState: AppLifecycleState = .background
+    private nonisolated(unsafe) var isUserAuthenticated = false
 
-    init(
+    nonisolated init(
         client: WebSocketClientProtocol,
         tokenProvider: IDTokenProviding,
         tokenStorage: SecureTokenStorage
@@ -38,64 +39,95 @@ final class WebSocketConnectionManager: @unchecked Sendable {
     deinit {
         observationTask?.cancel()
         reconnectTask?.cancel()
+        connectTask?.cancel()
     }
 
     // MARK: - Public API (called from App layer)
 
     /// Updates whether a signed-in user session exists.
-    func setUserAuthenticated(_ authenticated: Bool) {
-        lock.lock()
-        isUserAuthenticated = authenticated
-        let state = lifecycleState
-        lock.unlock()
+    nonisolated func setUserAuthenticated(_ authenticated: Bool) {
+        let state = lock.withLock { () -> AppLifecycleState in
+            isUserAuthenticated = authenticated
+            return lifecycleState
+        }
 
         if authenticated, state == .foreground {
-            Task { await self.connect(forceRefresh: false) }
+            scheduleConnect(forceRefresh: false)
         } else if !authenticated {
+            cancelPendingConnect()
             client.disconnect()
         }
     }
 
     /// Maps SwiftUI ScenePhase to connect/disconnect behaviour.
-    func handleLifecycleChange(_ state: AppLifecycleState) {
-        lock.lock()
-        lifecycleState = state
-        let authenticated = isUserAuthenticated
-        lock.unlock()
+    nonisolated func handleLifecycleChange(_ state: AppLifecycleState) {
+        let authenticated = lock.withLock { () -> Bool in
+            lifecycleState = state
+            return isUserAuthenticated
+        }
 
         switch state {
         case .foreground:
             if authenticated {
-                Task { await self.connect(forceRefresh: false) }
+                scheduleConnect(forceRefresh: false)
             }
         case .background:
+            cancelPendingConnect()
             reconnectTask?.cancel()
             client.disconnect()
         }
     }
 
     /// Explicit join helper for future chat screens (Phase 5+).
-    func joinChat(_ chatId: String) {
+    nonisolated func joinChat(_ chatId: String) {
         client.join(chatId: chatId)
     }
 
     /// Explicit leave helper for future chat screens (Phase 5+).
-    func leaveChat(_ chatId: String) {
+    nonisolated func leaveChat(_ chatId: String) {
         client.leave(chatId: chatId)
     }
 
-    var isConnected: Bool {
+    nonisolated var isConnected: Bool {
         client.isConnected
     }
 
     // MARK: - Connection
 
-    private func connect(forceRefresh: Bool) async {
-        lock.lock()
-        let shouldConnect = isUserAuthenticated && lifecycleState == .foreground
-        lock.unlock()
+    /// Coalesces overlapping connect requests (auth + lifecycle + route changes).
+    nonisolated private func scheduleConnect(forceRefresh: Bool) {
+        if forceRefresh {
+            connectTask?.cancel()
+        } else if connectTask != nil {
+            return
+        }
+
+        connectTask = Task { [weak self] in
+            guard let self else { return }
+            await self.performConnect(forceRefresh: forceRefresh)
+            self.lock.withLock {
+                self.connectTask = nil
+            }
+        }
+    }
+
+    nonisolated private func cancelPendingConnect() {
+        connectTask?.cancel()
+        lock.withLock {
+            connectTask = nil
+        }
+    }
+
+    nonisolated private func performConnect(forceRefresh: Bool) async {
+        let shouldConnect = lock.withLock {
+            isUserAuthenticated && lifecycleState == .foreground
+        }
 
         guard shouldConnect else { return }
+
+        if !forceRefresh, client.isConnected {
+            return
+        }
 
         do {
             var token = try await tokenProvider.fetchIDToken(forceRefresh: forceRefresh)
@@ -109,16 +141,27 @@ final class WebSocketConnectionManager: @unchecked Sendable {
                 return
             }
 
+            guard !Task.isCancelled else { return }
+
             try await client.connect(token: token)
+
+            guard !Task.isCancelled else { return }
+
             try tokenStorage.save(token: token, for: .firebaseIDToken)
+        } catch is CancellationError {
+            return
         } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled {
+                return
+            }
             print("[WebSocketConnectionManager] connect failed: \(error.localizedDescription)")
         }
     }
 
     // MARK: - Event observation
 
-    private func startObservingEvents() {
+    nonisolated private func startObservingEvents() {
         observationTask?.cancel()
         observationTask = Task { [weak self] in
             guard let self else { return }
@@ -130,7 +173,7 @@ final class WebSocketConnectionManager: @unchecked Sendable {
         }
     }
 
-    private func handleServerEvent(_ event: WebSocketEvent) async {
+    nonisolated private func handleServerEvent(_ event: WebSocketEvent) async {
         guard case let .error(code) = event else { return }
 
         switch code {
@@ -143,7 +186,7 @@ final class WebSocketConnectionManager: @unchecked Sendable {
                 try? await Task.sleep(nanoseconds: 500_000_000)
                 guard !Task.isCancelled else { return }
 
-                await self.connect(forceRefresh: true)
+                self.scheduleConnect(forceRefresh: true)
             }
         default:
             break

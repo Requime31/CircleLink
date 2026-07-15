@@ -90,10 +90,10 @@ final class AppCoordinator: ObservableObject {
         }
         .trackAppLifecycle(connectionManager: dependencies.webSocketConnectionManager)
         .onChange(of: route) { _ in
-            updateWebSocketAuthState()
+            self.updateWebSocketAuthState()
         }
         .onAppear {
-            updateWebSocketAuthState()
+            self.updateWebSocketAuthState()
         }
     }
 
