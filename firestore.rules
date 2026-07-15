@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Phase 2–3: user profiles
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+
+      // Phase 8: per-user chat references
+      match /chatRefs/{chatId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Phase 5: interest-based communities
+    match /communities/{communityId} {
+      // Any signed-in user can browse communities
+      allow read: if request.auth != null;
+
+      // join/leave only touch memberCount on the community document
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount']);
+
+      match /members/{userId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+  }
+}

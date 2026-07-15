@@ -6,16 +6,23 @@ struct MainTabView: View {
     @ObservedObject var connectViewModel: ConnectViewModel
     @ObservedObject var profileViewModel: ProfileViewModel
 
+    let makeCommunityDetailViewModel: (String) -> CommunityDetailViewModel
     let onChatSelected: (String) -> Void
     let onCommunitySelected: (String) -> Void
+    let onOpenGroupChat: (String) -> Void
     let onSignOut: () -> Void
 
     var body: some View {
         TabView {
-            PlaceholderScreen(title: "Communities", systemImage: "person.3")
-                .tabItem {
-                    Label("Communities", systemImage: "person.3")
-                }
+            CommunitiesListView(
+                viewModel: communitiesViewModel,
+                makeDetailViewModel: makeCommunityDetailViewModel,
+                onCommunitySelected: onCommunitySelected,
+                onOpenGroupChat: onOpenGroupChat
+            )
+            .tabItem {
+                Label("Communities", systemImage: "person.3")
+            }
 
             PlaceholderScreen(title: "Chats", systemImage: "bubble.left.and.bubble.right")
                 .tabItem {

@@ -36,7 +36,7 @@ final class AppDependencies {
             userRepository: resolvedUserRepository,
             appleSignInPresenter: AppleSignInPresenter()
         )
-        self.communityRepository = communityRepository ?? StubCommunityRepository()
+        self.communityRepository = communityRepository ?? FirestoreCommunityRepository()
         self.connectionRepository = connectionRepository ?? StubConnectionRepository()
         self.chatRepository = chatRepository ?? StubChatRepository()
         self.webSocketClient = resolvedWebSocketClient
@@ -73,6 +73,14 @@ final class AppDependencies {
 
     func makeCommunitiesViewModel() -> CommunitiesViewModel {
         CommunitiesViewModel(communityRepository: communityRepository)
+    }
+
+    func makeCommunityDetailViewModel(communityId: String) -> CommunityDetailViewModel {
+        CommunityDetailViewModel(
+            communityId: communityId,
+            communityRepository: communityRepository,
+            authRepository: authRepository
+        )
     }
 
     func makeChatsViewModel() -> ChatsViewModel {
