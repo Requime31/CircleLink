@@ -79,8 +79,10 @@ final class AppCoordinator: ObservableObject {
                     chatsViewModel: chatsViewModel,
                     connectViewModel: connectViewModel,
                     profileViewModel: profileViewModel,
+                    makeCommunityDetailViewModel: dependencies.makeCommunityDetailViewModel,
                     onChatSelected: onChatSelected,
                     onCommunitySelected: onCommunitySelected,
+                    onOpenGroupChat: onOpenGroupChat,
                     onSignOut: signOut
                 )
             }
@@ -149,6 +151,7 @@ final class AppCoordinator: ObservableObject {
         ageGateViewModel.resetForm()
         profileSetupViewModel.resetForm()
         profileViewModel.resetForm()
+        communitiesViewModel.resetForm()
         route = .auth
     }
 
@@ -186,5 +189,9 @@ final class AppCoordinator: ObservableObject {
 
     func onCommunitySelected(communityId: String) {
         print("[AppCoordinator] onCommunitySelected: \(communityId)")
+    }
+
+    func onOpenGroupChat(communityId: String) {
+        print("[AppCoordinator] onOpenGroupChat: \(communityId) — Phase 10 stub")
     }
 }

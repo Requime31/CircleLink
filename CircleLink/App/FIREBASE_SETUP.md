@@ -60,6 +60,48 @@ Fields used in Phase 2–3:
 Avatars are stored as **compressed JPEG base64** in Firestore field `avatarBase64`.
 This works on the free Spark plan — Firebase Storage is **not** required.
 
+### Communities (Phase 5)
+
+Community documents path: `communities/{communityId}`
+
+Fields:
+
+- `name`, `description`, `interestTag`, `memberCount`
+
+Member documents path: `communities/{communityId}/members/{userId}`
+
+Fields:
+
+- `joinedAt`, `role` (`member` | `admin`)
+
+`join` / `leave` update the member subcollection and increment/decrement `memberCount` atomically via batch write.
+
+### Firestore Security Rules (required for Phase 5)
+
+If the app shows **"Missing or insufficient permissions"**, Firestore rules do not allow reads on `communities` yet.
+
+**Option A — Firebase Console (fastest)**
+
+1. [Firebase Console](https://console.firebase.google.com) → your project → **Firestore Database** → **Rules**
+2. Paste the contents of `firestore.rules` from the repo root
+3. Click **Publish**
+
+**Option B — Firebase CLI**
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+Rules summary:
+
+| Path | Who | Action |
+|------|-----|--------|
+| `users/{userId}` | signed-in user | read any profile; write own profile |
+| `communities/{id}` | signed-in user | read list/detail; update `memberCount` only |
+| `communities/{id}/members/{userId}` | signed-in user | read members; create/delete **own** membership |
+
+Communities are seeded manually in Console (no client-side create in MVP).
+
 ## 6. Verify
 
 On launch, check Xcode console:
