@@ -58,7 +58,11 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.auth.uid in request.resource.data.get('participantIds', []);
 
-      allow update: if isChatParticipant(chatId);
+      // Participant can update metadata; new user can self-join via arrayUnion on participantIds.
+      allow update: if isSignedIn() && (
+        isChatParticipant(chatId)
+        || request.auth.uid in request.resource.data.get('participantIds', [])
+      );
 
       match /messages/{messageId} {
         allow read: if canAccessChat(chatId);

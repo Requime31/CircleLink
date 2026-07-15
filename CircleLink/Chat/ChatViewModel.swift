@@ -17,13 +17,42 @@ final class ChatViewModel: ObservableObject {
 
     let chatId: String
     private let chatRepository: ChatRepository
+    private let webSocketClient: WebSocketClientProtocol
     private let currentUserId: String
     private let pageSize = 30
 
-    init(chatId: String, currentUserId: String, chatRepository: ChatRepository) {
+    private var liveMessagesTask: Task<Void, Never>?
+    private var knownMessageIds = Set<String>()
+    private var knownClientMessageIds = Set<String>()
+
+    init(
+        chatId: String,
+        currentUserId: String,
+        chatRepository: ChatRepository,
+        webSocketClient: WebSocketClientProtocol
+    ) {
         self.chatId = chatId
         self.currentUserId = currentUserId
         self.chatRepository = chatRepository
+        self.webSocketClient = webSocketClient
+    }
+
+    deinit {
+        liveMessagesTask?.cancel()
+        webSocketClient.leave(chatId: chatId)
+    }
+
+    // MARK: - Lifecycle
+
+    func onAppear() {
+        webSocketClient.join(chatId: chatId)
+        startObservingLiveMessages()
+    }
+
+    func onDisappear() {
+        liveMessagesTask?.cancel()
+        liveMessagesTask = nil
+        webSocketClient.leave(chatId: chatId)
     }
 
     // MARK: - Load
@@ -39,6 +68,7 @@ final class ChatViewModel: ObservableObject {
                 before: nil
             )
             messages = mapToDisplayItems(fetched)
+            rebuildKnownIdentifiers()
             canLoadMore = fetched.count == pageSize
             loadState = .loaded
         } catch {
@@ -61,9 +91,11 @@ final class ChatViewModel: ObservableObject {
                 before: oldestDate
             )
             let olderItems = mapToDisplayItems(fetched)
-            let existingIds = Set(messages.map(\.clientMessageId))
-            let uniqueOlder = olderItems.filter { !existingIds.contains($0.clientMessageId) }
+            let uniqueOlder = olderItems.filter { item in
+                !knownMessageIds.contains(item.id) && !knownClientMessageIds.contains(item.clientMessageId)
+            }
             messages.append(contentsOf: uniqueOlder)
+            trackIdentifiers(for: uniqueOlder)
             canLoadMore = fetched.count == pageSize
         } catch {
             loadState = .error(error.localizedDescription)
@@ -92,6 +124,7 @@ final class ChatViewModel: ObservableObject {
             clientMessageId: clientMessageId
         )
         messages.insert(optimistic, at: 0)
+        trackIdentifiers(for: [optimistic])
 
         do {
             try await chatRepository.sendMessage(
@@ -205,6 +238,55 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Live Messages
+
+    private func startObservingLiveMessages() {
+        liveMessagesTask?.cancel()
+        liveMessagesTask = Task { [weak self] in
+            guard let self else { return }
+
+            for await message in self.chatRepository.observeLiveMessages(chatId: self.chatId) {
+                guard !Task.isCancelled else { break }
+                self.handleLiveMessage(message)
+            }
+        }
+    }
+
+    private func handleLiveMessage(_ message: Message) {
+        let clientMessageId = message.clientMessageId ?? message.id
+
+        if knownMessageIds.contains(message.id) {
+            return
+        }
+
+        if knownClientMessageIds.contains(clientMessageId) {
+            if let index = messages.firstIndex(where: { $0.clientMessageId == clientMessageId }) {
+                let existing = messages[index]
+                messages[index] = ChatMessageItem(
+                    message: Message(
+                        id: message.id,
+                        chatId: message.chatId,
+                        senderId: message.senderId,
+                        text: message.text ?? existing.text,
+                        imageURL: message.imageURL ?? existing.imageURL,
+                        createdAt: message.createdAt,
+                        clientMessageId: clientMessageId,
+                        status: .sent
+                    ),
+                    currentUserId: currentUserId,
+                    senderLabel: existing.senderLabel,
+                    localImageData: existing.localImageData
+                )
+                knownMessageIds.insert(message.id)
+            }
+            return
+        }
+
+        let item = ChatMessageItem(message: message, currentUserId: currentUserId)
+        messages.insert(item, at: 0)
+        trackIdentifiers(for: [item])
+    }
+
     // MARK: - Private
 
     private func mapToDisplayItems(_ messages: [Message]) -> [ChatMessageItem] {
@@ -220,6 +302,21 @@ final class ChatViewModel: ObservableObject {
         guard let index = messages.firstIndex(where: { $0.clientMessageId == clientMessageId }) else {
             return
         }
-        messages[index] = transform(messages[index])
+        let updated = transform(messages[index])
+        messages[index] = updated
+        knownMessageIds.insert(updated.id)
+        knownClientMessageIds.insert(updated.clientMessageId)
+    }
+
+    private func rebuildKnownIdentifiers() {
+        knownMessageIds = Set(messages.map(\.id))
+        knownClientMessageIds = Set(messages.map(\.clientMessageId))
+    }
+
+    private func trackIdentifiers(for items: [ChatMessageItem]) {
+        for item in items {
+            knownMessageIds.insert(item.id)
+            knownClientMessageIds.insert(item.clientMessageId)
+        }
     }
 }

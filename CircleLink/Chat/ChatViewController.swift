@@ -5,6 +5,7 @@ import UIKit
 final class ChatViewController: UIViewController {
     private let viewModel: ChatViewModel
     private var cancellables = Set<AnyCancellable>()
+    private var displayedMessages: [ChatMessageItem] = []
 
     private lazy var tableView: UITableView = {
         let table = UITableView(frame: .zero, style: .plain)
@@ -64,6 +65,12 @@ final class ChatViewController: UIViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         becomeFirstResponder()
+        viewModel.onAppear()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        viewModel.onDisappear()
     }
 
     private func setupLayout() {
@@ -80,8 +87,8 @@ final class ChatViewController: UIViewController {
     private func bindViewModel() {
         viewModel.$messages
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.tableView.reloadData()
+            .sink { [weak self] messages in
+                self?.applyMessageUpdates(messages)
             }
             .store(in: &cancellables)
 
@@ -100,6 +107,43 @@ final class ChatViewController: UIViewController {
         let alert = UIAlertController(title: "Chat Error", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
+    }
+
+    private func applyMessageUpdates(_ messages: [ChatMessageItem]) {
+        let previous = displayedMessages
+        displayedMessages = messages
+
+        guard isViewLoaded, tableView.window != nil else {
+            tableView.reloadData()
+            return
+        }
+
+        if previous.isEmpty {
+            tableView.reloadData()
+            return
+        }
+
+        if messages.count == previous.count + 1,
+           let insertedIndex = messages.firstIndex(where: { newItem in
+               !previous.contains(where: { $0.clientMessageId == newItem.clientMessageId })
+           }) {
+            tableView.insertRows(at: [IndexPath(row: insertedIndex, section: 0)], with: .none)
+            return
+        }
+
+        if messages.count == previous.count {
+            var changedIndexPaths: [IndexPath] = []
+            for index in messages.indices where messages[index] != previous[index] {
+                changedIndexPaths.append(IndexPath(row: index, section: 0))
+            }
+
+            if !changedIndexPaths.isEmpty {
+                tableView.reloadRows(at: changedIndexPaths, with: .none)
+            }
+            return
+        }
+
+        tableView.reloadData()
     }
 }
 

@@ -39,7 +39,10 @@ final class AppDependencies {
         self.communityRepository = communityRepository ?? FirestoreCommunityRepository()
         self.connectionRepository = connectionRepository ?? StubConnectionRepository()
         let resolvedImageStorage = SupabaseChatImageStorage()
-        self.chatRepository = chatRepository ?? FirestoreChatRepository(imageStorage: resolvedImageStorage)
+        self.chatRepository = chatRepository ?? FirestoreChatRepository(
+            imageStorage: resolvedImageStorage,
+            webSocketClient: resolvedWebSocketClient
+        )
         self.webSocketClient = resolvedWebSocketClient
         self.webSocketConnectionManager = webSocketConnectionManager ?? WebSocketConnectionManager(
             client: resolvedWebSocketClient,
@@ -93,7 +96,8 @@ final class AppDependencies {
         return ChatViewModel(
             chatId: chatId,
             currentUserId: currentUserId,
-            chatRepository: chatRepository
+            chatRepository: chatRepository,
+            webSocketClient: webSocketClient
         )
     }
 

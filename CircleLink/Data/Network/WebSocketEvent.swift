@@ -17,7 +17,8 @@ nonisolated enum WebSocketEvent: Codable, Equatable, Sendable {
         messageId: String,
         senderId: String,
         text: String,
-        createdAt: String
+        createdAt: String,
+        clientMessageId: String?
     )
     case error(code: String)
 
@@ -67,7 +68,8 @@ nonisolated enum WebSocketEvent: Codable, Equatable, Sendable {
                 messageId: try container.decode(String.self, forKey: .messageId),
                 senderId: try container.decode(String.self, forKey: .senderId),
                 text: try container.decode(String.self, forKey: .text),
-                createdAt: try container.decode(String.self, forKey: .createdAt)
+                createdAt: try container.decode(String.self, forKey: .createdAt),
+                clientMessageId: try container.decodeIfPresent(String.self, forKey: .clientMessageId)
             )
         case .error:
             self = .error(code: try container.decode(String.self, forKey: .code))
@@ -92,13 +94,14 @@ nonisolated enum WebSocketEvent: Codable, Equatable, Sendable {
             try container.encode(chatId, forKey: .chatId)
             try container.encode(text, forKey: .text)
             try container.encode(clientMessageId, forKey: .clientMessageId)
-        case let .messageNew(chatId, messageId, senderId, text, createdAt):
+        case let .messageNew(chatId, messageId, senderId, text, createdAt, clientMessageId):
             try container.encode(EventType.messageNew, forKey: .type)
             try container.encode(chatId, forKey: .chatId)
             try container.encode(messageId, forKey: .messageId)
             try container.encode(senderId, forKey: .senderId)
             try container.encode(text, forKey: .text)
             try container.encode(createdAt, forKey: .createdAt)
+            try container.encodeIfPresent(clientMessageId, forKey: .clientMessageId)
         case let .error(code):
             try container.encode(EventType.error, forKey: .type)
             try container.encode(code, forKey: .code)

@@ -118,12 +118,16 @@ async function handleMessage(socket, raw, ctx) {
         return;
       }
 
+      const messageId =
+        clientMessageId && typeof clientMessageId === 'string' ? clientMessageId : uuidv4();
+
       const payload = {
         type: 'message.new',
         chatId,
-        messageId: uuidv4(),
+        messageId,
         senderId: ctx.userId,
         text,
+        clientMessageId: messageId,
         createdAt: new Date().toISOString(),
       };
 

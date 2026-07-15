@@ -23,11 +23,25 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     private let chatsCollection = "chats"
     private let messagesCollection = "messages"
     private let imageStorage: ChatImageStorage
+    private let webSocketClient: WebSocketClientProtocol
 
     private var db: Firestore { Firestore.firestore() }
 
-    init(imageStorage: ChatImageStorage) {
+    private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let iso8601: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
+    init(imageStorage: ChatImageStorage, webSocketClient: WebSocketClientProtocol) {
         self.imageStorage = imageStorage
+        self.webSocketClient = webSocketClient
     }
 
     // MARK: - ChatRepository
@@ -51,7 +65,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             throw FirestoreChatError.notAuthenticated
         }
 
-        try await ensureChatExists(chatId: chatId, senderId: senderId)
+        try await ensureChatAccess(chatId: chatId, senderId: senderId)
 
         var query: Query = db.collection(chatsCollection)
             .document(chatId)
@@ -89,7 +103,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         let messageId = clientMessageId
         let createdAt = Date()
 
-        try await ensureChatExists(chatId: chatId, senderId: senderId)
+        try await ensureChatAccess(chatId: chatId, senderId: senderId)
 
         var imageURL: URL?
         if let image {
@@ -125,17 +139,63 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                 "lastMessageAt": Timestamp(date: createdAt),
                 "type": ChatType.direct.rawValue,
                 "title": "Chat",
-                "participantIds": [senderId]
+                "participantIds": FieldValue.arrayUnion([senderId])
             ],
             forDocument: chatRef,
             merge: true
         )
 
+        // Step 1: Firestore write (source of truth).
         try await batch.commit()
+
+        // Step 2: WebSocket broadcast for foreground instant delivery.
+        // Failure is non-fatal — recipient can sync via Firestore or FCM later.
+        broadcastMessage(
+            chatId: chatId,
+            text: hasText ? (trimmedText ?? "") : "Photo",
+            clientMessageId: clientMessageId
+        )
     }
 
     func observeLiveMessages(chatId: String) -> AsyncStream<Message> {
-        AsyncStream { _ in }
+        AsyncStream { continuation in
+            let observationTask = Task {
+                for await event in webSocketClient.observeEvents() {
+                    guard !Task.isCancelled else { break }
+
+                    guard case let .messageNew(
+                        eventChatId,
+                        messageId,
+                        senderId,
+                        text,
+                        createdAt,
+                        clientMessageId
+                    ) = event,
+                    eventChatId == chatId else {
+                        continue
+                    }
+
+                    let message = Message(
+                        id: messageId,
+                        chatId: chatId,
+                        senderId: senderId,
+                        text: text.isEmpty ? nil : text,
+                        imageURL: nil,
+                        createdAt: Self.parseCreatedAt(createdAt),
+                        clientMessageId: clientMessageId ?? messageId,
+                        status: .sent
+                    )
+
+                    continuation.yield(message)
+                }
+
+                continuation.finish()
+            }
+
+            continuation.onTermination = { _ in
+                observationTask.cancel()
+            }
+        }
     }
 
     func createDirectChat(with userId: String) async throws -> String {
@@ -148,17 +208,35 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
 
     // MARK: - Private
 
-    private func ensureChatExists(chatId: String, senderId: String) async throws {
+    private func broadcastMessage(chatId: String, text: String, clientMessageId: String) {
+        webSocketClient.send(
+            event: .message(
+                chatId: chatId,
+                text: text,
+                clientMessageId: clientMessageId
+            )
+        )
+    }
+
+    private static func parseCreatedAt(_ value: String) -> Date {
+        iso8601WithFractionalSeconds.date(from: value)
+            ?? iso8601.date(from: value)
+            ?? Date()
+    }
+
+    /// Ensures the chat document exists and the current user is a participant.
+    /// Uses merge + arrayUnion only — never reads the chat doc first, because
+    /// Firestore read rules deny non-participants on existing chats.
+    private func ensureChatAccess(chatId: String, senderId: String) async throws {
         let chatRef = db.collection(chatsCollection).document(chatId)
-        let snapshot = try await chatRef.getDocument()
-
-        guard !snapshot.exists else { return }
-
-        try await chatRef.setData([
-            "type": ChatType.direct.rawValue,
-            "title": "Chat",
-            "participantIds": [senderId],
-            "lastMessageAt": Timestamp(date: Date())
-        ])
+        try await chatRef.setData(
+            [
+                "type": ChatType.direct.rawValue,
+                "title": "Chat",
+                "participantIds": FieldValue.arrayUnion([senderId]),
+                "lastMessageAt": Timestamp(date: Date())
+            ],
+            merge: true
+        )
     }
 }

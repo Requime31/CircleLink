@@ -25,7 +25,13 @@ struct MainTabView: View {
                 Label("Communities", systemImage: "person.3")
             }
 
-            PlaceholderScreen(title: "Chats", systemImage: "bubble.left.and.bubble.right")
+            PlaceholderScreen(
+                title: "Chats",
+                systemImage: "bubble.left.and.bubble.right",
+                actionTitle: "Open Debug Chat",
+                action: onOpenDebugChat,
+                footnote: "Chat list arrives in Phase 8. Use Debug Chat on two devices to test live messaging."
+            )
                 .tabItem {
                     Label("Chats", systemImage: "bubble.left.and.bubble.right")
                 }

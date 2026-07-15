@@ -30,7 +30,7 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
 
     private nonisolated(unsafe) var urlSession: URLSession?
     private nonisolated(unsafe) var webSocketTask: URLSessionWebSocketTask?
-    private nonisolated(unsafe) var eventContinuation: AsyncStream<WebSocketEvent>.Continuation?
+    private nonisolated(unsafe) var eventContinuations: [UUID: AsyncStream<WebSocketEvent>.Continuation] = [:]
     private nonisolated(unsafe) var receiveTask: Task<Void, Never>?
     private nonisolated(unsafe) var reconnectTask: Task<Void, Never>?
 
@@ -112,14 +112,16 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
     }
 
     nonisolated func observeEvents() -> AsyncStream<WebSocketEvent> {
-        AsyncStream { continuation in
+        let subscriberID = UUID()
+
+        return AsyncStream { continuation in
             lock.withLock {
-                eventContinuation = continuation
+                eventContinuations[subscriberID] = continuation
             }
 
             continuation.onTermination = { [weak self] _ in
                 self?.lock.withLock {
-                    self?.eventContinuation = nil
+                    self?.eventContinuations.removeValue(forKey: subscriberID)
                 }
             }
         }
@@ -218,8 +220,10 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
             return
         }
 
-        let continuation = lock.withLock { eventContinuation }
-        continuation?.yield(event)
+        let continuations = lock.withLock { Array(eventContinuations.values) }
+        for continuation in continuations {
+            continuation.yield(event)
+        }
 
         if case let .error(code) = event, code == "auth_failed" {
             lock.withLock {
@@ -300,8 +304,10 @@ final class WebSocketClient: WebSocketClientProtocol, @unchecked Sendable {
         lock.withLock {
             _isConnected = false
             if finishStream {
-                eventContinuation?.finish()
-                eventContinuation = nil
+                for continuation in eventContinuations.values {
+                    continuation.finish()
+                }
+                eventContinuations.removeAll()
             }
         }
     }
