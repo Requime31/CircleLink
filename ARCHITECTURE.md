@@ -38,9 +38,24 @@ View → ViewModel → Repository protocol ← Data implementation
 |---|---|---|
 | **Firestore listeners** | Instant delivery while the app process is alive (chat screen open) | Foreground / process alive |
 | **Firestore reads** | History and pagination (`fetchMessages`) | Always |
-| **FCM** | Push when app is killed / background (not implemented yet) | Later |
+| **FCM** | Push when app is backgrounded / killed | Node `websocket-server` push worker → Admin Messaging |
 
-Listeners do **not** replace push. If the process is dead, delivery waits for FCM (future work).
+Listeners do **not** replace push. If the process is dead, delivery waits for FCM.
+
+### Push / deep links (Phase 9)
+
+```
+FCM tap
+  → AppDelegate (UNUserNotificationCenter)
+  → PushNotificationHandler.parse → PushDeepLink
+  → AppCoordinator.handleDeepLink
+  → Chat sheet / Connect tab
+```
+
+- Permission is requested after the first successful message send or Connect — not on launch.
+- Token stored at `users/{userId}.fcmToken` (not part of the `User` domain model).
+- **Server (Spark / no Blaze):** `websocket-server` Firestore listeners → FCM. See `websocket-server/README.md`.
+- Cloud Functions under `functions/` are **not used** (would require Blaze).
 
 ### Branch split (realtime)
 

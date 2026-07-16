@@ -1,0 +1,14 @@
+{
+  "Simulator Target Bundle": "com.roman.helloswift.CircleLink",
+  "aps": {
+    "alert": {
+      "title": "New connection request",
+      "body": "Someone wants to connect"
+    },
+    "sound": "default"
+  },
+  "type": "connection_request",
+  "requestId": "test-request",
+  "tab": "connect",
+  "targetUserId": "REPLACE_WITH_YOUR_FIREBASE_UID"
+}

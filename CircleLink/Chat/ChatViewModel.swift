@@ -19,6 +19,7 @@ final class ChatViewModel: ObservableObject {
     private let chatRepository: ChatRepository
     private let currentUserId: String
     private let pageSize = 30
+    private let onMeaningfulAction: (() async -> Void)?
 
     private var liveMessagesTask: Task<Void, Never>?
     private var knownMessageIds = Set<String>()
@@ -27,11 +28,13 @@ final class ChatViewModel: ObservableObject {
     init(
         chatId: String,
         currentUserId: String,
-        chatRepository: ChatRepository
+        chatRepository: ChatRepository,
+        onMeaningfulAction: (() async -> Void)? = nil
     ) {
         self.chatId = chatId
         self.currentUserId = currentUserId
         self.chatRepository = chatRepository
+        self.onMeaningfulAction = onMeaningfulAction
     }
 
     deinit {
@@ -150,6 +153,7 @@ final class ChatViewModel: ObservableObject {
                     localImageData: item.localImageData
                 )
             }
+            await onMeaningfulAction?()
         } catch {
             updateMessage(clientMessageId: clientMessageId) { item in
                 ChatMessageItem(
@@ -217,6 +221,7 @@ final class ChatViewModel: ObservableObject {
                     localImageData: item.localImageData
                 )
             }
+            await onMeaningfulAction?()
         } catch {
             updateMessage(clientMessageId: clientMessageId) { item in
                 ChatMessageItem(

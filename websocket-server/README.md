@@ -1,6 +1,6 @@
 # CircleLink WebSocket Server
 
-Minimal Node.js WebSocket server for CircleLink MVP (Phase 4).
+Minimal Node.js WebSocket server for CircleLink MVP (Phase 4) **+ Phase 9 FCM push worker**.
 
 ## Features
 
@@ -8,6 +8,43 @@ Minimal Node.js WebSocket server for CircleLink MVP (Phase 4).
 - Room routing: `chat:{chatId}`
 - Events: `auth`, `join`, `leave`, `message`, `message.new`, `error`
 - Broadcasts `message.new` to all participants in a chat room
+- **Phase 9:** Firestore listeners → FCM (works on **Spark**, no Cloud Functions / Blaze)
+
+## Phase 9 — Push (Firestore → FCM)
+
+Runs inside this same Node process. No Blaze plan required.
+
+```
+iOS writes Firestore
+  → this server listens (Admin SDK onSnapshot)
+  → messaging.send(FCM) to users/{uid}.fcmToken
+  → iOS shows notification / deep link
+```
+
+| Listener | When | Who gets push |
+|---|---|---|
+| `collectionGroup('messages')` | new message doc | other chat participants |
+| `connectionRequests` | new `pending` | `toUserId` |
+| `connectionRequests` | `pending` → `accepted` | `fromUserId` |
+
+Payload `data` fields match iOS `PushDeepLink`: `type`, `chatId`, `requestId`, `tab`, `targetUserId`.
+
+### Requirements
+
+1. Server process **must be running** (local or Railway). If the server is asleep, pushes are not sent.
+2. APNs Auth Key (`.p8`) uploaded in Firebase Console → Cloud Messaging (for real devices).
+3. iOS app has stored `users/{uid}.fcmToken` after notification permission.
+4. Service account used by this server must be able to use FCM + read Firestore (default Firebase Admin key is enough).
+
+### Disable push
+
+```bash
+ENABLE_PUSH=false
+```
+
+### Cold start
+
+On boot, initial Firestore snapshots are **not** turned into pushes (avoids spamming old messages). Events while the server was down are skipped until the user opens the app (Firestore sync).
 
 ## Event Protocol
 
@@ -53,6 +90,7 @@ Matches the iOS `WebSocketEvent` model (`CircleLink/Data/Network/WebSocketEvent.
 | `GOOGLE_APPLICATION_CREDENTIALS` | Alt** | Path to service account JSON file (local dev) |
 | `PORT` | No | Server port (default `8080`; Railway/Render set this automatically) |
 | `AUTH_TIMEOUT_MS` | No | Auth timeout in ms (default `10000`) |
+| `ENABLE_PUSH` | No | Firestore → FCM worker (default `true`; set `false` to disable) |
 
 \* Required when not embedded in service account JSON.  
 \** One of `FIREBASE_SERVICE_ACCOUNT` or `GOOGLE_APPLICATION_CREDENTIALS` is required for token verification.
@@ -91,8 +129,10 @@ Server listens on `ws://localhost:8080`.
 3. Add environment variables:
    - `FIREBASE_PROJECT_ID`
    - `FIREBASE_SERVICE_ACCOUNT` (paste full JSON as one line)
+   - (optional) `ENABLE_PUSH=true` — default on
 4. Railway sets `PORT` automatically
-5. Use the generated URL with `wss://` in the iOS app
+5. Keep at least one instance awake if you rely on push (sleeping dyno = no FCM)
+6. Use the generated URL with `wss://` in the iOS app (WS chat path); push worker does not need the iOS app to connect via WebSocket
 
 ### Render
 

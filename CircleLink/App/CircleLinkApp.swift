@@ -10,12 +10,20 @@ struct CircleLinkApp: App {
         FirebaseBootstrap.configureIfNeeded()
 
         let dependencies = AppDependencies()
-        _coordinator = StateObject(wrappedValue: AppCoordinator(dependencies: dependencies))
+        let coordinator = AppCoordinator(dependencies: dependencies)
+        _coordinator = StateObject(wrappedValue: coordinator)
+
+        // Attach as early as possible; if AppDelegate.shared is not ready yet,
+        // `onAppear` below is the fallback.
+        AppDelegate.shared?.attach(pushHandler: dependencies.pushNotificationHandler)
     }
 
     var body: some Scene {
         WindowGroup {
             coordinator.rootView
+                .onAppear {
+                    coordinator.attachPushHandling(to: appDelegate)
+                }
         }
     }
 }

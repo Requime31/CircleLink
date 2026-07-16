@@ -9,6 +9,7 @@ Already configured in `CircleLink.xcodeproj`:
 - `FirebaseCore`
 - `FirebaseAuth`
 - `FirebaseFirestore`
+- `FirebaseMessaging` (Phase 9 push)
 
 If packages are missing locally: **File → Packages → Resolve Package Versions**.
 
@@ -120,8 +121,35 @@ On launch, check Xcode console:
 
 Create a test user in Firebase Console → Authentication → Users → Add user.
 
+## 8. Push Notifications / FCM (Phase 9)
+
+### Xcode / Apple Developer
+
+1. Target **CircleLink** → **Signing & Capabilities** → **+ Capability** → **Push Notifications**
+2. Background Modes → enable **Remote notifications** (also set via `INFOPLIST_KEY_UIBackgroundModes`)
+3. Entitlements include `aps-environment` (`development` for Debug; Archive/Release may need `production` via automatic signing)
+4. Apple Developer → Keys → create **APNs Auth Key** (`.p8`) if you do not have one
+
+### Firebase Console
+
+1. Project Settings → **Cloud Messaging** → Apple app → upload APNs Auth Key
+2. Confirm the iOS app bundle ID matches: `com.roman.helloswift.CircleLink`
+
+### App behavior
+
+- Permission is **not** requested on launch
+- First successful **message send** or **Connect** triggers the system permission dialog
+- On grant: APNs device token → FCM → `users/{userId}.fcmToken`
+- Notification tap is routed only through `AppCoordinator` (Chat / Connect)
+
+### Cloud Functions
+
+**Not used.** CircleLink stays on the Firebase **Spark** plan. FCM is sent by the Node push worker in `websocket-server` (Firestore `onSnapshot` → Admin Messaging). See [`websocket-server/README.md`](../../websocket-server/README.md).
+
+The `functions/` folder is kept only as an unused Blaze-era reference — do not deploy it.
+
 ## Security notes (Phase 2)
 
 - Firebase ID tokens stored in **Keychain** via `KeychainTokenStorage`
 - **No tokens in UserDefaults**
-- `signOut()` clears Keychain + Firebase session
+- `signOut()` clears Keychain + Firebase session + FCM token

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @Binding var selectedTab: AppCoordinator.MainTab
+
     @ObservedObject var communitiesViewModel: CommunitiesViewModel
     @ObservedObject var chatsViewModel: ChatsViewModel
     @ObservedObject var connectViewModel: ConnectViewModel
@@ -14,7 +16,7 @@ struct MainTabView: View {
     let onSignOut: () -> Void
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             CommunitiesListView(
                 viewModel: communitiesViewModel,
                 makeDetailViewModel: makeCommunityDetailViewModel,
@@ -24,6 +26,7 @@ struct MainTabView: View {
             .tabItem {
                 Label("Communities", systemImage: "person.3")
             }
+            .tag(AppCoordinator.MainTab.communities)
 
             ChatListView(
                 viewModel: chatsViewModel,
@@ -32,20 +35,23 @@ struct MainTabView: View {
             .tabItem {
                 Label("Chats", systemImage: "bubble.left.and.bubble.right")
             }
+            .tag(AppCoordinator.MainTab.chats)
 
             ConnectView(viewModel: connectViewModel)
                 .tabItem {
                     Label("Connect", systemImage: "link")
                 }
+                .tag(AppCoordinator.MainTab.connect)
 
             ProfileView(
                 viewModel: profileViewModel,
                 onSignOut: onSignOut,
                 onOpenDebugChat: onOpenDebugChat
             )
-                .tabItem {
-                    Label("Profile", systemImage: "person.circle")
-                }
+            .tabItem {
+                Label("Profile", systemImage: "person.circle")
+            }
+            .tag(AppCoordinator.MainTab.profile)
         }
     }
 }

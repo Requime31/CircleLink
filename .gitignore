@@ -41,6 +41,10 @@ SupabaseSecrets.plist
 .env.*
 !.env.example
 
+# Node (Cloud Functions)
+functions/node_modules/
+functions/lib/
+
 # macOS
 .DS_Store
 .AppleDouble

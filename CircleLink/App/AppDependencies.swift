@@ -37,7 +37,10 @@ final class AppDependencies {
         self.chatRepository = chatRepository ?? FirestoreChatRepository(
             imageStorage: resolvedImageStorage
         )
-        self.pushNotificationHandler = pushNotificationHandler ?? PushNotificationHandler()
+        self.pushNotificationHandler = pushNotificationHandler ?? PushNotificationHandler(
+            userRepository: resolvedUserRepository,
+            authRepository: self.authRepository
+        )
     }
 
     // MARK: - Session
@@ -81,21 +84,29 @@ final class AppDependencies {
 
     func makeChatViewModel(chatId: String) -> ChatViewModel? {
         guard let currentUserId = authRepository.currentUser?.id else { return nil }
+        let pushHandler = pushNotificationHandler
         return ChatViewModel(
             chatId: chatId,
             currentUserId: currentUserId,
-            chatRepository: chatRepository
+            chatRepository: chatRepository,
+            onMeaningfulAction: {
+                await pushHandler.requestPermissionIfNeeded()
+            }
         )
     }
 
     func makeConnectViewModel(onOpenChat: @escaping (String) -> Void = { _ in }) -> ConnectViewModel {
-        ConnectViewModel(
+        let pushHandler = pushNotificationHandler
+        return ConnectViewModel(
             connectionRepository: connectionRepository,
             chatRepository: chatRepository,
             communityRepository: communityRepository,
             userRepository: userRepository,
             authRepository: authRepository,
-            onOpenChat: onOpenChat
+            onOpenChat: onOpenChat,
+            onMeaningfulAction: {
+                await pushHandler.requestPermissionIfNeeded()
+            }
         )
     }
 

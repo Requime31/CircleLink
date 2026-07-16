@@ -12,14 +12,23 @@ final class AppCoordinator: ObservableObject {
         case mainTab
     }
 
+    enum MainTab: Hashable {
+        case communities
+        case chats
+        case connect
+        case profile
+    }
+
     @Published private(set) var route: Route
     @Published private(set) var currentProfile: User?
     @Published var presentedChatId: String?
+    @Published var selectedTab: MainTab = .communities
 
     /// Temporary Phase 6 debug chat — replace with real chat creation in Phase 8.
     static let debugChatId = "debug-chat"
 
     private let dependencies: AppDependencies
+    private var pendingDeepLink: PushDeepLink?
 
     private let communitiesViewModel: CommunitiesViewModel
     private let chatsViewModel: ChatsViewModel
@@ -53,6 +62,15 @@ final class AppCoordinator: ObservableObject {
         self.communitiesViewModel = dependencies.makeCommunitiesViewModel()
         self.chatsViewModel = dependencies.makeChatsViewModel()
         self.profileViewModel = dependencies.makeProfileViewModel()
+
+        dependencies.pushNotificationHandler.onDeepLink = { [weak self] deepLink in
+            self?.handleDeepLink(deepLink)
+        }
+    }
+
+    /// Wires AppDelegate → PushNotificationHandler (call once from app entry).
+    func attachPushHandling(to appDelegate: AppDelegate) {
+        appDelegate.attach(pushHandler: dependencies.pushNotificationHandler)
     }
 
     @ViewBuilder
@@ -81,6 +99,10 @@ final class AppCoordinator: ObservableObject {
                 }
             case .mainTab:
                 MainTabView(
+                    selectedTab: Binding(
+                        get: { self.selectedTab },
+                        set: { self.selectedTab = $0 }
+                    ),
                     communitiesViewModel: communitiesViewModel,
                     chatsViewModel: chatsViewModel,
                     connectViewModel: connectViewModel,
@@ -167,6 +189,9 @@ final class AppCoordinator: ObservableObject {
 
     func handleSignedOut() {
         currentProfile = nil
+        pendingDeepLink = nil
+        presentedChatId = nil
+        selectedTab = .communities
         authViewModel.resetForm()
         ageGateViewModel.resetForm()
         profileSetupViewModel.resetForm()
@@ -178,11 +203,14 @@ final class AppCoordinator: ObservableObject {
     }
 
     func signOut() {
-        do {
-            try dependencies.authRepository.signOut()
-            handleSignedOut()
-        } catch {
-            print("[AppCoordinator] signOut failed: \(error.localizedDescription)")
+        Task { @MainActor in
+            await dependencies.pushNotificationHandler.clearTokenOnSignOut()
+            do {
+                try dependencies.authRepository.signOut()
+                handleSignedOut()
+            } catch {
+                print("[AppCoordinator] signOut failed: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -195,10 +223,59 @@ final class AppCoordinator: ObservableObject {
             route = .profileSetup
         } else {
             route = .mainTab
+            applyPendingDeepLinkIfNeeded()
+            Task { await dependencies.pushNotificationHandler.refreshTokenIfAuthorized() }
         }
     }
 
-    // MARK: - Navigation callbacks (stubs for future phases)
+    // MARK: - Deep links (push only — routed here)
+
+    func handleDeepLink(_ deepLink: PushDeepLink) {
+        guard isDeepLinkAllowed(deepLink) else { return }
+
+        guard route == .mainTab else {
+            pendingDeepLink = deepLink
+            return
+        }
+        apply(deepLink)
+    }
+
+    private func isDeepLinkAllowed(_ deepLink: PushDeepLink) -> Bool {
+        guard let targetUserId = deepLink.targetUserId else {
+            // Older payloads without targetUserId — only apply when signed in on mainTab later.
+            return dependencies.authRepository.currentUser != nil
+        }
+        return dependencies.authRepository.currentUser?.id == targetUserId
+    }
+
+    private func applyPendingDeepLinkIfNeeded() {
+        guard let pendingDeepLink else { return }
+        self.pendingDeepLink = nil
+        guard isDeepLinkAllowed(pendingDeepLink) else { return }
+        apply(pendingDeepLink)
+    }
+
+    private func apply(_ deepLink: PushDeepLink) {
+        switch deepLink.kind {
+        case .newMessage:
+            if let chatId = deepLink.chatId {
+                selectedTab = .chats
+                presentedChatId = chatId
+            } else {
+                selectedTab = .chats
+            }
+
+        case .connectionRequest:
+            selectedTab = .connect
+
+        case .connectionAccepted:
+            // Open Connect (not Chat) so we never create/mutate a chat as a side effect
+            // of a tap before `createDirectChat` has finished on the acceptor device.
+            selectedTab = .connect
+        }
+    }
+
+    // MARK: - Navigation callbacks
 
     func onChatSelected(chatId: String) {
         presentedChatId = chatId

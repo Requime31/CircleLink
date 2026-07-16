@@ -6,12 +6,23 @@ const { v4: uuidv4 } = require('uuid');
 
 const { ensureFirebase, verifyIdToken } = require('./firebase');
 const { joinRoom, leaveRoom, leaveAllRooms, broadcastToRoom } = require('./rooms');
+const { startPushListeners } = require('./push/listeners');
 
 const PORT = Number(process.env.PORT || 8080);
 const AUTH_TIMEOUT_MS = Number(process.env.AUTH_TIMEOUT_MS || 10_000);
+const ENABLE_PUSH = process.env.ENABLE_PUSH !== 'false';
 
 ensureFirebase();
 
+if (ENABLE_PUSH) {
+  try {
+    startPushListeners();
+  } catch (error) {
+    console.error('[push] failed to start listeners:', error.message || error);
+  }
+} else {
+  console.log('[push] disabled (ENABLE_PUSH=false)');
+}
 /** @typedef {import('ws').WebSocket & { userId?: string, isAuthenticated?: boolean }} AuthenticatedSocket */
 
 /**
