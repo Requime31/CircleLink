@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		485BFD2A086B739D32CA28CF /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = CB0C81E71B56E9418DB8D353 /* FirebaseMessaging */; };
 		C9A458F5E218EDD93C7E877E /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 7BDC6A25BF3786F00C95AA56 /* Supabase */; };
 		F95630FC30079F430074C843 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000100000001 /* FirebaseCore */; };
 		F95630FD30079F430074C843 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000100000002 /* FirebaseAuth */; };
@@ -34,6 +35,7 @@
 				F95630FD30079F430074C843 /* FirebaseAuth in Frameworks */,
 				F95630FC30079F430074C843 /* FirebaseCore in Frameworks */,
 				C9A458F5E218EDD93C7E877E /* Supabase in Frameworks */,
+				485BFD2A086B739D32CA28CF /* FirebaseMessaging in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -80,6 +82,7 @@
 				A1B2C3D40000000100000002 /* FirebaseAuth */,
 				A1B2C3D40000000100000003 /* FirebaseFirestore */,
 				7BDC6A25BF3786F00C95AA56 /* Supabase */,
+				CB0C81E71B56E9418DB8D353 /* FirebaseMessaging */,
 			);
 			productName = CircleLink;
 			productReference = F931237830069F9C002688D5 /* CircleLink.app */;
@@ -279,6 +282,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "CircleLink needs photo access to send images in chat.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -316,6 +320,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "CircleLink needs photo access to send images in chat.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -401,6 +406,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1B2C3D40000000100000004 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		CB0C81E71B56E9418DB8D353 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D40000000100000004 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

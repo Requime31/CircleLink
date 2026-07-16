@@ -26,7 +26,7 @@ service cloud.firestore {
         && (!chatExists(chatId) || request.auth.uid in chatDoc(chatId).data.get('participantIds', []));
     }
 
-    // Phase 2–3: user profiles
+    // Phase 2–3: user profiles (+ Phase 9 fcmToken on same doc, owner-only write)
     match /users/{userId} {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && request.auth.uid == userId;

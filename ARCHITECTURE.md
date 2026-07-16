@@ -6,10 +6,10 @@ Community messenger MVP (iOS 16+, SwiftUI + UIKit Chat).
 
 | Layer | Responsibility | Examples |
 |---|---|---|
-| **App** | Lifecycle, DI composition, root navigation, push, WebSocket lifecycle | `AppDependencies`, `AppCoordinator` |
+| **App** | Lifecycle, DI composition, root navigation, push | `AppDependencies`, `AppCoordinator` |
 | **Presentation** | UI rendering, user input | SwiftUI Views, `ChatViewController` |
 | **Domain** | Business models, repository protocols | `User`, `ChatRepository` |
-| **Data** | Firebase, WebSocket, Keychain implementations | `FirestoreChatRepository`, `WebSocketClient` |
+| **Data** | Firebase, Keychain implementations | `FirestoreChatRepository` |
 | **Shared** | Cross-cutting utilities | `ViewState`, `ImageLoader` |
 
 ## Dependency Direction
@@ -26,19 +26,45 @@ View → ViewModel → Repository protocol ← Data implementation
 
 1. **No Firebase in UI** — Views and ViewControllers never call Firestore, Auth, or Storage directly
 2. **No Keychain in UI** — token access only through `SecureTokenStorage`
-3. **No WebSocket in UI** — connection lifecycle managed in App layer; Chat uses `ChatRepository`
+3. **Chat realtime via repository** — screens call `ChatRepository.observeLiveMessages`; they never attach Firestore listeners themselves
 4. **Inject dependencies** — no `Firestore.firestore()` inside screens
 5. **Domain stays pure** — Domain imports only `Foundation` (no Firebase, UIKit, SwiftUI)
-6. **WebSocket reconnect** — handled outside UI layer (App / Data)
-7. **Firestore first** — write to Firestore (source of truth), then WebSocket broadcast
+6. **Single source of truth for messages** — Firestore documents only (no hybrid WebSocket + Firestore delivery for the same messages)
+7. **Every listener has a matching remove** — `addSnapshotListener` registration is removed when the `AsyncStream` terminates
 
-## Real-Time Split
+## Real-Time Model
 
 | Channel | Role | When |
 |---|---|---|
-| **Firestore** | Persistence, history, offline sync | Always |
-| **WebSocket** | Instant delivery | Foreground only |
-| **FCM** | Push notifications | Background |
+| **Firestore listeners** | Instant delivery while the app process is alive (chat screen open) | Foreground / process alive |
+| **Firestore reads** | History and pagination (`fetchMessages`) | Always |
+| **FCM** | Push when app is backgrounded / killed | Node `websocket-server` push worker → Admin Messaging |
+
+Listeners do **not** replace push. If the process is dead, delivery waits for FCM.
+
+### Push / deep links (Phase 9)
+
+```
+FCM tap
+  → AppDelegate (UNUserNotificationCenter)
+  → PushNotificationHandler.parse → PushDeepLink
+  → AppCoordinator.handleDeepLink
+  → Chat sheet / Connect tab
+```
+
+- Permission is requested when the user reaches the main tabs after auth / onboarding — not on cold launch.
+- Token stored at `users/{userId}.fcmToken` (not part of the `User` domain model).
+- **Server (Spark / no Blaze):** `websocket-server` Firestore listeners → FCM. See `websocket-server/README.md`.
+- Cloud Functions under `functions/` are **not used** (would require Blaze).
+
+### Branch split (realtime)
+
+| Branch | Realtime path |
+|---|---|
+| **`websocketlocal`** | WebSocket + local/Railway Node server (frozen pre-migration baseline) |
+| **`firebaselisteners`** | Firestore `addSnapshotListener` on `chats/{chatId}/messages` only |
+
+WebSocket Swift files / `websocket-server/` may still exist in the tree on `firebaselisteners` but are **unwired** from chat. Active WebSocket chat lives on `websocketlocal`.
 
 ## Project Structure
 
@@ -47,7 +73,7 @@ App/           — AppDelegate, AppDependencies, AppCoordinator
 Features/      — Auth, Profile, Communities, Connect, ChatList (SwiftUI)
 Chat/          — UIKit chat module (isolated)
 Domain/        — Models, Repository protocols
-Data/          — Firebase, Network, Keychain
+Data/          — Firebase, Network (legacy WS unused on firebaselisteners), Keychain
 Shared/        — ViewState, helpers
 Tests/         — ViewModel and Repository tests
 ```
@@ -68,14 +94,27 @@ All UI updates happen on `@MainActor`.
 
 ```
 User taps Send
-  → ChatViewController
+  → ChatViewController / ChatView
   → ChatViewModel.send(text:)
   → optimistic UI (MessageStatus.sending)
   → ChatRepository.sendMessage()
-      → Firestore write
-      → WebSocket broadcast
+      → optional Supabase image upload
+      → Firestore batch write
   → update status: sent / failed
 ```
+
+## Data Flow Example (Receive Live Message)
+
+```
+Peer writes to Firestore
+  → addSnapshotListener on chats/{chatId}/messages
+  → DocumentChange (.added / .modified)
+  → AsyncStream<Message>
+  → ChatViewModel.handleLiveMessage (dedup by id + clientMessageId)
+  → UI update
+```
+
+Observation starts in `ChatViewModel.onAppear` and stops in `onDisappear` / `deinit` (cancels Task → stream termination → `ListenerRegistration.remove()`).
 
 ## Testing
 

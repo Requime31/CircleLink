@@ -80,4 +80,35 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
             "ageConfirmedAt": Timestamp(date: Date())
         ])
     }
+
+    func updateFCMToken(_ token: String) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw FirestoreUserError.notAuthenticated
+        }
+
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        try await db.collection(usersCollection).document(userId).setData(
+            [
+                "fcmToken": trimmed,
+                "fcmTokenUpdatedAt": Timestamp(date: Date())
+            ],
+            merge: true
+        )
+    }
+
+    func clearFCMToken() async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw FirestoreUserError.notAuthenticated
+        }
+
+        try await db.collection(usersCollection).document(userId).setData(
+            [
+                "fcmToken": FieldValue.delete(),
+                "fcmTokenUpdatedAt": FieldValue.delete()
+            ],
+            merge: true
+        )
+    }
 }
