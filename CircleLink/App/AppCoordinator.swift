@@ -23,8 +23,11 @@ final class AppCoordinator: ObservableObject {
 
     private let communitiesViewModel: CommunitiesViewModel
     private let chatsViewModel: ChatsViewModel
-    private let connectViewModel: ConnectViewModel
     private let profileViewModel: ProfileViewModel
+
+    private lazy var connectViewModel: ConnectViewModel = dependencies.makeConnectViewModel { [weak self] chatId in
+        self?.onChatSelected(chatId: chatId)
+    }
 
     private lazy var authViewModel = dependencies.makeAuthViewModel { [weak self] user in
         self?.handleAuthenticated(user: user)
@@ -49,7 +52,6 @@ final class AppCoordinator: ObservableObject {
 
         self.communitiesViewModel = dependencies.makeCommunitiesViewModel()
         self.chatsViewModel = dependencies.makeChatsViewModel()
-        self.connectViewModel = dependencies.makeConnectViewModel()
         self.profileViewModel = dependencies.makeProfileViewModel()
     }
 
@@ -104,7 +106,7 @@ final class AppCoordinator: ObservableObject {
         }
         .sheet(isPresented: Binding(
             get: { self.presentedChatId != nil },
-            set: { if !$0 { self.presentedChatId = nil } }
+            set: { if !$0 { self.dismissChat() } }
         )) {
             if let chatId = self.presentedChatId,
                let chatViewModel = self.dependencies.makeChatViewModel(chatId: chatId) {
@@ -114,7 +116,7 @@ final class AppCoordinator: ObservableObject {
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
                                 Button("Close") {
-                                    self.presentedChatId = nil
+                                    self.dismissChat()
                                 }
                             }
                         }
@@ -178,6 +180,8 @@ final class AppCoordinator: ObservableObject {
         profileSetupViewModel.resetForm()
         profileViewModel.resetForm()
         communitiesViewModel.resetForm()
+        chatsViewModel.resetForm()
+        connectViewModel.resetForm()
         route = .auth
     }
 
@@ -211,6 +215,11 @@ final class AppCoordinator: ObservableObject {
 
     func onChatSelected(chatId: String) {
         presentedChatId = chatId
+    }
+
+    func dismissChat() {
+        presentedChatId = nil
+        Task { await chatsViewModel.loadChats() }
     }
 
     func onCommunitySelected(communityId: String) {

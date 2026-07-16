@@ -7,4 +7,7 @@ struct ChatSummary: Codable, Equatable, Sendable, Identifiable {
     var lastMessageText: String?
     var lastMessageAt: Date?
     var unreadCount: Int
+    /// Peer avatar for direct chats (resolved at fetch time).
+    var avatarURL: URL?
+    var avatarBase64: String?
 }

@@ -7,5 +7,7 @@ final class StubConnectionRepository: ConnectionRepository, @unchecked Sendable 
 
     func fetchIncomingRequests() async throws -> [ConnectionRequest] { [] }
 
+    func fetchMatchedConnections() async throws -> [ConnectionRequest] { [] }
+
     func respond(to requestId: String, accept: Bool) async throws {}
 }

@@ -37,7 +37,7 @@ final class AppDependencies {
             appleSignInPresenter: AppleSignInPresenter()
         )
         self.communityRepository = communityRepository ?? FirestoreCommunityRepository()
-        self.connectionRepository = connectionRepository ?? StubConnectionRepository()
+        self.connectionRepository = connectionRepository ?? FirestoreConnectionRepository()
         let resolvedImageStorage = SupabaseChatImageStorage()
         self.chatRepository = chatRepository ?? FirestoreChatRepository(
             imageStorage: resolvedImageStorage,
@@ -101,8 +101,15 @@ final class AppDependencies {
         )
     }
 
-    func makeConnectViewModel() -> ConnectViewModel {
-        ConnectViewModel(connectionRepository: connectionRepository)
+    func makeConnectViewModel(onOpenChat: @escaping (String) -> Void = { _ in }) -> ConnectViewModel {
+        ConnectViewModel(
+            connectionRepository: connectionRepository,
+            chatRepository: chatRepository,
+            communityRepository: communityRepository,
+            userRepository: userRepository,
+            authRepository: authRepository,
+            onOpenChat: onOpenChat
+        )
     }
 
     func makeProfileViewModel(onProfileSaved: ((User) -> Void)? = nil) -> ProfileViewModel {

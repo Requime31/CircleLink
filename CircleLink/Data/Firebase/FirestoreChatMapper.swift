@@ -47,17 +47,42 @@ enum FirestoreChatMapper {
         return data
     }
 
-    static func chatSummary(from document: DocumentSnapshot) throws -> ChatSummary {
+    static func chatSummary(
+        from document: DocumentSnapshot,
+        titleOverride: String? = nil,
+        avatarURL: URL? = nil,
+        avatarBase64: String? = nil
+    ) throws -> ChatSummary {
         let data = document.data() ?? [:]
         let typeRaw = data["type"] as? String ?? ChatType.direct.rawValue
 
         return ChatSummary(
             id: document.documentID,
             type: ChatType(rawValue: typeRaw) ?? .direct,
-            title: data["title"] as? String ?? "Chat",
+            title: titleOverride ?? data["title"] as? String ?? "Chat",
             lastMessageText: data["lastMessageText"] as? String,
             lastMessageAt: (data["lastMessageAt"] as? Timestamp)?.dateValue(),
-            unreadCount: data["unreadCount"] as? Int ?? 0
+            unreadCount: data["unreadCount"] as? Int ?? 0,
+            avatarURL: avatarURL,
+            avatarBase64: avatarBase64
         )
+    }
+
+    static func chatRefData(
+        lastMessageText: String?,
+        lastMessageAt: Date
+    ) -> [String: Any] {
+        [
+            "lastMessageText": lastMessageText as Any? ?? NSNull(),
+            "lastMessageAt": Timestamp(date: lastMessageAt)
+        ]
+    }
+
+    static func directChatId(userIdA: String, userIdB: String) -> String {
+        [userIdA, userIdB].sorted().joined(separator: "_")
+    }
+
+    static func participantIds(from data: [String: Any]) -> [String] {
+        data["participantIds"] as? [String] ?? []
     }
 }
