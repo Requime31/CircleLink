@@ -83,13 +83,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 // MARK: - UNUserNotificationCenterDelegate
 
 extension AppDelegate: UNUserNotificationCenterDelegate {
-    /// Foreground presentation — show banner so user can tap into deep link.
+    /// App is open — suppress the system banner (messenger UX).
+    /// Open chat screens still update via Firestore live listeners.
+    /// Chat list / Connect stay pull-to-refresh until the user switches tabs.
+    /// Background / killed delivery still shows a normal notification.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound, .badge])
+        completionHandler([])
     }
 
     /// User tapped a notification — parse payload and forward to AppCoordinator.

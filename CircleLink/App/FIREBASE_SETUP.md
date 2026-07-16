@@ -137,8 +137,7 @@ Create a test user in Firebase Console → Authentication → Users → Add user
 
 ### App behavior
 
-- Permission is **not** requested on launch
-- First successful **message send** or **Connect** triggers the system permission dialog
+- Permission is requested when the user reaches **main tabs** after sign-in / age gate / profile setup (not on cold launch)
 - On grant: APNs device token → FCM → `users/{userId}.fcmToken`
 - Notification tap is routed only through `AppCoordinator` (Chat / Connect)
 

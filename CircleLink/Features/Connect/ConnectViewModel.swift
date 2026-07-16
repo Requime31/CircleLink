@@ -36,7 +36,6 @@ final class ConnectViewModel: ObservableObject {
     private let userRepository: UserRepository
     private let authRepository: AuthRepository
     private let onOpenChat: (String) -> Void
-    private let onMeaningfulAction: (() async -> Void)?
 
     init(
         connectionRepository: ConnectionRepository,
@@ -44,8 +43,7 @@ final class ConnectViewModel: ObservableObject {
         communityRepository: CommunityRepository,
         userRepository: UserRepository,
         authRepository: AuthRepository,
-        onOpenChat: @escaping (String) -> Void,
-        onMeaningfulAction: (() async -> Void)? = nil
+        onOpenChat: @escaping (String) -> Void
     ) {
         self.connectionRepository = connectionRepository
         self.chatRepository = chatRepository
@@ -53,7 +51,6 @@ final class ConnectViewModel: ObservableObject {
         self.userRepository = userRepository
         self.authRepository = authRepository
         self.onOpenChat = onOpenChat
-        self.onMeaningfulAction = onMeaningfulAction
     }
 
     func load() async {
@@ -83,7 +80,6 @@ final class ConnectViewModel: ObservableObject {
         do {
             try await connectionRepository.sendConnect(to: userId, in: communityId)
             await loadCandidates(communityId: communityId)
-            await onMeaningfulAction?()
         } catch {
             actionErrorMessage = error.localizedDescription
         }
@@ -97,7 +93,6 @@ final class ConnectViewModel: ObservableObject {
 
         do {
             try await connectionRepository.respond(to: requestId, accept: true)
-            await onMeaningfulAction?()
         } catch {
             actionErrorMessage = error.localizedDescription
             respondingRequestId = nil

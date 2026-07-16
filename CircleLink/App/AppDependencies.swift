@@ -84,29 +84,21 @@ final class AppDependencies {
 
     func makeChatViewModel(chatId: String) -> ChatViewModel? {
         guard let currentUserId = authRepository.currentUser?.id else { return nil }
-        let pushHandler = pushNotificationHandler
         return ChatViewModel(
             chatId: chatId,
             currentUserId: currentUserId,
-            chatRepository: chatRepository,
-            onMeaningfulAction: {
-                await pushHandler.requestPermissionIfNeeded()
-            }
+            chatRepository: chatRepository
         )
     }
 
     func makeConnectViewModel(onOpenChat: @escaping (String) -> Void = { _ in }) -> ConnectViewModel {
-        let pushHandler = pushNotificationHandler
-        return ConnectViewModel(
+        ConnectViewModel(
             connectionRepository: connectionRepository,
             chatRepository: chatRepository,
             communityRepository: communityRepository,
             userRepository: userRepository,
             authRepository: authRepository,
-            onOpenChat: onOpenChat,
-            onMeaningfulAction: {
-                await pushHandler.requestPermissionIfNeeded()
-            }
+            onOpenChat: onOpenChat
         )
     }
 

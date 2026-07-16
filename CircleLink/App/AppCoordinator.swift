@@ -224,7 +224,8 @@ final class AppCoordinator: ObservableObject {
         } else {
             route = .mainTab
             applyPendingDeepLinkIfNeeded()
-            Task { await dependencies.pushNotificationHandler.refreshTokenIfAuthorized() }
+            // Permission after auth + onboarding — not on cold launch, not buried in Send/Connect.
+            Task { await dependencies.pushNotificationHandler.requestPermissionIfNeeded() }
         }
     }
 

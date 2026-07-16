@@ -32,9 +32,10 @@ Payload `data` fields match iOS `PushDeepLink`: `type`, `chatId`, `requestId`, `
 ### Requirements
 
 1. Server process **must be running** (local or Railway). If the server is asleep, pushes are not sent.
-2. APNs Auth Key (`.p8`) uploaded in Firebase Console → Cloud Messaging (for real devices).
-3. iOS app has stored `users/{uid}.fcmToken` after notification permission.
-4. Service account used by this server must be able to use FCM + read Firestore (default Firebase Admin key is enough).
+2. Run **one instance** of this service for push (or you may get duplicate notifications).
+3. APNs Auth Key (`.p8`) uploaded in Firebase Console → Cloud Messaging (for real devices).
+4. iOS app has stored `users/{uid}.fcmToken` after notification permission.
+5. Service account used by this server must be able to use FCM + read Firestore (default Firebase Admin key is enough).
 
 ### Disable push
 

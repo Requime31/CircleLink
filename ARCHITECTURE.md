@@ -52,7 +52,7 @@ FCM tap
   → Chat sheet / Connect tab
 ```
 
-- Permission is requested after the first successful message send or Connect — not on launch.
+- Permission is requested when the user reaches the main tabs after auth / onboarding — not on cold launch.
 - Token stored at `users/{userId}.fcmToken` (not part of the `User` domain model).
 - **Server (Spark / no Blaze):** `websocket-server` Firestore listeners → FCM. See `websocket-server/README.md`.
 - Cloud Functions under `functions/` are **not used** (would require Blaze).

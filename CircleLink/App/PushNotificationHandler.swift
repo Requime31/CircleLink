@@ -35,23 +35,39 @@ final class PushNotificationHandler: NSObject {
     // MARK: - Permission (meaningful moment only)
 
     /// Requests notification permission once, after a meaningful user action.
-    /// Safe to call repeatedly — no-ops after a completed request attempt.
+    /// Uses system `authorizationStatus` as source of truth (not only UserDefaults).
     func requestPermissionIfNeeded() async {
-        if defaults.bool(forKey: Self.didRequestPermissionKey) {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            defaults.set(true, forKey: Self.didRequestPermissionKey)
             await refreshTokenIfAuthorized()
             return
+
+        case .denied:
+            // iOS will not show the dialog again until the user enables it in Settings.
+            defaults.set(true, forKey: Self.didRequestPermissionKey)
+            print("[Push] notification permission denied — enable in Settings → CircleLink")
+            return
+
+        case .notDetermined:
+            break
+
+        @unknown default:
+            break
         }
 
         do {
+            print("[Push] requesting notification permission…")
             let granted = try await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .badge, .sound])
-            // Persist only after the system prompt completed (success path).
             defaults.set(true, forKey: Self.didRequestPermissionKey)
+            print("[Push] permission granted=\(granted)")
             guard granted else { return }
             registerForRemoteNotifications()
             await uploadCurrentFCMToken()
         } catch {
-            // Do not set the flag — allow a later meaningful action to retry.
             print("[Push] requestAuthorization failed: \(error.localizedDescription)")
         }
     }
