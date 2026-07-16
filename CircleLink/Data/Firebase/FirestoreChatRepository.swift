@@ -6,6 +6,8 @@ enum FirestoreChatError: LocalizedError {
     case notAuthenticated
     case missingTextAndImage
     case uploadFailed
+    case invalidPeer
+    case chatNotFound
 
     var errorDescription: String? {
         switch self {
@@ -15,6 +17,10 @@ enum FirestoreChatError: LocalizedError {
             return "Message must include text or an image."
         case .uploadFailed:
             return "Failed to upload image."
+        case .invalidPeer:
+            return "Cannot create a chat with yourself."
+        case .chatNotFound:
+            return "Chat could not be found."
         }
     }
 }
@@ -22,6 +28,8 @@ enum FirestoreChatError: LocalizedError {
 final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     private let chatsCollection = "chats"
     private let messagesCollection = "messages"
+    private let usersCollection = "users"
+    private let chatRefsCollection = "chatRefs"
     private let imageStorage: ChatImageStorage
     private let webSocketClient: WebSocketClientProtocol
 
@@ -51,13 +59,60 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             throw FirestoreChatError.notAuthenticated
         }
 
-        let snapshot = try await db.collection(chatsCollection)
-            .whereField("participantIds", arrayContains: userId)
+        let refsSnapshot = try await db.collection(usersCollection)
+            .document(userId)
+            .collection(chatRefsCollection)
             .order(by: "lastMessageAt", descending: true)
             .limit(to: 50)
             .getDocuments()
 
-        return try snapshot.documents.map { try FirestoreChatMapper.chatSummary(from: $0) }
+        var summaries: [ChatSummary] = []
+        summaries.reserveCapacity(refsSnapshot.documents.count)
+
+        for refDoc in refsSnapshot.documents {
+            let chatId = refDoc.documentID
+            let chatDoc = try await db.collection(chatsCollection).document(chatId).getDocument()
+            guard chatDoc.exists else { continue }
+
+            let data = chatDoc.data() ?? [:]
+            let typeRaw = data["type"] as? String ?? ChatType.direct.rawValue
+            let type = ChatType(rawValue: typeRaw) ?? .direct
+            let participants = FirestoreChatMapper.participantIds(from: data)
+
+            var titleOverride: String?
+            var avatarURL: URL?
+            var avatarBase64: String?
+
+            if type == .direct,
+               let peerId = participants.first(where: { $0 != userId }),
+               let peer = try await fetchUser(userId: peerId) {
+                titleOverride = peer.displayName.isEmpty ? "Chat" : peer.displayName
+                avatarURL = peer.avatarURL
+                avatarBase64 = peer.avatarBase64
+            }
+
+            var summary = try FirestoreChatMapper.chatSummary(
+                from: chatDoc,
+                titleOverride: titleOverride,
+                avatarURL: avatarURL,
+                avatarBase64: avatarBase64
+            )
+
+            // Prefer ref timestamps when chat doc is missing lastMessageAt.
+            let refData = refDoc.data()
+            if summary.lastMessageAt == nil {
+                summary.lastMessageAt = (refData["lastMessageAt"] as? Timestamp)?.dateValue()
+            }
+            if summary.lastMessageText == nil {
+                summary.lastMessageText = refData["lastMessageText"] as? String
+            }
+
+            summaries.append(summary)
+        }
+
+        return summaries.sorted {
+            ($0.lastMessageAt ?? .distantPast) > ($1.lastMessageAt ?? .distantPast)
+        }
     }
 
     func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
@@ -129,6 +184,10 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         )
 
         let previewText = hasText ? trimmedText : "Photo"
+
+        // Ensure participant list is known before updating peer chatRefs (security rules).
+        let participantIds = try await resolveParticipantIds(chatId: chatId, fallback: [senderId])
+
         let batch = db.batch()
         batch.setData(data, forDocument: messageRef)
 
@@ -144,6 +203,18 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             forDocument: chatRef,
             merge: true
         )
+
+        let refPayload = FirestoreChatMapper.chatRefData(
+            lastMessageText: previewText,
+            lastMessageAt: createdAt
+        )
+        for participantId in participantIds {
+            let userChatRef = db.collection(usersCollection)
+                .document(participantId)
+                .collection(chatRefsCollection)
+                .document(chatId)
+            batch.setData(refPayload, forDocument: userChatRef, merge: true)
+        }
 
         // Step 1: Firestore write (source of truth).
         try await batch.commit()
@@ -199,7 +270,60 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     }
 
     func createDirectChat(with userId: String) async throws -> String {
-        "stub-direct-\(userId)"
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            throw FirestoreChatError.notAuthenticated
+        }
+
+        guard currentUserId != userId else {
+            throw FirestoreChatError.invalidPeer
+        }
+
+        let chatId = FirestoreChatMapper.directChatId(userIdA: currentUserId, userIdB: userId)
+        let chatRef = db.collection(chatsCollection).document(chatId)
+        let existing = try await chatRef.getDocument()
+
+        if existing.exists {
+            try await ensureChatRefsExist(
+                chatId: chatId,
+                participantIds: [currentUserId, userId],
+                lastMessageText: existing.data()?["lastMessageText"] as? String,
+                lastMessageAt: (existing.data()?["lastMessageAt"] as? Timestamp)?.dateValue() ?? Date()
+            )
+            return chatId
+        }
+
+        let peer = try await fetchUser(userId: userId)
+        let peerName = peer?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let title = peerName.isEmpty ? "Chat" : peerName
+        let now = Date()
+
+        // Step 1: write chat first so security rules can see participantIds
+        // when we write the peer's chatRef in step 2.
+        try await chatRef.setData(
+            [
+                "type": ChatType.direct.rawValue,
+                "title": title,
+                "participantIds": [currentUserId, userId],
+                "lastMessageText": NSNull(),
+                "lastMessageAt": Timestamp(date: now),
+                "unreadCount": 0
+            ],
+            merge: true
+        )
+
+        // Step 2: mirror refs for both participants (needed for chat list).
+        let batch = db.batch()
+        let refPayload = FirestoreChatMapper.chatRefData(lastMessageText: nil, lastMessageAt: now)
+        for participantId in [currentUserId, userId] {
+            let userChatRef = db.collection(usersCollection)
+                .document(participantId)
+                .collection(chatRefsCollection)
+                .document(chatId)
+            batch.setData(refPayload, forDocument: userChatRef, merge: true)
+        }
+
+        try await batch.commit()
+        return chatId
     }
 
     func createGroupChat(communityId: String, participantIds: [String]) async throws -> String {
@@ -238,5 +362,47 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             ],
             merge: true
         )
+
+        let ref = db.collection(usersCollection)
+            .document(senderId)
+            .collection(chatRefsCollection)
+            .document(chatId)
+        try await ref.setData(
+            FirestoreChatMapper.chatRefData(lastMessageText: nil, lastMessageAt: Date()),
+            merge: true
+        )
+    }
+
+    private func fetchUser(userId: String) async throws -> User? {
+        let document = try await db.collection(usersCollection).document(userId).getDocument()
+        guard document.exists else { return nil }
+        return try FirestoreUserMapper.user(from: document)
+    }
+
+    private func resolveParticipantIds(chatId: String, fallback: [String]) async throws -> [String] {
+        let chatDoc = try await db.collection(chatsCollection).document(chatId).getDocument()
+        let ids = FirestoreChatMapper.participantIds(from: chatDoc.data() ?? [:])
+        return ids.isEmpty ? fallback : ids
+    }
+
+    private func ensureChatRefsExist(
+        chatId: String,
+        participantIds: [String],
+        lastMessageText: String?,
+        lastMessageAt: Date
+    ) async throws {
+        let batch = db.batch()
+        let payload = FirestoreChatMapper.chatRefData(
+            lastMessageText: lastMessageText,
+            lastMessageAt: lastMessageAt
+        )
+        for participantId in participantIds {
+            let ref = db.collection(usersCollection)
+                .document(participantId)
+                .collection(chatRefsCollection)
+                .document(chatId)
+            batch.setData(payload, forDocument: ref, merge: true)
+        }
+        try await batch.commit()
     }
 }

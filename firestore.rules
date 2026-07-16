@@ -32,8 +32,18 @@ service cloud.firestore {
       allow create, update: if isSignedIn() && request.auth.uid == userId;
 
       // Phase 8: per-user chat references
+      // Owner always; a chat participant may write another participant's ref
+      // (needed so createDirectChat / sendMessage can batch-update both sides).
       match /chatRefs/{chatId} {
-        allow read, write: if isSignedIn() && request.auth.uid == userId;
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow write: if isSignedIn() && (
+          request.auth.uid == userId
+          || (
+            chatExists(chatId)
+            && request.auth.uid in chatDoc(chatId).data.get('participantIds', [])
+            && userId in chatDoc(chatId).data.get('participantIds', [])
+          )
+        );
       }
     }
 
@@ -73,6 +83,51 @@ service cloud.firestore {
 
         allow update, delete: if false;
       }
+    }
+
+    // Phase 8: connection / matching requests
+    // Document ID == pairKey (sorted uids) so duplicates cannot be created.
+    match /connectionRequests/{requestId} {
+      // resource == null: allow get of missing docs (needed for create transactions).
+      allow get: if isSignedIn() && (
+        resource == null
+        || request.auth.uid == resource.data.fromUserId
+        || request.auth.uid == resource.data.toUserId
+      );
+
+      allow list: if isSignedIn() && (
+        request.auth.uid == resource.data.fromUserId
+        || request.auth.uid == resource.data.toUserId
+      );
+
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.fromUserId
+        && request.resource.data.status == 'pending'
+        && request.resource.data.fromUserId != request.resource.data.toUserId
+        && request.resource.data.pairKey == requestId
+        && request.resource.data.keys().hasAll([
+          'fromUserId', 'toUserId', 'communityId', 'status', 'createdAt', 'pairKey'
+        ]);
+
+      allow update: if isSignedIn() && (
+        // Recipient accepts or declines a pending request.
+        (
+          request.auth.uid == resource.data.toUserId
+          && resource.data.status == 'pending'
+          && request.resource.data.status in ['accepted', 'declined']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        )
+        // Either party may reopen a declined request as a new pending connect.
+        || (
+          resource.data.status == 'declined'
+          && request.auth.uid == request.resource.data.fromUserId
+          && request.resource.data.status == 'pending'
+          && request.resource.data.fromUserId != request.resource.data.toUserId
+          && request.resource.data.pairKey == requestId
+        )
+      );
+
+      allow delete: if false;
     }
   }
 }

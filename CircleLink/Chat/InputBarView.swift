@@ -65,11 +65,6 @@ final class InputBarView: UIView {
         CGSize(width: UIView.noIntrinsicMetric, height: 56)
     }
 
-    @discardableResult
-    override func becomeFirstResponder() -> Bool {
-        textField.becomeFirstResponder()
-    }
-
     func clearText() {
         textField.text = nil
     }

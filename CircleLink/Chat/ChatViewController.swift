@@ -6,6 +6,7 @@ final class ChatViewController: UIViewController {
     private let viewModel: ChatViewModel
     private var cancellables = Set<AnyCancellable>()
     private var displayedMessages: [ChatMessageItem] = []
+    private var keyboardBottomConstraint: NSLayoutConstraint?
 
     private lazy var tableView: UITableView = {
         let table = UITableView(frame: .zero, style: .plain)
@@ -16,12 +17,18 @@ final class ChatViewController: UIViewController {
         table.dataSource = self
         table.delegate = self
         table.register(MessageCell.self, forCellReuseIdentifier: MessageCell.reuseIdentifier)
+        // Inverted chat list: newest messages near the input bar.
         table.transform = CGAffineTransform(scaleX: 1, y: -1)
-        table.contentInsetAdjustmentBehavior = .always
+        // Manual insets — automatic adjustment fights inverted transform + SwiftUI sheet.
+        table.contentInsetAdjustmentBehavior = .never
         return table
     }()
 
-    private lazy var inputBar = InputBarView()
+    private lazy var inputBar: InputBarView = {
+        let bar = InputBarView()
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        return bar
+    }()
 
     private lazy var imagePicker: UIImagePickerController = {
         let picker = UIImagePickerController()
@@ -47,6 +54,7 @@ final class ChatViewController: UIViewController {
         view.backgroundColor = ChatAppearance.canvas
         setupLayout()
         bindViewModel()
+        observeKeyboard()
         inputBar.delegate = self
 
         Task {
@@ -54,17 +62,8 @@ final class ChatViewController: UIViewController {
         }
     }
 
-    override var inputAccessoryView: UIView? {
-        inputBar
-    }
-
-    override var canBecomeFirstResponder: Bool {
-        true
-    }
-
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        becomeFirstResponder()
         viewModel.onAppear()
     }
 
@@ -73,15 +72,68 @@ final class ChatViewController: UIViewController {
         viewModel.onDisappear()
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     private func setupLayout() {
         view.addSubview(tableView)
+        view.addSubview(inputBar)
+
+        let bottomConstraint = inputBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+        keyboardBottomConstraint = bottomConstraint
 
         NSLayoutConstraint.activate([
             tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+            tableView.bottomAnchor.constraint(equalTo: inputBar.topAnchor),
+
+            inputBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            inputBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            inputBar.heightAnchor.constraint(equalToConstant: 56),
+            bottomConstraint
         ])
+    }
+
+    private func observeKeyboard() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillChangeFrame(_:)),
+            name: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillHide(_:)),
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+    }
+
+    @objc private func keyboardWillChangeFrame(_ notification: Notification) {
+        guard
+            let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+            let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double
+        else {
+            return
+        }
+
+        let keyboardFrameInView = view.convert(frame, from: nil)
+        let overlap = max(0, view.bounds.maxY - keyboardFrameInView.minY - view.safeAreaInsets.bottom)
+
+        keyboardBottomConstraint?.constant = -overlap
+        UIView.animate(withDuration: duration) {
+            self.view.layoutIfNeeded()
+        }
+    }
+
+    @objc private func keyboardWillHide(_ notification: Notification) {
+        let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+        keyboardBottomConstraint?.constant = 0
+        UIView.animate(withDuration: duration) {
+            self.view.layoutIfNeeded()
+        }
     }
 
     private func bindViewModel() {

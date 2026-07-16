@@ -25,18 +25,15 @@ struct MainTabView: View {
                 Label("Communities", systemImage: "person.3")
             }
 
-            PlaceholderScreen(
-                title: "Chats",
-                systemImage: "bubble.left.and.bubble.right",
-                actionTitle: "Open Debug Chat",
-                action: onOpenDebugChat,
-                footnote: "Chat list arrives in Phase 8. Use Debug Chat on two devices to test live messaging."
+            ChatListView(
+                viewModel: chatsViewModel,
+                onChatSelected: onChatSelected
             )
-                .tabItem {
-                    Label("Chats", systemImage: "bubble.left.and.bubble.right")
-                }
+            .tabItem {
+                Label("Chats", systemImage: "bubble.left.and.bubble.right")
+            }
 
-            PlaceholderScreen(title: "Connect", systemImage: "link")
+            ConnectView(viewModel: connectViewModel)
                 .tabItem {
                     Label("Connect", systemImage: "link")
                 }
