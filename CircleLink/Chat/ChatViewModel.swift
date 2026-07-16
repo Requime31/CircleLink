@@ -17,7 +17,6 @@ final class ChatViewModel: ObservableObject {
 
     let chatId: String
     private let chatRepository: ChatRepository
-    private let webSocketClient: WebSocketClientProtocol
     private let currentUserId: String
     private let pageSize = 30
 
@@ -28,31 +27,31 @@ final class ChatViewModel: ObservableObject {
     init(
         chatId: String,
         currentUserId: String,
-        chatRepository: ChatRepository,
-        webSocketClient: WebSocketClientProtocol
+        chatRepository: ChatRepository
     ) {
         self.chatId = chatId
         self.currentUserId = currentUserId
         self.chatRepository = chatRepository
-        self.webSocketClient = webSocketClient
     }
 
     deinit {
+        // Cancelling terminates observeLiveMessages AsyncStream → ListenerRegistration.remove().
         liveMessagesTask?.cancel()
-        webSocketClient.leave(chatId: chatId)
     }
 
     // MARK: - Lifecycle
 
     func onAppear() {
-        webSocketClient.join(chatId: chatId)
-        startObservingLiveMessages()
+        // Start only after history is loaded so the first listener snapshot can be
+        // filtered against known ids / oldest loaded date (avoids dumping older history).
+        if loadState == .loaded {
+            startObservingLiveMessages()
+        }
     }
 
     func onDisappear() {
         liveMessagesTask?.cancel()
         liveMessagesTask = nil
-        webSocketClient.leave(chatId: chatId)
     }
 
     // MARK: - Load
@@ -71,6 +70,7 @@ final class ChatViewModel: ObservableObject {
             rebuildKnownIdentifiers()
             canLoadMore = fetched.count == pageSize
             loadState = .loaded
+            startObservingLiveMessages()
         } catch {
             loadState = .error(error.localizedDescription)
         }
@@ -279,6 +279,12 @@ final class ChatViewModel: ObservableObject {
                 )
                 knownMessageIds.insert(message.id)
             }
+            return
+        }
+
+        // First snapshot can include messages older than the current page.
+        // Those belong to pagination — do not insert them into the live list.
+        if let oldestLoaded = messages.last?.createdAt, message.createdAt < oldestLoaded {
             return
         }
 

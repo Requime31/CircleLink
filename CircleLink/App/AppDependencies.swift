@@ -1,7 +1,7 @@
 import Foundation
 
 /// Composition root — creates and wires all app dependencies.
-/// No Firebase / Keychain / WebSocket instances should be created outside this type.
+/// No Firebase / Keychain instances should be created outside this type.
 @MainActor
 final class AppDependencies {
     let authRepository: AuthRepository
@@ -10,8 +10,6 @@ final class AppDependencies {
     let communityRepository: CommunityRepository
     let connectionRepository: ConnectionRepository
     let chatRepository: ChatRepository
-    let webSocketClient: WebSocketClientProtocol
-    let webSocketConnectionManager: WebSocketConnectionManager
     let pushNotificationHandler: PushNotificationHandler
 
     init(
@@ -21,13 +19,10 @@ final class AppDependencies {
         communityRepository: CommunityRepository? = nil,
         connectionRepository: ConnectionRepository? = nil,
         chatRepository: ChatRepository? = nil,
-        webSocketClient: WebSocketClientProtocol? = nil,
-        webSocketConnectionManager: WebSocketConnectionManager? = nil,
         pushNotificationHandler: PushNotificationHandler? = nil
     ) {
         let resolvedTokenStorage = tokenStorage ?? KeychainTokenStorage()
         let resolvedUserRepository = userRepository ?? FirestoreUserRepository()
-        let resolvedWebSocketClient = webSocketClient ?? WebSocketClient(url: WebSocketConfiguration.serverURL)
 
         self.tokenStorage = resolvedTokenStorage
         self.userRepository = resolvedUserRepository
@@ -40,14 +35,7 @@ final class AppDependencies {
         self.connectionRepository = connectionRepository ?? FirestoreConnectionRepository()
         let resolvedImageStorage = SupabaseChatImageStorage()
         self.chatRepository = chatRepository ?? FirestoreChatRepository(
-            imageStorage: resolvedImageStorage,
-            webSocketClient: resolvedWebSocketClient
-        )
-        self.webSocketClient = resolvedWebSocketClient
-        self.webSocketConnectionManager = webSocketConnectionManager ?? WebSocketConnectionManager(
-            client: resolvedWebSocketClient,
-            tokenProvider: FirebaseIDTokenProvider(),
-            tokenStorage: resolvedTokenStorage
+            imageStorage: resolvedImageStorage
         )
         self.pushNotificationHandler = pushNotificationHandler ?? PushNotificationHandler()
     }
@@ -96,8 +84,7 @@ final class AppDependencies {
         return ChatViewModel(
             chatId: chatId,
             currentUserId: currentUserId,
-            chatRepository: chatRepository,
-            webSocketClient: webSocketClient
+            chatRepository: chatRepository
         )
     }
 

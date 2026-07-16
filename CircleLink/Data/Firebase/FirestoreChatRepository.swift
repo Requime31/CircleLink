@@ -26,30 +26,20 @@ enum FirestoreChatError: LocalizedError {
 }
 
 final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
+    /// Recent window for the live listener — large enough to overlap `fetchMessages` pages
+    /// and catch mid-flight sends without dumping the full history on first snapshot.
+    private static let liveMessagesWindowSize = 50
+
     private let chatsCollection = "chats"
     private let messagesCollection = "messages"
     private let usersCollection = "users"
     private let chatRefsCollection = "chatRefs"
     private let imageStorage: ChatImageStorage
-    private let webSocketClient: WebSocketClientProtocol
 
     private var db: Firestore { Firestore.firestore() }
 
-    private static let iso8601WithFractionalSeconds: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    private static let iso8601: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
-
-    init(imageStorage: ChatImageStorage, webSocketClient: WebSocketClientProtocol) {
+    init(imageStorage: ChatImageStorage) {
         self.imageStorage = imageStorage
-        self.webSocketClient = webSocketClient
     }
 
     // MARK: - ChatRepository
@@ -216,55 +206,50 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             batch.setData(refPayload, forDocument: userChatRef, merge: true)
         }
 
-        // Step 1: Firestore write (source of truth).
+        // Firestore write is the single source of truth for messages.
+        // Instant delivery comes from addSnapshotListener in observeLiveMessages.
         try await batch.commit()
-
-        // Step 2: WebSocket broadcast for foreground instant delivery.
-        // Failure is non-fatal — recipient can sync via Firestore or FCM later.
-        broadcastMessage(
-            chatId: chatId,
-            text: hasText ? (trimmedText ?? "") : "Photo",
-            clientMessageId: clientMessageId
-        )
     }
 
+    /// Live messages while the chat screen is open.
+    /// Uses `limit(toLast:)` so the first snapshot is a recent window (overlaps history fetch),
+    /// not the entire chat history — VM dedup + older-than-page filter handle the overlap.
+    /// Listener is removed when the AsyncStream terminates (VM cancels observe Task).
     func observeLiveMessages(chatId: String) -> AsyncStream<Message> {
         AsyncStream { continuation in
-            let observationTask = Task {
-                for await event in webSocketClient.observeEvents() {
-                    guard !Task.isCancelled else { break }
+            let query = db.collection(chatsCollection)
+                .document(chatId)
+                .collection(messagesCollection)
+                .order(by: "createdAt", descending: false)
+                .limit(toLast: Self.liveMessagesWindowSize)
 
-                    guard case let .messageNew(
-                        eventChatId,
-                        messageId,
-                        senderId,
-                        text,
-                        createdAt,
-                        clientMessageId
-                    ) = event,
-                    eventChatId == chatId else {
+            let registration = query.addSnapshotListener { snapshot, error in
+                if let error {
+                    print("[FirestoreChatRepository] messages listener error: \(error.localizedDescription)")
+                    return
+                }
+
+                guard let snapshot else { return }
+
+                for change in snapshot.documentChanges {
+                    guard change.type == .added || change.type == .modified else {
                         continue
                     }
 
-                    let message = Message(
-                        id: messageId,
-                        chatId: chatId,
-                        senderId: senderId,
-                        text: text.isEmpty ? nil : text,
-                        imageURL: nil,
-                        createdAt: Self.parseCreatedAt(createdAt),
-                        clientMessageId: clientMessageId ?? messageId,
-                        status: .sent
-                    )
-
-                    continuation.yield(message)
+                    do {
+                        let message = try FirestoreChatMapper.message(
+                            from: change.document,
+                            chatId: chatId
+                        )
+                        continuation.yield(message)
+                    } catch {
+                        print("[FirestoreChatRepository] message map failed: \(error.localizedDescription)")
+                    }
                 }
-
-                continuation.finish()
             }
 
             continuation.onTermination = { _ in
-                observationTask.cancel()
+                registration.remove()
             }
         }
     }
@@ -331,22 +316,6 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     }
 
     // MARK: - Private
-
-    private func broadcastMessage(chatId: String, text: String, clientMessageId: String) {
-        webSocketClient.send(
-            event: .message(
-                chatId: chatId,
-                text: text,
-                clientMessageId: clientMessageId
-            )
-        )
-    }
-
-    private static func parseCreatedAt(_ value: String) -> Date {
-        iso8601WithFractionalSeconds.date(from: value)
-            ?? iso8601.date(from: value)
-            ?? Date()
-    }
 
     /// Ensures the chat document exists and the current user is a participant.
     /// Uses merge + arrayUnion only — never reads the chat doc first, because

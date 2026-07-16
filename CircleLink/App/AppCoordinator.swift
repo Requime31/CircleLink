@@ -97,13 +97,6 @@ final class AppCoordinator: ObservableObject {
         .task {
             await self.bootstrapIfNeeded()
         }
-        .trackAppLifecycle(connectionManager: dependencies.webSocketConnectionManager)
-        .onChange(of: route) { _ in
-            self.updateWebSocketAuthState()
-        }
-        .onAppear {
-            self.updateWebSocketAuthState()
-        }
         .sheet(isPresented: Binding(
             get: { self.presentedChatId != nil },
             set: { if !$0 { self.dismissChat() } }
@@ -174,7 +167,6 @@ final class AppCoordinator: ObservableObject {
 
     func handleSignedOut() {
         currentProfile = nil
-        dependencies.webSocketConnectionManager.setUserAuthenticated(false)
         authViewModel.resetForm()
         ageGateViewModel.resetForm()
         profileSetupViewModel.resetForm()
@@ -183,11 +175,6 @@ final class AppCoordinator: ObservableObject {
         chatsViewModel.resetForm()
         connectViewModel.resetForm()
         route = .auth
-    }
-
-    private func updateWebSocketAuthState() {
-        let authenticated = route != .auth && route != .bootstrapping
-        dependencies.webSocketConnectionManager.setUserAuthenticated(authenticated)
     }
 
     func signOut() {
