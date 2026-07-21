@@ -3,7 +3,6 @@ import SwiftUI
 struct ProfileView: View {
     @ObservedObject var viewModel: ProfileViewModel
     let onSignOut: () -> Void
-    let onOpenDebugChat: () -> Void
 
     @State private var isEditing = false
 
@@ -87,13 +86,6 @@ struct ProfileView: View {
 
                 LogoutButton(action: onSignOut)
                     .padding(.top, 16)
-
-                Button("Open Debug Chat") {
-                    onOpenDebugChat()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Color(red: 1.0, green: 0.22, blue: 0.36))
-                .accessibilityLabel("Open debug chat")
             }
             .padding(24)
         }

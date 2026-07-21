@@ -62,7 +62,7 @@ final class InputBarView: UIView {
     }
 
     override var intrinsicContentSize: CGSize {
-        CGSize(width: UIView.noIntrinsicMetric, height: 56)
+        CGSize(width: UIView.noIntrinsicMetric, height: max(56, AccessibilityHelpers.minimumTouchTarget + 12))
     }
 
     func clearText() {
@@ -75,21 +75,23 @@ final class InputBarView: UIView {
         addSubview(textField)
         addSubview(sendButton)
 
+        let touch = AccessibilityHelpers.minimumTouchTarget
+
         NSLayoutConstraint.activate([
             topSeparator.topAnchor.constraint(equalTo: topAnchor),
             topSeparator.leadingAnchor.constraint(equalTo: leadingAnchor),
             topSeparator.trailingAnchor.constraint(equalTo: trailingAnchor),
             topSeparator.heightAnchor.constraint(equalToConstant: 1),
 
-            attachButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            attachButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
             attachButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-            attachButton.widthAnchor.constraint(equalToConstant: 36),
-            attachButton.heightAnchor.constraint(equalToConstant: 36),
+            attachButton.widthAnchor.constraint(equalToConstant: touch),
+            attachButton.heightAnchor.constraint(equalToConstant: touch),
 
-            sendButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            sendButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
             sendButton.centerYAnchor.constraint(equalTo: centerYAnchor),
-            sendButton.widthAnchor.constraint(equalToConstant: 36),
-            sendButton.heightAnchor.constraint(equalToConstant: 36),
+            sendButton.widthAnchor.constraint(equalToConstant: touch),
+            sendButton.heightAnchor.constraint(equalToConstant: touch),
 
             textField.leadingAnchor.constraint(equalTo: attachButton.trailingAnchor, constant: 8),
             textField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),

@@ -22,10 +22,8 @@ final class AppCoordinator: ObservableObject {
     @Published private(set) var route: Route
     @Published private(set) var currentProfile: User?
     @Published var presentedChatId: String?
+    @Published var presentedChatTitle: String = "Chat"
     @Published var selectedTab: MainTab = .communities
-
-    /// Temporary Phase 6 debug chat — replace with real chat creation in Phase 8.
-    static let debugChatId = "debug-chat"
 
     private let dependencies: AppDependencies
     private var pendingDeepLink: PushDeepLink?
@@ -111,7 +109,6 @@ final class AppCoordinator: ObservableObject {
                     onChatSelected: onChatSelected,
                     onCommunitySelected: onCommunitySelected,
                     onOpenGroupChat: onOpenGroupChat,
-                    onOpenDebugChat: openDebugChat,
                     onSignOut: signOut
                 )
             }
@@ -124,7 +121,10 @@ final class AppCoordinator: ObservableObject {
             set: { if !$0 { self.dismissChat() } }
         )) {
             if let chatId = self.presentedChatId,
-               let chatViewModel = self.dependencies.makeChatViewModel(chatId: chatId) {
+               let chatViewModel = self.dependencies.makeChatViewModel(
+                chatId: chatId,
+                title: self.presentedChatTitle
+               ) {
                 NavigationStack {
                     ChatViewControllerWrapper(viewModel: chatViewModel)
                         .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -133,11 +133,13 @@ final class AppCoordinator: ObservableObject {
                                 Button("Close") {
                                     self.dismissChat()
                                 }
+                                .accessibilityLabel("Close chat")
                             }
                         }
                 }
             } else {
                 Text("Unable to open chat.")
+                    .accessibilityLabel("Unable to open chat")
             }
         }
     }
@@ -191,6 +193,7 @@ final class AppCoordinator: ObservableObject {
         currentProfile = nil
         pendingDeepLink = nil
         presentedChatId = nil
+        presentedChatTitle = "Chat"
         selectedTab = .communities
         authViewModel.resetForm()
         ageGateViewModel.resetForm()
@@ -261,7 +264,7 @@ final class AppCoordinator: ObservableObject {
         case .newMessage:
             if let chatId = deepLink.chatId {
                 selectedTab = .chats
-                presentedChatId = chatId
+                openChat(chatId: chatId, title: chatTitle(for: chatId))
             } else {
                 selectedTab = .chats
             }
@@ -279,11 +282,12 @@ final class AppCoordinator: ObservableObject {
     // MARK: - Navigation callbacks
 
     func onChatSelected(chatId: String) {
-        presentedChatId = chatId
+        openChat(chatId: chatId, title: chatTitle(for: chatId))
     }
 
     func dismissChat() {
         presentedChatId = nil
+        presentedChatTitle = "Chat"
         Task { await chatsViewModel.loadChats() }
     }
 
@@ -291,11 +295,21 @@ final class AppCoordinator: ObservableObject {
         print("[AppCoordinator] onCommunitySelected: \(communityId)")
     }
 
-    func onOpenGroupChat(communityId: String) {
-        presentedChatId = "group-\(communityId)"
+    /// Group chat entry — `chatId` is a real Firestore id from `createGroupChat`.
+    func onOpenGroupChat(chatId: String, title: String) {
+        openChat(chatId: chatId, title: title)
     }
 
-    func openDebugChat() {
-        presentedChatId = Self.debugChatId
+    private func openChat(chatId: String, title: String) {
+        presentedChatTitle = title
+        presentedChatId = chatId
+    }
+
+    private func chatTitle(for chatId: String) -> String {
+        if case let .loaded(chats) = chatsViewModel.state,
+           let match = chats.first(where: { $0.id == chatId }) {
+            return match.title
+        }
+        return "Chat"
     }
 }

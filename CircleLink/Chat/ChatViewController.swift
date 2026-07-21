@@ -50,7 +50,8 @@ final class ChatViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = "Chat"
+        title = viewModel.chatTitle
+        view.accessibilityLabel = "Chat with \(viewModel.chatTitle)"
         view.backgroundColor = ChatAppearance.canvas
         setupLayout()
         bindViewModel()

@@ -4,7 +4,7 @@ struct CommunitiesListView: View {
     @ObservedObject var viewModel: CommunitiesViewModel
     let makeDetailViewModel: (String) -> CommunityDetailViewModel
     let onCommunitySelected: (String) -> Void
-    let onOpenGroupChat: (String) -> Void
+    let onOpenGroupChat: (String, String) -> Void
 
     var body: some View {
         NavigationStack {

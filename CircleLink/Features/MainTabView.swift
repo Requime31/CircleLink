@@ -11,8 +11,7 @@ struct MainTabView: View {
     let makeCommunityDetailViewModel: (String) -> CommunityDetailViewModel
     let onChatSelected: (String) -> Void
     let onCommunitySelected: (String) -> Void
-    let onOpenGroupChat: (String) -> Void
-    let onOpenDebugChat: () -> Void
+    let onOpenGroupChat: (String, String) -> Void
     let onSignOut: () -> Void
 
     var body: some View {
@@ -26,6 +25,7 @@ struct MainTabView: View {
             .tabItem {
                 Label("Communities", systemImage: "person.3")
             }
+            .accessibilityLabel("Communities tab")
             .tag(AppCoordinator.MainTab.communities)
 
             ChatListView(
@@ -35,22 +35,24 @@ struct MainTabView: View {
             .tabItem {
                 Label("Chats", systemImage: "bubble.left.and.bubble.right")
             }
+            .accessibilityLabel("Chats tab")
             .tag(AppCoordinator.MainTab.chats)
 
             ConnectView(viewModel: connectViewModel)
                 .tabItem {
                     Label("Connect", systemImage: "link")
                 }
+                .accessibilityLabel("Connect tab")
                 .tag(AppCoordinator.MainTab.connect)
 
             ProfileView(
                 viewModel: profileViewModel,
-                onSignOut: onSignOut,
-                onOpenDebugChat: onOpenDebugChat
+                onSignOut: onSignOut
             )
             .tabItem {
                 Label("Profile", systemImage: "person.circle")
             }
+            .accessibilityLabel("Profile tab")
             .tag(AppCoordinator.MainTab.profile)
         }
     }

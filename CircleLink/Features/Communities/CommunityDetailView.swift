@@ -2,7 +2,8 @@ import SwiftUI
 
 struct CommunityDetailView: View {
     @ObservedObject var viewModel: CommunityDetailViewModel
-    let onOpenGroupChat: (String) -> Void
+    /// Called with `(chatId, title)` after group chat is created or opened.
+    let onOpenGroupChat: (String, String) -> Void
 
     var body: some View {
         Group {
@@ -72,15 +73,29 @@ struct CommunityDetailView: View {
                 .accessibilityLabel("Leave community")
 
                 Button {
-                    onOpenGroupChat(viewModel.communityId)
+                    Task {
+                        if let result = await viewModel.openGroupChat() {
+                            onOpenGroupChat(result.chatId, result.title)
+                        }
+                    }
                 } label: {
-                    Text("Open Group Chat")
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
+                    Group {
+                        if viewModel.isOpeningGroupChat {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                        } else {
+                            Text("Open Group Chat")
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                        }
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Color(red: 1.0, green: 0.22, blue: 0.36))
+                .disabled(viewModel.isOpeningGroupChat || viewModel.isMembershipActionInFlight)
                 .accessibilityLabel("Open group chat")
+                .accessibilityHint("Opens the community group chat")
             } else {
                 Button {
                     Task { await viewModel.join() }
@@ -157,11 +172,11 @@ struct CommunityDetailView: View {
             if isLoading {
                 ProgressView()
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
             } else {
                 Text(title)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 48)
+                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
             }
         }
     }

@@ -74,6 +74,7 @@ final class AppDependencies {
         CommunityDetailViewModel(
             communityId: communityId,
             communityRepository: communityRepository,
+            chatRepository: chatRepository,
             authRepository: authRepository
         )
     }
@@ -82,12 +83,13 @@ final class AppDependencies {
         ChatsViewModel(chatRepository: chatRepository)
     }
 
-    func makeChatViewModel(chatId: String) -> ChatViewModel? {
+    func makeChatViewModel(chatId: String, title: String = "Chat") -> ChatViewModel? {
         guard let currentUserId = authRepository.currentUser?.id else { return nil }
         return ChatViewModel(
             chatId: chatId,
             currentUserId: currentUserId,
-            chatRepository: chatRepository
+            chatRepository: chatRepository,
+            chatTitle: title
         )
     }
 

@@ -30,7 +30,7 @@ struct AgeGateView: View {
             } label: {
                 Text("Continue")
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!viewModel.canContinue)
