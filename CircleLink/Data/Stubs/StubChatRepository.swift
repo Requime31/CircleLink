@@ -16,6 +16,8 @@ final class StubChatRepository: ChatRepository, @unchecked Sendable {
     }
 
     func createGroupChat(communityId: String, participantIds: [String]) async throws -> String {
-        "stub-group-\(communityId)"
+        "group_\(communityId)"
     }
+
+    func leaveGroupChat(communityId: String) async throws {}
 }

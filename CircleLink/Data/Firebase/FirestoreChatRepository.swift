@@ -8,6 +8,8 @@ enum FirestoreChatError: LocalizedError {
     case uploadFailed
     case invalidPeer
     case chatNotFound
+    case notCommunityMember
+    case emptyParticipants
 
     var errorDescription: String? {
         switch self {
@@ -21,6 +23,10 @@ enum FirestoreChatError: LocalizedError {
             return "Cannot create a chat with yourself."
         case .chatNotFound:
             return "Chat could not be found."
+        case .notCommunityMember:
+            return "Only community members can open this group chat."
+        case .emptyParticipants:
+            return "Group chat needs at least one member."
         }
     }
 }
@@ -33,6 +39,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     private let chatsCollection = "chats"
     private let messagesCollection = "messages"
     private let usersCollection = "users"
+    private let communitiesCollection = "communities"
     private let chatRefsCollection = "chatRefs"
     private let imageStorage: ChatImageStorage
 
@@ -80,6 +87,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                 avatarURL = peer.avatarURL
                 avatarBase64 = peer.avatarBase64
             }
+            // Group chats keep `title` from the chat document (community name).
 
             var summary = try FirestoreChatMapper.chatSummary(
                 from: chatDoc,
@@ -178,37 +186,33 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         // Ensure participant list is known before updating peer chatRefs (security rules).
         let participantIds = try await resolveParticipantIds(chatId: chatId, fallback: [senderId])
 
+        // Message + chat metadata in one batch (small). ChatRefs are chunked separately
+        // so large group chats stay under Firestore's 500-writes-per-batch limit.
         let batch = db.batch()
         batch.setData(data, forDocument: messageRef)
 
+        // Do not overwrite `type` / `title` — group chats must stay `type: group`.
         let chatRef = db.collection(chatsCollection).document(chatId)
         batch.setData(
             [
                 "lastMessageText": previewText ?? NSNull(),
                 "lastMessageAt": Timestamp(date: createdAt),
-                "type": ChatType.direct.rawValue,
-                "title": "Chat",
                 "participantIds": FieldValue.arrayUnion([senderId])
             ],
             forDocument: chatRef,
             merge: true
         )
 
-        let refPayload = FirestoreChatMapper.chatRefData(
-            lastMessageText: previewText,
-            lastMessageAt: createdAt
-        )
-        for participantId in participantIds {
-            let userChatRef = db.collection(usersCollection)
-                .document(participantId)
-                .collection(chatRefsCollection)
-                .document(chatId)
-            batch.setData(refPayload, forDocument: userChatRef, merge: true)
-        }
-
         // Firestore write is the single source of truth for messages.
         // Instant delivery comes from addSnapshotListener in observeLiveMessages.
         try await batch.commit()
+
+        try await ensureChatRefsExist(
+            chatId: chatId,
+            participantIds: participantIds,
+            lastMessageText: previewText,
+            lastMessageAt: createdAt
+        )
     }
 
     /// Live messages while the chat screen is open.
@@ -312,20 +316,110 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     }
 
     func createGroupChat(communityId: String, participantIds: [String]) async throws -> String {
-        "stub-group-\(communityId)"
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            throw FirestoreChatError.notAuthenticated
+        }
+
+        let uniqueParticipants = Array(Set(participantIds)).sorted()
+        guard !uniqueParticipants.isEmpty else {
+            throw FirestoreChatError.emptyParticipants
+        }
+
+        guard uniqueParticipants.contains(currentUserId) else {
+            throw FirestoreChatError.notCommunityMember
+        }
+
+        // Server-side membership check — don't trust client-only participant list.
+        let memberDoc = try await db.collection(communitiesCollection)
+            .document(communityId)
+            .collection("members")
+            .document(currentUserId)
+            .getDocument()
+        guard memberDoc.exists else {
+            throw FirestoreChatError.notCommunityMember
+        }
+
+        let chatId = FirestoreChatMapper.groupChatId(communityId: communityId)
+        let chatRef = db.collection(chatsCollection).document(chatId)
+        let existing = try await chatRef.getDocument()
+        let title = try await fetchCommunityName(communityId: communityId)
+        let now = Date()
+
+        if existing.exists {
+            // Cheap re-open: only sync the caller. Other members get themselves when they open.
+            try await chatRef.setData(
+                [
+                    "type": ChatType.group.rawValue,
+                    "communityId": communityId,
+                    "title": title,
+                    "participantIds": FieldValue.arrayUnion([currentUserId])
+                ],
+                merge: true
+            )
+
+            try await ensureChatRefsExist(
+                chatId: chatId,
+                participantIds: [currentUserId],
+                lastMessageText: existing.data()?["lastMessageText"] as? String,
+                lastMessageAt: (existing.data()?["lastMessageAt"] as? Timestamp)?.dateValue() ?? now
+            )
+            return chatId
+        }
+
+        // Step 1: chat doc first so rules see participantIds before chatRefs writes.
+        try await chatRef.setData(
+            [
+                "type": ChatType.group.rawValue,
+                "communityId": communityId,
+                "title": title,
+                "participantIds": uniqueParticipants,
+                "lastMessageText": NSNull(),
+                "lastMessageAt": Timestamp(date: now)
+            ],
+            merge: true
+        )
+
+        try await ensureChatRefsExist(
+            chatId: chatId,
+            participantIds: uniqueParticipants,
+            lastMessageText: nil,
+            lastMessageAt: now
+        )
+        return chatId
+    }
+
+    func leaveGroupChat(communityId: String) async throws {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            throw FirestoreChatError.notAuthenticated
+        }
+
+        let chatId = FirestoreChatMapper.groupChatId(communityId: communityId)
+        let chatRef = db.collection(chatsCollection).document(chatId)
+        let existing = try await chatRef.getDocument()
+        guard existing.exists else { return }
+
+        try await chatRef.setData(
+            ["participantIds": FieldValue.arrayRemove([currentUserId])],
+            merge: true
+        )
+
+        try await db.collection(usersCollection)
+            .document(currentUserId)
+            .collection(chatRefsCollection)
+            .document(chatId)
+            .delete()
     }
 
     // MARK: - Private
 
-    /// Ensures the chat document exists and the current user is a participant.
+    /// Ensures the current user is listed as a participant and has a chatRef.
+    /// Does **not** set `type` / `title` — those are owned by createDirect/createGroup.
     /// Uses merge + arrayUnion only — never reads the chat doc first, because
     /// Firestore read rules deny non-participants on existing chats.
     private func ensureChatAccess(chatId: String, senderId: String) async throws {
         let chatRef = db.collection(chatsCollection).document(chatId)
         try await chatRef.setData(
             [
-                "type": ChatType.direct.rawValue,
-                "title": "Chat",
                 "participantIds": FieldValue.arrayUnion([senderId]),
                 "lastMessageAt": Timestamp(date: Date())
             ],
@@ -342,6 +436,16 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         )
     }
 
+    private func fetchCommunityName(communityId: String) async throws -> String {
+        let document = try await db.collection(communitiesCollection).document(communityId).getDocument()
+        let name = (document.data()?["name"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let name, !name.isEmpty {
+            return name
+        }
+        return "Group Chat"
+    }
+
     private func fetchUser(userId: String) async throws -> User? {
         let document = try await db.collection(usersCollection).document(userId).getDocument()
         guard document.exists else { return nil }
@@ -354,24 +458,34 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         return ids.isEmpty ? fallback : ids
     }
 
+    /// Firestore allows max 500 writes per batch — chunk to stay under the limit.
+    private static let firestoreBatchLimit = 450
+
     private func ensureChatRefsExist(
         chatId: String,
         participantIds: [String],
         lastMessageText: String?,
         lastMessageAt: Date
     ) async throws {
-        let batch = db.batch()
         let payload = FirestoreChatMapper.chatRefData(
             lastMessageText: lastMessageText,
             lastMessageAt: lastMessageAt
         )
-        for participantId in participantIds {
-            let ref = db.collection(usersCollection)
-                .document(participantId)
-                .collection(chatRefsCollection)
-                .document(chatId)
-            batch.setData(payload, forDocument: ref, merge: true)
+        let uniqueIds = Array(Set(participantIds))
+        var index = 0
+        while index < uniqueIds.count {
+            let end = min(index + Self.firestoreBatchLimit, uniqueIds.count)
+            let chunk = uniqueIds[index..<end]
+            let batch = db.batch()
+            for participantId in chunk {
+                let ref = db.collection(usersCollection)
+                    .document(participantId)
+                    .collection(chatRefsCollection)
+                    .document(chatId)
+                batch.setData(payload, forDocument: ref, merge: true)
+            }
+            try await batch.commit()
+            index = end
         }
-        try await batch.commit()
     }
 }

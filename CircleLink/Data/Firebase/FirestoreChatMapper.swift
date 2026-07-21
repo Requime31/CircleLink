@@ -82,6 +82,11 @@ enum FirestoreChatMapper {
         [userIdA, userIdB].sorted().joined(separator: "_")
     }
 
+    /// One group chat per community — deterministic id (same idea as direct chats).
+    static func groupChatId(communityId: String) -> String {
+        "group_\(communityId)"
+    }
+
     static func participantIds(from data: [String: Any]) -> [String] {
         data["participantIds"] as? [String] ?? []
     }

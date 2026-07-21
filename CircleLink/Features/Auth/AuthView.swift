@@ -24,7 +24,7 @@ struct AuthView: View {
                         .font(.headline)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                 .foregroundStyle(.white)
                 .background(Color.black)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -60,7 +60,7 @@ struct AuthView: View {
                 } label: {
                     Text("Sign In with Email")
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                 }
                 .buttonStyle(.borderedProminent)
                 .accessibilityLabel("Sign in with email and password")
@@ -70,7 +70,7 @@ struct AuthView: View {
                 } label: {
                     Text("Create Account")
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                 }
                 .buttonStyle(.bordered)
                 .accessibilityLabel("Create account with email and password")

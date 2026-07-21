@@ -85,7 +85,11 @@ struct ChatListView: View {
     }
 
     private func accessibilityLabel(for chat: ChatSummary) -> String {
-        var parts = [chat.title]
+        var parts: [String] = []
+        if chat.type == .group {
+            parts.append("Group chat")
+        }
+        parts.append(chat.title)
         if let lastMessageText = chat.lastMessageText, !lastMessageText.isEmpty {
             parts.append(lastMessageText)
         }
@@ -111,7 +115,7 @@ private struct ChatRowView: View {
 
                 if chat.unreadCount > 0 {
                     Text(unreadBadgeText)
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
@@ -125,7 +129,7 @@ private struct ChatRowView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(chat.title)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.headline)
                         .foregroundStyle(Color(red: 0.133, green: 0.133, blue: 0.133))
                         .lineLimit(1)
 
@@ -133,18 +137,19 @@ private struct ChatRowView: View {
 
                     if let lastMessageAt = chat.lastMessageAt {
                         Text(lastMessageAt.formatted(ChatListDateFormat.style))
-                            .font(.system(size: 13))
+                            .font(.caption)
                             .foregroundStyle(Color(red: 0.416, green: 0.416, blue: 0.416))
                     }
                 }
 
                 Text(chat.lastMessageText ?? "No messages yet")
-                    .font(.system(size: 14))
+                    .font(.subheadline)
                     .foregroundStyle(Color(red: 0.416, green: 0.416, blue: 0.416))
                     .lineLimit(1)
             }
         }
         .padding(.vertical, 4)
+        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         .contentShape(Rectangle())
     }
 

@@ -45,7 +45,7 @@ struct ProfileEditView: View {
         } label: {
             Text("Save")
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         }
         .buttonStyle(.borderedProminent)
         .disabled(!viewModel.canSave || viewModel.saveState == .loading)

@@ -57,14 +57,12 @@ FCM tap
 - **Server (Spark / no Blaze):** `websocket-server` Firestore listeners → FCM. See `websocket-server/README.md`.
 - Cloud Functions under `functions/` are **not used** (would require Blaze).
 
-### Branch split (realtime)
+### Realtime path (current)
 
-| Branch | Realtime path |
-|---|---|
-| **`websocketlocal`** | WebSocket + local/Railway Node server (frozen pre-migration baseline) |
-| **`firebaselisteners`** | Firestore `addSnapshotListener` on `chats/{chatId}/messages` only |
+Chat delivery uses **Firestore `addSnapshotListener`** on `chats/{chatId}/messages`.
+The iOS WebSocket client was removed in Phase 10. `websocket-server/` remains for the **FCM push worker** only (not for chat transport).
 
-WebSocket Swift files / `websocket-server/` may still exist in the tree on `firebaselisteners` but are **unwired** from chat. Active WebSocket chat lives on `websocketlocal`.
+Historical baseline: branch `websocketlocal` still has the old WebSocket chat path.
 
 ## Project Structure
 
@@ -73,7 +71,7 @@ App/           — AppDelegate, AppDependencies, AppCoordinator
 Features/      — Auth, Profile, Communities, Connect, ChatList (SwiftUI)
 Chat/          — UIKit chat module (isolated)
 Domain/        — Models, Repository protocols
-Data/          — Firebase, Network (legacy WS unused on firebaselisteners), Keychain
+Data/          — Firebase, Keychain, stubs (chat realtime = Firestore listeners)
 Shared/        — ViewState, helpers
 Tests/         — ViewModel and Repository tests
 ```

@@ -7,4 +7,7 @@ protocol ChatRepository: Sendable {
     func observeLiveMessages(chatId: String) -> AsyncStream<Message>
     func createDirectChat(with userId: String) async throws -> String
     func createGroupChat(communityId: String, participantIds: [String]) async throws -> String
+    /// Removes the current user from the community group chat (participantIds + chatRef).
+    /// Call **before** leaving the community — group write rules require membership.
+    func leaveGroupChat(communityId: String) async throws
 }

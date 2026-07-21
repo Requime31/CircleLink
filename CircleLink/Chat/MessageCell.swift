@@ -62,6 +62,7 @@ final class MessageCell: UITableViewCell {
     private var imageHeightConstraint: NSLayoutConstraint?
     private var onRetry: (() -> Void)?
     private var imageLoadTask: Task<Void, Never>?
+    private var canRetryViaAccessibility = false
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -89,6 +90,8 @@ final class MessageCell: UITableViewCell {
         statusIndicator.stopAnimating()
         retryButton.isHidden = true
         onRetry = nil
+        canRetryViaAccessibility = false
+        accessibilityElements = nil
     }
 
     func configure(with item: ChatMessageItem, onRetry: @escaping () -> Void) {
@@ -109,23 +112,84 @@ final class MessageCell: UITableViewCell {
         configureBubbleStyle(isOutgoing: item.isOutgoing)
         configureStatus(item.status, isOutgoing: item.isOutgoing)
 
-        let spokenText = item.text ?? (item.imageURL != nil || item.localImageData != nil ? "Image attachment" : "")
-        isAccessibilityElement = true
-        accessibilityLabel = "\(item.senderLabel). \(spokenText). \(timeText)"
-        if item.status == .failed && item.isOutgoing {
-            accessibilityTraits = [.button]
-            accessibilityHint = "Double tap to retry sending"
-        } else {
-            accessibilityTraits = .staticText
-        }
+        let spokenText = item.text ?? (item.imageURL != nil || item.localImageData != nil ? "Image attachment" : "Empty message")
+        configureVoiceOver(
+            senderLabel: item.senderLabel,
+            spokenText: spokenText,
+            timeText: timeText,
+            isFailedOutgoing: item.status == .failed && item.isOutgoing
+        )
     }
 
     override func accessibilityActivate() -> Bool {
-        if retryButton.isHidden == false {
-            retryTapped()
-            return true
+        guard canRetryViaAccessibility else { return false }
+        retryTapped()
+        return true
+    }
+
+    /// VoiceOver order: sender → text → time (separate elements, not one combined label).
+    private func configureVoiceOver(
+        senderLabel: String,
+        spokenText: String,
+        timeText: String,
+        isFailedOutgoing: Bool
+    ) {
+        isAccessibilityElement = false
+        canRetryViaAccessibility = isFailedOutgoing
+
+        let senderElement = UIAccessibilityElement(accessibilityContainer: self)
+        senderElement.accessibilityLabel = senderLabel
+        senderElement.accessibilityTraits = .staticText
+
+        let textElement = ActivatableAccessibilityElement(accessibilityContainer: self)
+        textElement.accessibilityLabel = spokenText
+        if isFailedOutgoing {
+            textElement.accessibilityTraits = .button
+            textElement.accessibilityHint = "Double tap to retry sending"
+            textElement.onActivate = { [weak self] in
+                self?.retryTapped()
+                return true
+            }
+        } else {
+            textElement.accessibilityTraits = .staticText
         }
-        return false
+
+        let timeElement = UIAccessibilityElement(accessibilityContainer: self)
+        timeElement.accessibilityLabel = timeText
+        timeElement.accessibilityTraits = .staticText
+
+        // Frames updated in layoutSubviews so VoiceOver hit-testing stays correct.
+        accessibilityElements = [senderElement, textElement, timeElement]
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let elements = accessibilityElements as? [UIAccessibilityElement], elements.count == 3 else {
+            return
+        }
+
+        let bubbleFrame = contentView.convert(bubbleView.bounds, from: bubbleView)
+        let third = bubbleFrame.height / 3
+
+        elements[0].accessibilityFrameInContainerSpace = CGRect(
+            x: bubbleFrame.minX,
+            y: bubbleFrame.minY,
+            width: bubbleFrame.width,
+            height: max(third, 1)
+        )
+        elements[1].accessibilityFrameInContainerSpace = CGRect(
+            x: bubbleFrame.minX,
+            y: bubbleFrame.minY + third,
+            width: bubbleFrame.width,
+            height: max(third, 1)
+        )
+        elements[2].accessibilityFrameInContainerSpace = CGRect(
+            x: bubbleFrame.minX,
+            y: bubbleFrame.minY + 2 * third,
+            width: bubbleFrame.width,
+            height: max(bubbleFrame.height - 2 * third, 1)
+        )
     }
 
     private func configureImage(for item: ChatMessageItem) {
@@ -244,12 +308,24 @@ final class MessageCell: UITableViewCell {
 
             retryButton.centerYAnchor.constraint(equalTo: bubbleView.centerYAnchor),
             retryButton.trailingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: -8),
-            retryButton.widthAnchor.constraint(equalToConstant: 28),
-            retryButton.heightAnchor.constraint(equalToConstant: 28)
+            retryButton.widthAnchor.constraint(equalToConstant: AccessibilityHelpers.minimumTouchTarget),
+            retryButton.heightAnchor.constraint(equalToConstant: AccessibilityHelpers.minimumTouchTarget)
         ])
     }
 
     @objc private func retryTapped() {
         onRetry?()
+    }
+}
+
+/// UIAccessibilityElement that can handle double-tap activate (retry failed send).
+private final class ActivatableAccessibilityElement: UIAccessibilityElement {
+    var onActivate: (() -> Bool)?
+
+    override func accessibilityActivate() -> Bool {
+        if let onActivate {
+            return onActivate()
+        }
+        return super.accessibilityActivate()
     }
 }

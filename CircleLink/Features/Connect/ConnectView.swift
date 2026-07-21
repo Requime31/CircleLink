@@ -16,6 +16,7 @@ struct ConnectView: View {
                             .font(.footnote)
                             .foregroundStyle(.red)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityLabel("Connect error: \(actionErrorMessage)")
                     }
 
                     communityPickerSection
@@ -224,9 +225,12 @@ struct ConnectView: View {
             Text(message)
                 .font(.subheadline)
                 .foregroundStyle(muted)
+                .accessibilityLabel("Error: \(message)")
             Button("Retry", action: retry)
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(brand)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                .accessibilityLabel("Retry loading section")
         }
     }
 }
@@ -269,11 +273,11 @@ private struct CandidateRowView: View {
             Button(action: onConnect) {
                 if isConnecting {
                     ProgressView()
-                        .frame(width: 88, height: 36)
+                        .frame(width: 88, height: AccessibilityHelpers.minimumTouchTarget)
                 } else {
                     Text("Connect")
-                        .font(.system(size: 14, weight: .medium))
-                        .frame(width: 88, height: 36)
+                        .font(.subheadline.weight(.medium))
+                        .frame(width: 88, height: AccessibilityHelpers.minimumTouchTarget)
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -327,11 +331,11 @@ private struct IncomingRequestRowView: View {
                     if isResponding {
                         ProgressView()
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
+                            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                     } else {
                         Text("Decline")
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
+                            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                     }
                 }
                 .buttonStyle(.bordered)
@@ -342,11 +346,11 @@ private struct IncomingRequestRowView: View {
                     if isResponding {
                         ProgressView()
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
+                            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                     } else {
                         Text("Accept")
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
+                            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -393,11 +397,11 @@ private struct MatchedRowView: View {
             Button(action: onOpenChat) {
                 if isOpening {
                     ProgressView()
-                        .frame(width: 100, height: 36)
+                        .frame(width: 100, height: AccessibilityHelpers.minimumTouchTarget)
                 } else {
                     Text("Open Chat")
-                        .font(.system(size: 14, weight: .medium))
-                        .frame(width: 100, height: 36)
+                        .font(.subheadline.weight(.medium))
+                        .frame(width: 100, height: AccessibilityHelpers.minimumTouchTarget)
                 }
             }
             .buttonStyle(.borderedProminent)

@@ -16,6 +16,8 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var canLoadMore = true
 
     let chatId: String
+    /// Navigation title — peer name for direct, community name for group.
+    let chatTitle: String
     private let chatRepository: ChatRepository
     private let currentUserId: String
     private let pageSize = 30
@@ -27,11 +29,13 @@ final class ChatViewModel: ObservableObject {
     init(
         chatId: String,
         currentUserId: String,
-        chatRepository: ChatRepository
+        chatRepository: ChatRepository,
+        chatTitle: String = "Chat"
     ) {
         self.chatId = chatId
         self.currentUserId = currentUserId
         self.chatRepository = chatRepository
+        self.chatTitle = chatTitle
     }
 
     deinit {

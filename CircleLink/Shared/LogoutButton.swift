@@ -7,6 +7,7 @@ struct LogoutButton: View {
         Button("Log Out", role: .destructive) {
             action()
         }
+        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         .accessibilityLabel("Log out of your account")
     }
 }
