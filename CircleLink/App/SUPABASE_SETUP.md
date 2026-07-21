@@ -1,8 +1,9 @@
 # Supabase Storage Setup (Phase 6 — Chat images)
 
-CircleLink uses **Supabase Storage** for chat image attachments (free tier).
-Firestore stores only the public `imageURL` — not the binary.
+CircleLink uses **Supabase Storage only for chat image attachments** (free tier).
+Auth and database stay on Firebase — Supabase is **not** used for login or Firestore.
 
+Firestore message documents store only the public `imageURL` — not the binary.
 Firebase Storage is **not** required.
 
 ## 1. Create Supabase project

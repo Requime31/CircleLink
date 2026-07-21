@@ -1,18 +1,12 @@
-# CircleLink WebSocket Server
+# CircleLink — Push Worker (`websocket-server`)
 
-Minimal Node.js WebSocket server for CircleLink MVP (Phase 4) **+ Phase 9 FCM push worker**.
+**Current job:** send **FCM push notifications** when Firestore changes (Spark plan — no Cloud Functions / Blaze).
 
-## Features
+The folder name is historical. iOS no longer uses WebSocket for chat (removed in Phase 10). Chat realtime on iOS is **Firestore listeners** only.
 
-- Firebase ID token verification on connect (`auth` event)
-- Room routing: `chat:{chatId}`
-- Events: `auth`, `join`, `leave`, `message`, `message.new`, `error`
-- Broadcasts `message.new` to all participants in a chat room
-- **Phase 9:** Firestore listeners → FCM (works on **Spark**, no Cloud Functions / Blaze)
+---
 
-## Phase 9 — Push (Firestore → FCM)
-
-Runs inside this same Node process. No Blaze plan required.
+## What this process does (Phase 9)
 
 ```
 iOS writes Firestore
@@ -31,11 +25,11 @@ Payload `data` fields match iOS `PushDeepLink`: `type`, `chatId`, `requestId`, `
 
 ### Requirements
 
-1. Server process **must be running** (local or Railway). If the server is asleep, pushes are not sent.
-2. Run **one instance** of this service for push (or you may get duplicate notifications).
+1. Server process **must be running** (local or hosted). If it sleeps, pushes are not sent.
+2. Run **one instance** for push (or you may get duplicate notifications).
 3. APNs Auth Key (`.p8`) uploaded in Firebase Console → Cloud Messaging (for real devices).
 4. iOS app has stored `users/{uid}.fcmToken` after notification permission.
-5. Service account used by this server must be able to use FCM + read Firestore (default Firebase Admin key is enough).
+5. Service account must be able to use FCM + read Firestore (default Firebase Admin key is enough).
 
 ### Disable push
 
@@ -47,40 +41,7 @@ ENABLE_PUSH=false
 
 On boot, initial Firestore snapshots are **not** turned into pushes (avoids spamming old messages). Events while the server was down are skipped until the user opens the app (Firestore sync).
 
-## Event Protocol
-
-Matches the iOS `WebSocketEvent` model (`CircleLink/Data/Network/WebSocketEvent.swift`).
-
-### Client → Server
-
-```json
-{ "type": "auth", "token": "<firebase-id-token>" }
-{ "type": "join", "chatId": "abc123" }
-{ "type": "leave", "chatId": "abc123" }
-{ "type": "message", "chatId": "abc123", "text": "Hello", "clientMessageId": "uuid" }
-```
-
-### Server → Client
-
-```json
-{ "type": "message.new", "chatId": "abc123", "messageId": "uuid", "senderId": "uid", "text": "Hello", "createdAt": "2026-07-15T12:00:00.000Z" }
-{ "type": "error", "code": "auth_failed" }
-```
-
-### Error codes
-
-| Code | Meaning |
-|------|---------|
-| `auth_timeout` | No `auth` event within timeout |
-| `auth_required` | Non-auth event before authentication |
-| `auth_failed` | Invalid or expired Firebase token |
-| `missing_token` | Auth event without token |
-| `not_authenticated` | join/leave/message before auth |
-| `invalid_json` | Malformed JSON |
-| `invalid_chat_id` | Missing or invalid chatId |
-| `invalid_message` | Missing or invalid text |
-| `unknown_event` | Unrecognized event type |
-| `already_authenticated` | Duplicate auth event |
+---
 
 ## Environment Variables
 
@@ -90,13 +51,14 @@ Matches the iOS `WebSocketEvent` model (`CircleLink/Data/Network/WebSocketEvent.
 | `FIREBASE_SERVICE_ACCOUNT` | Yes** | Service account JSON as single-line string |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Alt** | Path to service account JSON file (local dev) |
 | `PORT` | No | Server port (default `8080`; Railway/Render set this automatically) |
-| `AUTH_TIMEOUT_MS` | No | Auth timeout in ms (default `10000`) |
 | `ENABLE_PUSH` | No | Firestore → FCM worker (default `true`; set `false` to disable) |
 
 \* Required when not embedded in service account JSON.  
-\** One of `FIREBASE_SERVICE_ACCOUNT` or `GOOGLE_APPLICATION_CREDENTIALS` is required for token verification.
+\** One of `FIREBASE_SERVICE_ACCOUNT` or `GOOGLE_APPLICATION_CREDENTIALS` is required.
 
 Copy `.env.example` to `.env` for local development.
+
+---
 
 ## Local Development
 
@@ -113,105 +75,49 @@ export GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
 npm run dev
 ```
 
-Server listens on `ws://localhost:8080`.
-
 ### Get a Firebase service account key
 
 1. Firebase Console → Project Settings → Service Accounts
 2. Generate new private key → save as `serviceAccountKey.json`
 3. **Never commit this file** (listed in `.gitignore`)
 
+---
+
 ## Deploy
+
+Keep at least one instance awake if you rely on push (sleeping dyno = no FCM).
 
 ### Railway
 
-1. Create a new project → Deploy from GitHub repo (or CLI)
-2. Set root directory to `websocket-server` (if monorepo)
-3. Add environment variables:
-   - `FIREBASE_PROJECT_ID`
-   - `FIREBASE_SERVICE_ACCOUNT` (paste full JSON as one line)
-   - (optional) `ENABLE_PUSH=true` — default on
+1. Create a project → deploy from GitHub (root directory: `websocket-server`)
+2. Env: `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT` (JSON as one line)
+3. Optional: `ENABLE_PUSH=true` (default on)
 4. Railway sets `PORT` automatically
-5. Keep at least one instance awake if you rely on push (sleeping dyno = no FCM)
-6. Use the generated URL with `wss://` in the iOS app (WS chat path); push worker does not need the iOS app to connect via WebSocket
 
 ### Render
 
-1. New **Web Service** → connect repo
-2. Root directory: `websocket-server`
-3. Build command: `npm install`
-4. Start command: `npm start`
-5. Add env vars: `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`
-6. Enable WebSocket support in service settings
+1. New **Web Service** → root directory `websocket-server`
+2. Build: `npm install` · Start: `npm start`
+3. Env: `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT`
 
-### Fly.io
+### Docker
 
 ```bash
-cd websocket-server
-fly launch --name circlelink-ws --no-deploy
-
-# Set secrets
-fly secrets set FIREBASE_PROJECT_ID=your-project-id
-fly secrets set FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
-
-fly deploy
-```
-
-`fly.toml` example (auto-generated by `fly launch`):
-
-```toml
-app = "circlelink-ws"
-primary_region = "ams"
-
-[build]
-  dockerfile = "Dockerfile"
-
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = "stop"
-  auto_start_machines = true
-  min_machines_running = 0
-
-  [[http_service.checks]]
-    grace_period = "10s"
-    interval = "30s"
-    method = "GET"
-    path = "/"
-    timeout = "5s"
-```
-
-### Docker (any platform)
-
-```bash
-docker build -t circlelink-ws .
+docker build -t circlelink-push .
 docker run -p 8080:8080 \
   -e FIREBASE_PROJECT_ID=your-project-id \
   -e FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}' \
-  circlelink-ws
+  circlelink-push
 ```
 
-## iOS Client Configuration
+---
 
-Set the WebSocket URL in Xcode build settings or `Info.plist`:
+## Legacy: WebSocket chat (not used by iOS)
 
-- Debug: `ws://localhost:8080` (simulator) or `ws://<your-mac-ip>:8080` (device)
-- Production: `wss://your-deployed-host`
+This package still contains an old **WebSocket chat** protocol from Phase 4 (rooms, `auth` / `join` / `message` events).
 
-The iOS app reads `WEBSOCKET_URL` from the bundle (see `WebSocketConfiguration.swift`).
+- **iOS does not connect to it** anymore (Phase 10 removed the client).
+- Do **not** configure `WEBSOCKET_URL` in the iOS app — that path is gone.
+- For junior work: ignore the WS chat code; focus on the **push worker** (`src/push/`).
 
-## Architecture
-
-```
-iOS WebSocketClient
-  → connect + auth(token)
-  → join(chatId) / leave(chatId)
-  → send(message)
-
-Node.js Server
-  → verifyIdToken (firebase-admin)
-  → room: chat:{chatId}
-  → broadcast message.new
-```
-
-Firestore remains the source of truth for message persistence (Phase 5+). WebSocket is for instant foreground delivery only.
+Historical baseline with the old iOS WebSocket client: git branch `websocketlocal`.

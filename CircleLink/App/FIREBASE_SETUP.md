@@ -1,6 +1,9 @@
 # Firebase Setup (Phase 1+)
 
-CircleLink uses Firebase for Auth and Firestore (Spark plan OK).
+CircleLink uses Firebase for **Auth**, **Firestore**, and **FCM** (Messaging).
+**Spark plan is enough** — do not deploy Cloud Functions / Blaze.
+
+Chat image binaries are **not** in Firebase Storage — see [SUPABASE_SETUP.md](SUPABASE_SETUP.md).
 
 ## 1. Add Firebase iOS SDK (SPM)
 
@@ -21,7 +24,8 @@ If packages are missing locally: **File → Packages → Resolve Package Version
 4. Drag into the `CircleLink` target (copy items, target membership checked)
 
 > **Git:** `GoogleService-Info.plist` is in `.gitignore` (contains API keys).
-> Use `GoogleService-Info.plist.example` as a template for other developers.
+> Template: `CircleLink/GoogleService-Info.plist.example`  
+> `cp CircleLink/GoogleService-Info.plist.example CircleLink/GoogleService-Info.plist`
 
 ## 3. Enable Auth providers (Firebase Console)
 

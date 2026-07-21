@@ -9,7 +9,7 @@ Community messenger MVP (iOS 16+, SwiftUI + UIKit Chat).
 | **App** | Lifecycle, DI composition, root navigation, push | `AppDependencies`, `AppCoordinator` |
 | **Presentation** | UI rendering, user input | SwiftUI Views, `ChatViewController` |
 | **Domain** | Business models, repository protocols | `User`, `ChatRepository` |
-| **Data** | Firebase, Keychain implementations | `FirestoreChatRepository` |
+| **Data** | Firebase, Supabase, Keychain implementations | `FirestoreChatRepository`, `SupabaseChatImageStorage` |
 | **Shared** | Cross-cutting utilities | `ViewState`, `ImageLoader` |
 
 ## Dependency Direction
@@ -21,6 +21,15 @@ View → ViewModel → Repository protocol ← Data implementation
 - ViewModels are `@MainActor`
 - No UseCase layer in MVP — ViewModel calls Repository directly
 - Manual DI via `AppDependencies` (composition root)
+
+**Who owns what**
+
+| Piece | Owner | Lifecycle |
+|---|---|---|
+| `AppDependencies` | App | Created at launch; holds concrete repos |
+| ViewModel | Screen / feature | Lives with the screen; cancelled on disappear |
+| Repository protocol | Domain | Stable contract; no Firebase types |
+| Firebase / Supabase impl | Data | Injected once; used by ViewModels |
 
 ## Rules
 
@@ -67,13 +76,19 @@ Historical baseline: branch `websocketlocal` still has the old WebSocket chat pa
 ## Project Structure
 
 ```
-App/           — AppDelegate, AppDependencies, AppCoordinator
-Features/      — Auth, Profile, Communities, Connect, ChatList (SwiftUI)
-Chat/          — UIKit chat module (isolated)
-Domain/        — Models, Repository protocols
-Data/          — Firebase, Keychain, stubs (chat realtime = Firestore listeners)
-Shared/        — ViewState, helpers
-Tests/         — ViewModel and Repository tests
+CircleLink/
+  App/           — AppDelegate, AppDependencies, AppCoordinator, push
+  Features/      — Auth, AgeGate, Profile, Communities, Connect, ChatList (SwiftUI)
+  Chat/          — UIKit chat module (isolated)
+  Domain/        — Models, Repository protocols
+  Data/
+    Firebase/    — Auth + Firestore repos/mappers
+    Supabase/    — chat image upload only
+    Keychain/    — token storage
+    Stubs/       — stub repos
+  Shared/        — ViewState, helpers
+CircleLinkTests/ — ViewModel unit tests + mocks (Phase 11)
+websocket-server/ — Node FCM push worker (Spark)
 ```
 
 ## State Management
@@ -87,6 +102,19 @@ ViewModels expose `@Published` / `@Observable` state using `ViewState<T>`:
 - `error(String)` → failure message
 
 All UI updates happen on `@MainActor`.
+
+## Data Flow (generic)
+
+```
+User action
+  → View
+  → ViewModel
+  → Repository protocol
+  → Firebase Auth / Firestore  OR  Supabase Storage (images)
+  → Response
+  → ViewModel updates @Published / ViewState
+  → UI re-renders
+```
 
 ## Data Flow Example (Send Message)
 
@@ -116,6 +144,6 @@ Observation starts in `ChatViewModel.onAppear` and stops in `onDisappear` / `dei
 
 ## Testing
 
-- Mock repository protocols for ViewModel tests
-- Firebase emulator or mocks for Repository tests
-- Protocol-based design enables testability without UI
+- Phase 11: ViewModel unit tests in `CircleLinkTests/` (Swift Testing + mock repositories)
+- Mock repository protocols — no Firebase needed for ViewModel tests
+- Protocol-based design keeps UI and network out of unit tests
