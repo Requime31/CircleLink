@@ -7,7 +7,7 @@ struct ProfileFormFields: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: CLSpacing.lg) {
             avatarSection
             displayNameSection
             interestsSection
@@ -15,7 +15,7 @@ struct ProfileFormFields: View {
     }
 
     private var avatarSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: CLSpacing.md) {
             AvatarImageView(
                 localPreview: viewModel.localAvatarPreview,
                 avatarBase64: viewModel.profile?.avatarBase64,
@@ -27,18 +27,22 @@ struct ProfileFormFields: View {
             if viewModel.localAvatarPreview == nil {
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                     Text("Add Photo (Optional)")
+                        .font(CLTypography.buttonSmall)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                 }
                 .buttonStyle(.bordered)
+                .tint(CLColor.ink)
                 .accessibilityLabel("Choose profile photo")
             } else {
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                     Text("Change Photo")
+                        .font(CLTypography.buttonSmall)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                 }
                 .buttonStyle(.bordered)
+                .tint(CLColor.ink)
                 .accessibilityLabel("Choose profile photo")
             }
 
@@ -62,12 +66,14 @@ struct ProfileFormFields: View {
     }
 
     private var displayNameSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Text("Display Name")
-                .font(.headline)
+                .font(CLTypography.section)
+                .foregroundStyle(CLColor.ink)
 
             TextField("Your name", text: $viewModel.displayName)
-                .textFieldStyle(.roundedBorder)
+                .foregroundStyle(CLColor.ink)
+                .clTextFieldChrome()
                 .textContentType(.name)
                 .autocorrectionDisabled()
                 .accessibilityLabel("Display name")
@@ -75,16 +81,17 @@ struct ProfileFormFields: View {
     }
 
     private var interestsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Text("Interests")
-                .font(.headline)
+                .font(CLTypography.section)
+                .foregroundStyle(CLColor.ink)
 
             Text(viewModel.interestCountHint)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .font(CLTypography.caption)
+                .foregroundStyle(CLColor.muted)
                 .accessibilityLabel(viewModel.interestCountHint)
 
-            FlowLayout(spacing: 8) {
+            FlowLayout(spacing: CLSpacing.sm) {
                 ForEach(ProfileInterests.presets, id: \.self) { interest in
                     InterestTagButton(
                         title: interest,
@@ -109,11 +116,11 @@ private struct InterestTagButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.subheadline)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(isSelected ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.12))
-                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                .font(CLTypography.callout)
+                .padding(.horizontal, CLSpacing.md)
+                .padding(.vertical, CLSpacing.sm)
+                .background(isSelected ? CLColor.primary.opacity(0.15) : CLColor.surfaceSoft)
+                .foregroundStyle(isSelected ? CLColor.primary : CLColor.ink)
                 .clipShape(Capsule())
         }
         .disabled(isDisabled)

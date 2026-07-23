@@ -21,6 +21,7 @@ struct CircleLinkApp: App {
     var body: some Scene {
         WindowGroup {
             coordinator.rootView
+                .tint(CLColor.primary)
                 .onAppear {
                     coordinator.attachPushHandling(to: appDelegate)
                 }

@@ -6,7 +6,7 @@ final class MessageCell: UITableViewCell {
     private let bubbleView: UIView = {
         let view = UIView()
         view.translatesAutoresizingMaskIntoConstraints = false
-        view.layer.cornerRadius = 16
+        view.layer.cornerRadius = ChatAppearance.Radius.bubble
         view.layer.masksToBounds = true
         return view
     }()
@@ -25,7 +25,7 @@ final class MessageCell: UITableViewCell {
         imageView.translatesAutoresizingMaskIntoConstraints = false
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
-        imageView.layer.cornerRadius = 12
+        imageView.layer.cornerRadius = ChatAppearance.Radius.image
         imageView.isHidden = true
         imageView.accessibilityIgnoresInvertColors = true
         return imageView
@@ -199,13 +199,13 @@ final class MessageCell: UITableViewCell {
            let image = UIImage(data: localData, scale: UIScreen.main.scale) {
             imageAttachmentView.image = image
             imageAttachmentView.isHidden = false
-            imageHeightConstraint?.constant = 180
+            imageHeightConstraint?.constant = ChatAppearance.Spacing.imageHeight
             return
         }
 
         if let url = item.imageURL {
             imageAttachmentView.isHidden = false
-            imageHeightConstraint?.constant = 180
+            imageHeightConstraint?.constant = ChatAppearance.Spacing.imageHeight
             imageLoadTask = Task { [weak self] in
                 guard let self else { return }
                 let image = try? await ImageLoader.shared.load(from: url)
@@ -228,25 +228,25 @@ final class MessageCell: UITableViewCell {
 
         if isOutgoing {
             bubbleView.backgroundColor = ChatAppearance.outgoingBubble
-            messageLabel.textColor = .white
+            messageLabel.textColor = ChatAppearance.onPrimary
             leadingConstraint = bubbleView.leadingAnchor.constraint(
                 greaterThanOrEqualTo: contentView.leadingAnchor,
-                constant: 64
+                constant: ChatAppearance.Spacing.bubbleOppositeInset
             )
             trailingConstraint = bubbleView.trailingAnchor.constraint(
                 equalTo: contentView.trailingAnchor,
-                constant: -16
+                constant: -ChatAppearance.Spacing.bubbleHorizontalInset
             )
         } else {
             bubbleView.backgroundColor = ChatAppearance.incomingBubble
             messageLabel.textColor = ChatAppearance.ink
             leadingConstraint = bubbleView.leadingAnchor.constraint(
                 equalTo: contentView.leadingAnchor,
-                constant: 16
+                constant: ChatAppearance.Spacing.bubbleHorizontalInset
             )
             trailingConstraint = bubbleView.trailingAnchor.constraint(
                 lessThanOrEqualTo: contentView.trailingAnchor,
-                constant: -64
+                constant: -ChatAppearance.Spacing.bubbleOppositeInset
             )
         }
 
@@ -286,28 +286,70 @@ final class MessageCell: UITableViewCell {
         imageHeightConstraint = imageAttachmentView.heightAnchor.constraint(equalToConstant: 0)
 
         NSLayoutConstraint.activate([
-            bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
-            bubbleView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
+            bubbleView.topAnchor.constraint(
+                equalTo: contentView.topAnchor,
+                constant: ChatAppearance.Spacing.bubbleVertical
+            ),
+            bubbleView.bottomAnchor.constraint(
+                equalTo: contentView.bottomAnchor,
+                constant: -ChatAppearance.Spacing.bubbleVertical
+            ),
 
-            imageAttachmentView.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 8),
-            imageAttachmentView.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
-            imageAttachmentView.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12),
+            imageAttachmentView.topAnchor.constraint(
+                equalTo: bubbleView.topAnchor,
+                constant: ChatAppearance.Spacing.bubblePaddingV
+            ),
+            imageAttachmentView.leadingAnchor.constraint(
+                equalTo: bubbleView.leadingAnchor,
+                constant: ChatAppearance.Spacing.bubblePaddingH
+            ),
+            imageAttachmentView.trailingAnchor.constraint(
+                equalTo: bubbleView.trailingAnchor,
+                constant: -ChatAppearance.Spacing.bubblePaddingH
+            ),
             imageHeightConstraint!,
 
-            messageLabel.topAnchor.constraint(equalTo: imageAttachmentView.bottomAnchor, constant: 8),
-            messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
-            messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12),
+            messageLabel.topAnchor.constraint(
+                equalTo: imageAttachmentView.bottomAnchor,
+                constant: ChatAppearance.Spacing.bubblePaddingV
+            ),
+            messageLabel.leadingAnchor.constraint(
+                equalTo: bubbleView.leadingAnchor,
+                constant: ChatAppearance.Spacing.bubblePaddingH
+            ),
+            messageLabel.trailingAnchor.constraint(
+                equalTo: bubbleView.trailingAnchor,
+                constant: -ChatAppearance.Spacing.bubblePaddingH
+            ),
 
-            timestampLabel.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 4),
-            timestampLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
-            timestampLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12),
-            timestampLabel.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -8),
+            timestampLabel.topAnchor.constraint(
+                equalTo: messageLabel.bottomAnchor,
+                constant: ChatAppearance.Spacing.timestampGap
+            ),
+            timestampLabel.leadingAnchor.constraint(
+                equalTo: bubbleView.leadingAnchor,
+                constant: ChatAppearance.Spacing.bubblePaddingH
+            ),
+            timestampLabel.trailingAnchor.constraint(
+                equalTo: bubbleView.trailingAnchor,
+                constant: -ChatAppearance.Spacing.bubblePaddingH
+            ),
+            timestampLabel.bottomAnchor.constraint(
+                equalTo: bubbleView.bottomAnchor,
+                constant: -ChatAppearance.Spacing.bubblePaddingV
+            ),
 
             statusIndicator.centerYAnchor.constraint(equalTo: bubbleView.centerYAnchor),
-            statusIndicator.trailingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: -8),
+            statusIndicator.trailingAnchor.constraint(
+                equalTo: bubbleView.leadingAnchor,
+                constant: -ChatAppearance.Spacing.statusGap
+            ),
 
             retryButton.centerYAnchor.constraint(equalTo: bubbleView.centerYAnchor),
-            retryButton.trailingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: -8),
+            retryButton.trailingAnchor.constraint(
+                equalTo: bubbleView.leadingAnchor,
+                constant: -ChatAppearance.Spacing.statusGap
+            ),
             retryButton.widthAnchor.constraint(equalToConstant: AccessibilityHelpers.minimumTouchTarget),
             retryButton.heightAnchor.constraint(equalToConstant: AccessibilityHelpers.minimumTouchTarget)
         ])
