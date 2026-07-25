@@ -1,13 +1,15 @@
 import PhotosUI
 import SwiftUI
 
+/// Shared profile form chrome (avatar, name, interest chips). Soft Orbit UI only.
+/// Selection / avatar data still owned by `ProfileViewModel`.
 struct ProfileFormFields: View {
     @ObservedObject var viewModel: ProfileViewModel
 
     @State private var selectedPhotoItem: PhotosPickerItem?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: CLSpacing.lg) {
             avatarSection
             displayNameSection
             interestsSection
@@ -15,7 +17,7 @@ struct ProfileFormFields: View {
     }
 
     private var avatarSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: CLSpacing.md) {
             AvatarImageView(
                 localPreview: viewModel.localAvatarPreview,
                 avatarBase64: viewModel.profile?.avatarBase64,
@@ -24,29 +26,32 @@ struct ProfileFormFields: View {
             )
             .accessibilityLabel(viewModel.hasAvatarToRemove ? "Profile photo" : "No profile photo")
 
-            if viewModel.localAvatarPreview == nil {
-                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                    Text("Add Photo (Optional)")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Choose profile photo")
-            } else {
-                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                    Text("Change Photo")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Choose profile photo")
+            let photoButtonTitle = viewModel.localAvatarPreview == nil
+                ? "Add Photo (Optional)"
+                : "Change Photo"
+            PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+                Text(photoButtonTitle)
+                    .font(CLTypography.buttonSmall)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                    .foregroundStyle(CLColor.ink)
+                    .background(CLColor.surfaceCard)
+                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
+                            .stroke(CLColor.hairline, lineWidth: 1)
+                    )
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Choose profile photo")
 
             if viewModel.hasAvatarToRemove {
                 Button("Remove Photo", role: .destructive) {
                     viewModel.clearAvatarSelection()
                     selectedPhotoItem = nil
                 }
+                .font(CLTypography.buttonSmall)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                 .accessibilityLabel("Remove selected profile photo")
             }
         }
@@ -62,31 +67,34 @@ struct ProfileFormFields: View {
     }
 
     private var displayNameSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Text("Display Name")
-                .font(.headline)
+                .font(CLTypography.section)
+                .foregroundStyle(CLColor.ink)
 
             TextField("Your name", text: $viewModel.displayName)
-                .textFieldStyle(.roundedBorder)
                 .textContentType(.name)
                 .autocorrectionDisabled()
+                .foregroundStyle(CLColor.ink)
+                .clTextFieldChrome()
                 .accessibilityLabel("Display name")
         }
     }
 
     private var interestsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Text("Interests")
-                .font(.headline)
+                .font(CLTypography.section)
+                .foregroundStyle(CLColor.ink)
 
             Text(viewModel.interestCountHint)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .font(CLTypography.caption)
+                .foregroundStyle(CLColor.muted)
                 .accessibilityLabel(viewModel.interestCountHint)
 
-            FlowLayout(spacing: 8) {
+            FlowLayout(spacing: CLSpacing.sm) {
                 ForEach(ProfileInterests.presets, id: \.self) { interest in
-                    InterestTagButton(
+                    CLInterestChip(
                         title: interest,
                         isSelected: viewModel.selectedInterests.contains(interest),
                         isDisabled: !viewModel.selectedInterests.contains(interest)
@@ -97,29 +105,6 @@ struct ProfileFormFields: View {
                 }
             }
         }
-    }
-}
-
-private struct InterestTagButton: View {
-    let title: String
-    let isSelected: Bool
-    let isDisabled: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(isSelected ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.12))
-                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
-                .clipShape(Capsule())
-        }
-        .disabled(isDisabled)
-        .accessibilityLabel("\(title) interest")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityHint(isDisabled ? "Maximum interests selected" : "Double tap to toggle")
     }
 }
 
