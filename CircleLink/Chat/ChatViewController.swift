@@ -7,6 +7,7 @@ final class ChatViewController: UIViewController {
     private var cancellables = Set<AnyCancellable>()
     private var displayedMessages: [ChatMessageItem] = []
     private var keyboardBottomConstraint: NSLayoutConstraint?
+    private var previousNavigationBarTint: UIColor?
 
     private lazy var tableView: UITableView = {
         let table = UITableView(frame: .zero, style: .plain)
@@ -63,9 +64,20 @@ final class ChatViewController: UIViewController {
         }
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        previousNavigationBarTint = navigationController?.navigationBar.tintColor
+        navigationController?.navigationBar.tintColor = ChatAppearance.primary
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         viewModel.onAppear()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        navigationController?.navigationBar.tintColor = previousNavigationBarTint
     }
 
     override func viewDidDisappear(_ animated: Bool) {

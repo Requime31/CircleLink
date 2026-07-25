@@ -6,8 +6,7 @@ final class MessageCell: UITableViewCell {
     private let bubbleView: UIView = {
         let view = UIView()
         view.translatesAutoresizingMaskIntoConstraints = false
-        view.layer.cornerRadius = 16
-        view.layer.masksToBounds = true
+        view.clipsToBounds = true
         return view
     }()
 
@@ -25,7 +24,8 @@ final class MessageCell: UITableViewCell {
         imageView.translatesAutoresizingMaskIntoConstraints = false
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
-        imageView.layer.cornerRadius = 12
+        imageView.layer.cornerRadius = ChatAppearance.bubbleImageRadius
+        imageView.layer.cornerCurve = .continuous
         imageView.isHidden = true
         imageView.accessibilityIgnoresInvertColors = true
         return imageView
@@ -44,6 +44,7 @@ final class MessageCell: UITableViewCell {
         let indicator = UIActivityIndicatorView(style: .medium)
         indicator.translatesAutoresizingMaskIntoConstraints = false
         indicator.hidesWhenStopped = true
+        indicator.color = ChatAppearance.muted
         return indicator
     }()
 
@@ -63,6 +64,8 @@ final class MessageCell: UITableViewCell {
     private var onRetry: (() -> Void)?
     private var imageLoadTask: Task<Void, Never>?
     private var canRetryViaAccessibility = false
+    private var isOutgoingBubble = false
+    private let bubbleMaskLayer = CAShapeLayer()
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -70,6 +73,7 @@ final class MessageCell: UITableViewCell {
         backgroundColor = .clear
         contentView.backgroundColor = .clear
         contentView.transform = CGAffineTransform(scaleX: 1, y: -1)
+        bubbleView.layer.mask = bubbleMaskLayer
         setupLayout()
         retryButton.addTarget(self, action: #selector(retryTapped), for: .touchUpInside)
     }
@@ -165,6 +169,8 @@ final class MessageCell: UITableViewCell {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        updateBubbleMask()
+
         guard let elements = accessibilityElements as? [UIAccessibilityElement], elements.count == 3 else {
             return
         }
@@ -223,35 +229,39 @@ final class MessageCell: UITableViewCell {
     }
 
     private func configureBubbleStyle(isOutgoing: Bool) {
+        isOutgoingBubble = isOutgoing
         leadingConstraint?.isActive = false
         trailingConstraint?.isActive = false
 
         if isOutgoing {
             bubbleView.backgroundColor = ChatAppearance.outgoingBubble
             messageLabel.textColor = .white
+            timestampLabel.textColor = ChatAppearance.onPrimaryMuted
             leadingConstraint = bubbleView.leadingAnchor.constraint(
                 greaterThanOrEqualTo: contentView.leadingAnchor,
-                constant: 64
+                constant: ChatAppearance.oppositeGutter
             )
             trailingConstraint = bubbleView.trailingAnchor.constraint(
                 equalTo: contentView.trailingAnchor,
-                constant: -16
+                constant: -ChatAppearance.sideGutter
             )
         } else {
             bubbleView.backgroundColor = ChatAppearance.incomingBubble
             messageLabel.textColor = ChatAppearance.ink
+            timestampLabel.textColor = ChatAppearance.muted
             leadingConstraint = bubbleView.leadingAnchor.constraint(
                 equalTo: contentView.leadingAnchor,
-                constant: 16
+                constant: ChatAppearance.sideGutter
             )
             trailingConstraint = bubbleView.trailingAnchor.constraint(
                 lessThanOrEqualTo: contentView.trailingAnchor,
-                constant: -64
+                constant: -ChatAppearance.oppositeGutter
             )
         }
 
         leadingConstraint?.isActive = true
         trailingConstraint?.isActive = true
+        setNeedsLayout()
     }
 
     private func configureStatus(_ status: MessageStatus, isOutgoing: Bool) {
@@ -274,6 +284,59 @@ final class MessageCell: UITableViewCell {
         }
     }
 
+    /// Soft Orbit “tail”: corner nearest the edge is slightly tighter (~12), others ~20.
+    private func updateBubbleMask() {
+        let bounds = bubbleView.bounds
+        guard bounds.width > 0, bounds.height > 0 else { return }
+
+        let maxRadius = min(bounds.width, bounds.height) / 2
+        let large = min(ChatAppearance.bubbleRadius, maxRadius)
+        let small = min(ChatAppearance.bubbleTailRadius, maxRadius)
+        let topLeft = large
+        let topRight = large
+        let bottomLeft = isOutgoingBubble ? large : small
+        let bottomRight = isOutgoingBubble ? small : large
+
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: bounds.minX + topLeft, y: bounds.minY))
+        path.addLine(to: CGPoint(x: bounds.maxX - topRight, y: bounds.minY))
+        path.addArc(
+            withCenter: CGPoint(x: bounds.maxX - topRight, y: bounds.minY + topRight),
+            radius: topRight,
+            startAngle: -.pi / 2,
+            endAngle: 0,
+            clockwise: true
+        )
+        path.addLine(to: CGPoint(x: bounds.maxX, y: bounds.maxY - bottomRight))
+        path.addArc(
+            withCenter: CGPoint(x: bounds.maxX - bottomRight, y: bounds.maxY - bottomRight),
+            radius: bottomRight,
+            startAngle: 0,
+            endAngle: .pi / 2,
+            clockwise: true
+        )
+        path.addLine(to: CGPoint(x: bounds.minX + bottomLeft, y: bounds.maxY))
+        path.addArc(
+            withCenter: CGPoint(x: bounds.minX + bottomLeft, y: bounds.maxY - bottomLeft),
+            radius: bottomLeft,
+            startAngle: .pi / 2,
+            endAngle: .pi,
+            clockwise: true
+        )
+        path.addLine(to: CGPoint(x: bounds.minX, y: bounds.minY + topLeft))
+        path.addArc(
+            withCenter: CGPoint(x: bounds.minX + topLeft, y: bounds.minY + topLeft),
+            radius: topLeft,
+            startAngle: .pi,
+            endAngle: -.pi / 2,
+            clockwise: true
+        )
+        path.close()
+
+        bubbleMaskLayer.frame = bounds
+        bubbleMaskLayer.path = path.cgPath
+    }
+
     private func setupLayout() {
         contentView.addSubview(bubbleView)
         contentView.addSubview(statusIndicator)
@@ -284,24 +347,27 @@ final class MessageCell: UITableViewCell {
         bubbleView.addSubview(timestampLabel)
 
         imageHeightConstraint = imageAttachmentView.heightAnchor.constraint(equalToConstant: 0)
+        let padH = ChatAppearance.bubblePaddingH
+        let padV = ChatAppearance.bubblePaddingV
+        let spacing = ChatAppearance.bubbleSpacingV
 
         NSLayoutConstraint.activate([
-            bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
-            bubbleView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
+            bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: spacing),
+            bubbleView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -spacing),
 
-            imageAttachmentView.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: 8),
-            imageAttachmentView.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
-            imageAttachmentView.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12),
+            imageAttachmentView.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: padV),
+            imageAttachmentView.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: padH),
+            imageAttachmentView.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -padH),
             imageHeightConstraint!,
 
-            messageLabel.topAnchor.constraint(equalTo: imageAttachmentView.bottomAnchor, constant: 8),
-            messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
-            messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12),
+            messageLabel.topAnchor.constraint(equalTo: imageAttachmentView.bottomAnchor, constant: padV),
+            messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: padH),
+            messageLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -padH),
 
-            timestampLabel.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: 4),
-            timestampLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: 12),
-            timestampLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -12),
-            timestampLabel.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -8),
+            timestampLabel.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: ChatAppearance.timestampSpacing),
+            timestampLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: padH),
+            timestampLabel.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -padH),
+            timestampLabel.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -padV),
 
             statusIndicator.centerYAnchor.constraint(equalTo: bubbleView.centerYAnchor),
             statusIndicator.trailingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: -8),

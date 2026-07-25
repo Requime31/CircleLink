@@ -14,9 +14,24 @@ final class InputBarView: UIView {
         field.placeholder = "Message"
         field.font = ChatAppearance.bodyFont
         field.adjustsFontForContentSizeCategory = true
-        field.borderStyle = .roundedRect
+        field.borderStyle = .none
+        field.backgroundColor = ChatAppearance.surfaceSoft
+        field.textColor = ChatAppearance.ink
+        field.tintColor = ChatAppearance.primary
         field.returnKeyType = .send
         field.accessibilityLabel = "Message text field"
+        field.layer.cornerRadius = ChatAppearance.fieldRadius
+        field.layer.cornerCurve = .continuous
+        field.layer.borderWidth = 1
+        field.layer.borderColor = ChatAppearance.hairline.cgColor
+        field.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 1))
+        field.leftViewMode = .always
+        field.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 1))
+        field.rightViewMode = .always
+        field.attributedPlaceholder = NSAttributedString(
+            string: "Message",
+            attributes: [.foregroundColor: ChatAppearance.mutedSoft]
+        )
         return field
     }()
 
@@ -36,6 +51,8 @@ final class InputBarView: UIView {
         let image = UIImage(systemName: "paperplane.fill")
         button.setImage(image, for: .normal)
         button.tintColor = ChatAppearance.primary
+        button.backgroundColor = ChatAppearance.companionSoft
+        button.layer.cornerRadius = AccessibilityHelpers.minimumTouchTarget / 2
         button.accessibilityLabel = "Send message"
         return button
     }()
@@ -43,7 +60,7 @@ final class InputBarView: UIView {
     private let topSeparator: UIView = {
         let view = UIView()
         view.translatesAutoresizingMaskIntoConstraints = false
-        view.backgroundColor = ChatAppearance.surfaceSoft
+        view.backgroundColor = ChatAppearance.hairline
         return view
     }()
 
@@ -96,7 +113,7 @@ final class InputBarView: UIView {
             textField.leadingAnchor.constraint(equalTo: attachButton.trailingAnchor, constant: 8),
             textField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),
             textField.centerYAnchor.constraint(equalTo: centerYAnchor),
-            textField.heightAnchor.constraint(greaterThanOrEqualToConstant: 36)
+            textField.heightAnchor.constraint(greaterThanOrEqualToConstant: 40)
         ])
     }
 
