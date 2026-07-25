@@ -26,16 +26,21 @@ final class ConnectViewModel: ObservableObject {
 
     @Published private(set) var selectedCommunityId: String?
     @Published private(set) var actionErrorMessage: String?
+    @Published private(set) var moderationMessage: String?
     @Published private(set) var connectingUserId: String?
     @Published private(set) var respondingRequestId: String?
     @Published private(set) var openingChatPeerId: String?
+    @Published private(set) var moderatingUserId: String?
 
     private let connectionRepository: ConnectionRepository
     private let chatRepository: ChatRepository
     private let communityRepository: CommunityRepository
     private let userRepository: UserRepository
     private let authRepository: AuthRepository
+    private let moderationRepository: ModerationRepository
     private let onOpenChat: (String) -> Void
+
+    private var blockedUserIds = Set<String>()
 
     init(
         connectionRepository: ConnectionRepository,
@@ -43,6 +48,7 @@ final class ConnectViewModel: ObservableObject {
         communityRepository: CommunityRepository,
         userRepository: UserRepository,
         authRepository: AuthRepository,
+        moderationRepository: ModerationRepository,
         onOpenChat: @escaping (String) -> Void
     ) {
         self.connectionRepository = connectionRepository
@@ -50,10 +56,12 @@ final class ConnectViewModel: ObservableObject {
         self.communityRepository = communityRepository
         self.userRepository = userRepository
         self.authRepository = authRepository
+        self.moderationRepository = moderationRepository
         self.onOpenChat = onOpenChat
     }
 
     func load() async {
+        await loadBlockedUsers()
         await loadCommunities()
         await loadIncoming()
         await loadMatched()
@@ -61,6 +69,53 @@ final class ConnectViewModel: ObservableObject {
         if let selectedCommunityId {
             await loadCandidates(communityId: selectedCommunityId)
         }
+    }
+
+    func report(
+        userId: String,
+        reason: ReportReason,
+        communityId: String? = nil
+    ) async {
+        guard moderatingUserId == nil else { return }
+        moderatingUserId = userId
+        actionErrorMessage = nil
+        moderationMessage = nil
+
+        do {
+            try await moderationRepository.reportUser(
+                userId: userId,
+                reason: reason,
+                chatId: nil,
+                communityId: communityId ?? selectedCommunityId
+            )
+            moderationMessage = "Thanks — we’ll review this report."
+        } catch {
+            actionErrorMessage = error.localizedDescription
+        }
+
+        moderatingUserId = nil
+    }
+
+    func block(userId: String) async {
+        guard moderatingUserId == nil else { return }
+        moderatingUserId = userId
+        actionErrorMessage = nil
+        moderationMessage = nil
+
+        do {
+            try await moderationRepository.blockUser(userId)
+            blockedUserIds.insert(userId)
+            removeLocally(userId: userId)
+            moderationMessage = "User blocked. They won’t appear in Connect."
+        } catch {
+            actionErrorMessage = error.localizedDescription
+        }
+
+        moderatingUserId = nil
+    }
+
+    func clearModerationFeedback() {
+        moderationMessage = nil
     }
 
     func selectCommunity(_ communityId: String) async {
@@ -152,12 +207,39 @@ final class ConnectViewModel: ObservableObject {
         matchedState = .idle
         selectedCommunityId = nil
         actionErrorMessage = nil
+        moderationMessage = nil
         connectingUserId = nil
         respondingRequestId = nil
         openingChatPeerId = nil
+        moderatingUserId = nil
+        blockedUserIds = []
     }
 
     // MARK: - Private loads
+
+    private func loadBlockedUsers() async {
+        do {
+            blockedUserIds = try await moderationRepository.fetchBlockedUserIds()
+        } catch {
+            // Fail closed: keep the last known block set so a refresh blip
+            // cannot re-surface people the user already blocked.
+        }
+    }
+
+    private func removeLocally(userId: String) {
+        if case let .loaded(candidates) = candidatesState {
+            let filtered = candidates.filter { $0.id != userId }
+            candidatesState = filtered.isEmpty ? .empty : .loaded(filtered)
+        }
+        if case let .loaded(incoming) = incomingState {
+            let filtered = incoming.filter { $0.peer.id != userId }
+            incomingState = filtered.isEmpty ? .empty : .loaded(filtered)
+        }
+        if case let .loaded(matched) = matchedState {
+            let filtered = matched.filter { $0.peer.id != userId }
+            matchedState = filtered.isEmpty ? .empty : .loaded(filtered)
+        }
+    }
 
     private func loadCommunities() async {
         communitiesState = .loading
@@ -179,6 +261,7 @@ final class ConnectViewModel: ObservableObject {
 
         do {
             let candidates = try await connectionRepository.fetchCandidates(communityId: communityId)
+                .filter { !blockedUserIds.contains($0.id) }
             candidatesState = candidates.isEmpty ? .empty : .loaded(candidates)
         } catch {
             candidatesState = .error(error.localizedDescription)
@@ -191,6 +274,7 @@ final class ConnectViewModel: ObservableObject {
         do {
             let requests = try await connectionRepository.fetchIncomingRequests()
             let items = try await resolveRequestItems(requests, peerId: \.fromUserId)
+                .filter { !blockedUserIds.contains($0.peer.id) }
             incomingState = items.isEmpty ? .empty : .loaded(items)
         } catch {
             incomingState = .error(error.localizedDescription)
@@ -208,6 +292,7 @@ final class ConnectViewModel: ObservableObject {
 
             for request in requests {
                 let peerId = request.fromUserId == currentUserId ? request.toUserId : request.fromUserId
+                guard !blockedUserIds.contains(peerId) else { continue }
                 do {
                     let peer = try await userRepository.fetchProfile(userId: peerId)
                     items.append(MatchedConnectionItem(request: request, peer: peer))

@@ -123,19 +123,15 @@ final class AppCoordinator: ObservableObject {
             if let chatId = self.presentedChatId,
                let chatViewModel = self.dependencies.makeChatViewModel(
                 chatId: chatId,
-                title: self.presentedChatTitle
+                title: self.presentedChatTitle,
+                onPeerBlocked: { [weak self] in
+                    self?.dismissChat()
+                }
                ) {
                 NavigationStack {
-                    ChatViewControllerWrapper(viewModel: chatViewModel)
-                        .ignoresSafeArea(.keyboard, edges: .bottom)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button("Close") {
-                                    self.dismissChat()
-                                }
-                                .accessibilityLabel("Close chat")
-                            }
-                        }
+                    ChatSheetView(viewModel: chatViewModel) {
+                        self.dismissChat()
+                    }
                 }
             } else {
                 Text("Unable to open chat.")
@@ -212,7 +208,9 @@ final class AppCoordinator: ObservableObject {
                 try dependencies.authRepository.signOut()
                 handleSignedOut()
             } catch {
+                #if DEBUG
                 print("[AppCoordinator] signOut failed: \(error.localizedDescription)")
+                #endif
             }
         }
     }
@@ -292,7 +290,8 @@ final class AppCoordinator: ObservableObject {
     }
 
     func onCommunitySelected(communityId: String) {
-        print("[AppCoordinator] onCommunitySelected: \(communityId)")
+        // Hook reserved for analytics / deep-link context (Phase 14+: no debug noise).
+        _ = communityId
     }
 
     /// Group chat entry — `chatId` is a real Firestore id from `createGroupChat`.

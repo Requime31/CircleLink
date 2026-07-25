@@ -6,6 +6,8 @@ struct CommunitiesListView: View {
     let onCommunitySelected: (String) -> Void
     let onOpenGroupChat: (String, String) -> Void
 
+    @State private var showCreateSheet = false
+
     var body: some View {
         NavigationStack {
             Group {
@@ -24,6 +26,16 @@ struct CommunitiesListView: View {
             }
             .background(CLColor.canvas)
             .navigationTitle("Communities")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCreateSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Create community")
+                }
+            }
             .navigationDestination(for: String.self) { communityId in
                 CommunityDetailView(
                     viewModel: makeDetailViewModel(communityId),
@@ -31,6 +43,11 @@ struct CommunitiesListView: View {
                 )
                 .onAppear {
                     onCommunitySelected(communityId)
+                }
+            }
+            .sheet(isPresented: $showCreateSheet) {
+                CreateCommunitySheet(viewModel: viewModel) {
+                    showCreateSheet = false
                 }
             }
             .task {
@@ -59,11 +76,11 @@ struct CommunitiesListView: View {
         CLEmptyState(
             systemImage: "person.3",
             title: "No communities yet",
-            message: "Interest-based groups will appear here.",
-            actionTitle: "Refresh",
-            actionAccessibilityLabel: "Refresh communities list"
+            message: "Create one around an interest to start meeting people.",
+            actionTitle: "Create community",
+            actionAccessibilityLabel: "Create community"
         ) {
-            Task { await viewModel.loadCommunities() }
+            showCreateSheet = true
         }
     }
 

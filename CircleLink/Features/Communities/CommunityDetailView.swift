@@ -136,14 +136,23 @@ struct CommunityDetailView: View {
                     .tint(CLColor.primary)
                     .frame(maxWidth: .infinity, alignment: .center)
             case .empty:
-                Text("No members yet.")
-                    .font(CLTypography.callout)
-                    .foregroundStyle(CLColor.muted)
+                CLEmptyState(
+                    systemImage: "person.crop.circle.badge.questionmark",
+                    title: "No members yet",
+                    message: "Be the first to join this community."
+                )
+                .frame(maxHeight: 200)
             case let .error(message):
-                Text(message)
-                    .font(CLTypography.callout)
-                    .foregroundStyle(CLColor.muted)
-                    .accessibilityLabel("Members error: \(message)")
+                CLEmptyState(
+                    systemImage: "exclamationmark.triangle",
+                    title: message,
+                    actionTitle: "Retry",
+                    actionAccessibilityLabel: "Retry loading members",
+                    titleAccessibilityLabel: "Members error: \(message)"
+                ) {
+                    Task { await viewModel.load() }
+                }
+                .frame(maxHeight: 220)
             case let .loaded(members):
                 LazyVStack(spacing: CLSpacing.md) {
                     ForEach(members) { member in
