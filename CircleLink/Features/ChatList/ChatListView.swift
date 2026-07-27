@@ -10,6 +10,8 @@ struct ChatListView: View {
                 switch viewModel.state {
                 case .idle, .loading:
                     ProgressView("Loading chats…")
+                        .tint(CLColor.primary)
+                        .foregroundStyle(CLColor.inkMuted)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .empty:
                     emptyState
@@ -19,6 +21,7 @@ struct ChatListView: View {
                     chatsList(chats)
                 }
             }
+            .clCanvasBackground()
             .navigationTitle("Chats")
             .task {
                 await viewModel.loadChats()
@@ -39,48 +42,62 @@ struct ChatListView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(accessibilityLabel(for: chat))
+            .listRowBackground(CLColor.canvas)
+            .listRowSeparatorTint(CLColor.hairline)
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(CLColor.canvas)
+        .clAppear()
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: CLSpacing.sm) {
             Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 40))
+                .foregroundStyle(CLColor.inkMuted)
+                .padding(CLSpacing.md)
+                .background(Circle().fill(CLColor.primarySoft))
                 .accessibilityHidden(true)
             Text("No chats yet")
-                .font(.title3)
+                .font(CLTypography.title2)
+                .foregroundStyle(CLColor.ink)
             Text("Accept a Connect request to start a conversation.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(CLTypography.subheadline)
+                .foregroundStyle(CLColor.inkSecondary)
                 .multilineTextAlignment(.center)
             Button("Refresh") {
                 Task { await viewModel.loadChats() }
             }
+            .buttonStyle(CLSecondaryButtonStyle())
+            .padding(.top, CLSpacing.xs)
             .accessibilityLabel("Refresh chats list")
         }
-        .padding(24)
+        .padding(CLSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: CLSpacing.sm) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 40))
+                .foregroundStyle(CLColor.error)
+                .padding(CLSpacing.md)
+                .background(Circle().fill(CLColor.errorSoft))
                 .accessibilityHidden(true)
             Text(message)
-                .font(.body)
+                .font(CLTypography.body)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(CLColor.inkSecondary)
                 .accessibilityLabel("Error: \(message)")
             Button("Retry") {
                 Task { await viewModel.loadChats() }
             }
+            .buttonStyle(CLSecondaryButtonStyle())
+            .padding(.top, CLSpacing.xs)
             .accessibilityLabel("Retry loading chats")
         }
-        .padding(24)
+        .padding(CLSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -104,7 +121,7 @@ private struct ChatRowView: View {
     let chat: ChatSummary
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: CLSpacing.sm) {
             ZStack(alignment: .topTrailing) {
                 AvatarImageView(
                     localPreview: nil,
@@ -114,43 +131,62 @@ private struct ChatRowView: View {
                 )
 
                 if chat.unreadCount > 0 {
-                    Text(unreadBadgeText)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(Color(red: 1.0, green: 0.22, blue: 0.36))
-                        .clipShape(Capsule())
-                        .offset(x: 6, y: -4)
+                    unreadIndicator
+                        .offset(x: 4, y: -2)
                         .accessibilityHidden(true)
                 }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(chat.title)
-                        .font(.headline)
-                        .foregroundStyle(Color(red: 0.133, green: 0.133, blue: 0.133))
+                        .font(CLTypography.headline)
+                        .foregroundStyle(CLColor.ink)
                         .lineLimit(1)
 
-                    Spacer(minLength: 8)
+                    Spacer(minLength: CLSpacing.xs)
 
                     if let lastMessageAt = chat.lastMessageAt {
                         Text(lastMessageAt.formatted(ChatListDateFormat.style))
-                            .font(.caption)
-                            .foregroundStyle(Color(red: 0.416, green: 0.416, blue: 0.416))
+                            .font(CLTypography.caption)
+                            .foregroundStyle(CLColor.inkMuted)
                     }
                 }
 
                 Text(chat.lastMessageText ?? "No messages yet")
-                    .font(.subheadline)
-                    .foregroundStyle(Color(red: 0.416, green: 0.416, blue: 0.416))
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkSecondary)
                     .lineLimit(1)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, CLSpacing.xxs)
         .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var unreadIndicator: some View {
+        if chat.unreadCount == 1 {
+            Circle()
+                .fill(CLColor.primary)
+                .frame(width: 10, height: 10)
+                .overlay(
+                    Circle()
+                        .stroke(CLColor.canvas, lineWidth: 2)
+                )
+        } else {
+            Text(unreadBadgeText)
+                .font(CLTypography.caption)
+                .foregroundStyle(CLColor.onPrimary)
+                .padding(.horizontal, CLSpacing.xs)
+                .padding(.vertical, CLSpacing.xxs)
+                .background(CLColor.primarySoft)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(CLColor.hairline, lineWidth: 1)
+                )
+        }
     }
 
     private var unreadBadgeText: String {

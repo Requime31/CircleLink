@@ -12,6 +12,8 @@ struct ProfileView: View {
                 switch viewModel.state {
                 case .idle, .loading:
                     ProgressView("Loading profile…")
+                        .tint(CLColor.primary)
+                        .foregroundStyle(CLColor.inkMuted)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .empty:
                     emptyState
@@ -21,6 +23,7 @@ struct ProfileView: View {
                     profileContent(user: user)
                 }
             }
+            .clCanvasBackground()
             .navigationTitle("Profile")
             .toolbar {
                 if case .loaded = viewModel.state {
@@ -28,6 +31,7 @@ struct ProfileView: View {
                         Button("Edit") {
                             isEditing = true
                         }
+                        .foregroundStyle(CLColor.primaryPressed)
                         .accessibilityLabel("Edit profile")
                     }
                 }
@@ -44,7 +48,7 @@ struct ProfileView: View {
     @ViewBuilder
     private func profileContent(user: User) -> some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: CLSpacing.lg) {
                 AvatarImageView(
                     localPreview: viewModel.localAvatarPreview,
                     avatarBase64: user.avatarBase64,
@@ -53,30 +57,33 @@ struct ProfileView: View {
                 )
                 .accessibilityLabel("Profile photo")
 
-                VStack(spacing: 4) {
+                VStack(spacing: CLSpacing.xxs) {
                     Text(user.displayName)
-                        .font(.title2.bold())
+                        .font(CLTypography.title)
+                        .foregroundStyle(CLColor.ink)
                         .accessibilityLabel("Display name: \(user.displayName)")
 
                     if user.interests.isEmpty {
                         Text("No interests yet")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(CLTypography.subheadline)
+                            .foregroundStyle(CLColor.inkMuted)
                     }
                 }
 
                 if !user.interests.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: CLSpacing.xs) {
                         Text("Interests")
-                            .font(.headline)
+                            .font(CLTypography.headline)
+                            .foregroundStyle(CLColor.ink)
 
-                        FlowLayout(spacing: 8) {
+                        FlowLayout(spacing: CLSpacing.xs) {
                             ForEach(user.interests, id: \.self) { interest in
                                 Text(interest)
-                                    .font(.subheadline)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(Color.secondary.opacity(0.12))
+                                    .font(CLTypography.subheadline)
+                                    .foregroundStyle(CLColor.inkSecondary)
+                                    .padding(.horizontal, CLSpacing.sm)
+                                    .padding(.vertical, CLSpacing.xs)
+                                    .background(CLColor.surfaceSoft)
                                     .clipShape(Capsule())
                             }
                         }
@@ -85,45 +92,55 @@ struct ProfileView: View {
                 }
 
                 LogoutButton(action: onSignOut)
-                    .padding(.top, 16)
+                    .padding(.top, CLSpacing.md)
             }
-            .padding(24)
+            .padding(CLSpacing.lg)
+            .clAppear()
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: CLSpacing.sm) {
             Image(systemName: "person.crop.circle.badge.exclamationmark")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 40))
+                .foregroundStyle(CLColor.inkMuted)
+                .padding(CLSpacing.md)
+                .background(Circle().fill(CLColor.primarySoft))
                 .accessibilityHidden(true)
             Text("Profile not found")
-                .font(.title3)
+                .font(CLTypography.title2)
+                .foregroundStyle(CLColor.ink)
             Button("Retry") {
                 Task { await viewModel.loadProfile() }
             }
+            .buttonStyle(CLSecondaryButtonStyle())
+            .padding(.top, CLSpacing.xs)
             .accessibilityLabel("Retry loading profile")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: CLSpacing.sm) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 40))
+                .foregroundStyle(CLColor.error)
+                .padding(CLSpacing.md)
+                .background(Circle().fill(CLColor.errorSoft))
                 .accessibilityHidden(true)
             Text(message)
-                .font(.body)
+                .font(CLTypography.body)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(CLColor.inkSecondary)
                 .accessibilityLabel("Error: \(message)")
             Button("Retry") {
                 Task { await viewModel.loadProfile() }
             }
+            .buttonStyle(CLSecondaryButtonStyle())
+            .padding(.top, CLSpacing.xs)
             .accessibilityLabel("Retry loading profile")
         }
-        .padding(24)
+        .padding(CLSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

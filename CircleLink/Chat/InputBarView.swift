@@ -14,9 +14,24 @@ final class InputBarView: UIView {
         field.placeholder = "Message"
         field.font = ChatAppearance.bodyFont
         field.adjustsFontForContentSizeCategory = true
-        field.borderStyle = .roundedRect
+        field.borderStyle = .none
+        field.backgroundColor = ChatAppearance.surface
+        field.textColor = ChatAppearance.ink
+        field.tintColor = ChatAppearance.primary
         field.returnKeyType = .send
         field.accessibilityLabel = "Message text field"
+        field.layer.cornerRadius = ChatAppearance.fieldRadius
+        field.layer.cornerCurve = .continuous
+        field.layer.borderWidth = 1
+        field.layer.borderColor = ChatAppearance.hairline.cgColor
+        field.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 1))
+        field.leftViewMode = .always
+        field.rightView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 1))
+        field.rightViewMode = .always
+        field.attributedPlaceholder = NSAttributedString(
+            string: "Message",
+            attributes: [.foregroundColor: ChatAppearance.inkMuted]
+        )
         return field
     }()
 
@@ -25,7 +40,7 @@ final class InputBarView: UIView {
         button.translatesAutoresizingMaskIntoConstraints = false
         let image = UIImage(systemName: "photo.on.rectangle")
         button.setImage(image, for: .normal)
-        button.tintColor = ChatAppearance.primary
+        button.tintColor = ChatAppearance.inkSecondary
         button.accessibilityLabel = "Attach image"
         return button
     }()
@@ -35,7 +50,7 @@ final class InputBarView: UIView {
         button.translatesAutoresizingMaskIntoConstraints = false
         let image = UIImage(systemName: "paperplane.fill")
         button.setImage(image, for: .normal)
-        button.tintColor = ChatAppearance.primary
+        button.layer.cornerRadius = AccessibilityHelpers.minimumTouchTarget / 2
         button.accessibilityLabel = "Send message"
         return button
     }()
@@ -43,7 +58,7 @@ final class InputBarView: UIView {
     private let topSeparator: UIView = {
         let view = UIView()
         view.translatesAutoresizingMaskIntoConstraints = false
-        view.backgroundColor = ChatAppearance.surfaceSoft
+        view.backgroundColor = ChatAppearance.hairline
         return view
     }()
 
@@ -54,6 +69,7 @@ final class InputBarView: UIView {
         setupLayout()
         setupActions()
         textField.delegate = self
+        updateSendButtonState()
     }
 
     @available(*, unavailable)
@@ -67,6 +83,7 @@ final class InputBarView: UIView {
 
     func clearText() {
         textField.text = nil
+        updateSendButtonState()
     }
 
     private func setupLayout() {
@@ -96,13 +113,35 @@ final class InputBarView: UIView {
             textField.leadingAnchor.constraint(equalTo: attachButton.trailingAnchor, constant: 8),
             textField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),
             textField.centerYAnchor.constraint(equalTo: centerYAnchor),
-            textField.heightAnchor.constraint(greaterThanOrEqualToConstant: 36)
+            textField.heightAnchor.constraint(greaterThanOrEqualToConstant: 40)
         ])
     }
 
     private func setupActions() {
         sendButton.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
         attachButton.addTarget(self, action: #selector(attachTapped), for: .touchUpInside)
+        textField.addTarget(self, action: #selector(textDidChange), for: .editingChanged)
+    }
+
+    private var canSend: Bool {
+        let text = textField.text ?? ""
+        return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func updateSendButtonState() {
+        let enabled = canSend
+        sendButton.isEnabled = enabled
+        if enabled {
+            sendButton.tintColor = ChatAppearance.ink
+            sendButton.backgroundColor = ChatAppearance.primary
+        } else {
+            sendButton.tintColor = ChatAppearance.inkDisabled
+            sendButton.backgroundColor = ChatAppearance.surfaceSoft
+        }
+    }
+
+    @objc private func textDidChange() {
+        updateSendButtonState()
     }
 
     @objc private func sendTapped() {
@@ -119,6 +158,7 @@ final class InputBarView: UIView {
 
 extension InputBarView: UITextFieldDelegate {
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        guard canSend else { return false }
         sendTapped()
         return true
     }

@@ -12,6 +12,8 @@ struct CommunitiesListView: View {
                 switch viewModel.state {
                 case .idle, .loading:
                     ProgressView("Loading communities…")
+                        .tint(CLColor.primary)
+                        .foregroundStyle(CLColor.inkMuted)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .empty:
                     emptyState
@@ -21,6 +23,7 @@ struct CommunitiesListView: View {
                     communitiesList(communities)
                 }
             }
+            .clCanvasBackground()
             .navigationTitle("Communities")
             .navigationDestination(for: String.self) { communityId in
                 CommunityDetailView(
@@ -40,7 +43,7 @@ struct CommunitiesListView: View {
     @ViewBuilder
     private func communitiesList(_ communities: [Community]) -> some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
+            LazyVStack(spacing: CLSpacing.md) {
                 ForEach(communities) { community in
                     NavigationLink(value: community.id) {
                         CommunityCardView(community: community)
@@ -49,48 +52,59 @@ struct CommunitiesListView: View {
                     .accessibilityLabel("\(community.name), \(community.memberCount) members")
                 }
             }
-            .padding(16)
+            .padding(.horizontal, CLSpacing.md)
+            .padding(.vertical, CLSpacing.md)
+            .clAppear()
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: CLSpacing.sm) {
             Image(systemName: "person.3")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 40))
+                .foregroundStyle(CLColor.inkMuted)
+                .padding(CLSpacing.md)
+                .background(Circle().fill(CLColor.primarySoft))
                 .accessibilityHidden(true)
             Text("No communities yet")
-                .font(.title3)
+                .font(CLTypography.title2)
+                .foregroundStyle(CLColor.ink)
             Text("Interest-based groups will appear here.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(CLTypography.subheadline)
+                .foregroundStyle(CLColor.inkSecondary)
                 .multilineTextAlignment(.center)
             Button("Refresh") {
                 Task { await viewModel.loadCommunities() }
             }
+            .buttonStyle(CLSecondaryButtonStyle())
+            .padding(.top, CLSpacing.xs)
             .accessibilityLabel("Refresh communities list")
         }
-        .padding(24)
+        .padding(CLSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: CLSpacing.sm) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 40))
+                .foregroundStyle(CLColor.error)
+                .padding(CLSpacing.md)
+                .background(Circle().fill(CLColor.errorSoft))
                 .accessibilityHidden(true)
             Text(message)
-                .font(.body)
+                .font(CLTypography.body)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(CLColor.inkSecondary)
                 .accessibilityLabel("Error: \(message)")
             Button("Retry") {
                 Task { await viewModel.loadCommunities() }
             }
+            .buttonStyle(CLSecondaryButtonStyle())
+            .padding(.top, CLSpacing.xs)
             .accessibilityLabel("Retry loading communities")
         }
-        .padding(24)
+        .padding(CLSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -99,37 +113,36 @@ private struct CommunityCardView: View {
     let community: Community
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+            HStack(alignment: .top, spacing: CLSpacing.xs) {
                 Text(community.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
+                    .font(CLTypography.headline)
+                    .foregroundStyle(CLColor.ink)
                     .multilineTextAlignment(.leading)
 
-                Spacer()
+                Spacer(minLength: CLSpacing.xs)
 
                 Text(community.interestTag)
-                    .font(.subheadline)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.secondary.opacity(0.12))
+                    .font(CLTypography.caption)
+                    .foregroundStyle(CLColor.ink)
+                    .padding(.horizontal, CLSpacing.sm)
+                    .padding(.vertical, CLSpacing.xxs)
+                    .background(CLColor.primarySoft)
                     .clipShape(Capsule())
             }
 
             Text(community.description)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(CLTypography.subheadline)
+                .foregroundStyle(CLColor.inkSecondary)
                 .lineLimit(3)
                 .multilineTextAlignment(.leading)
 
             Text(memberCountLabel)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+                .font(CLTypography.footnote)
+                .foregroundStyle(CLColor.inkMuted)
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .clCardStyle()
     }
 
     private var memberCountLabel: String {

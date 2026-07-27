@@ -124,7 +124,7 @@ final class ChatViewController: UIViewController {
         let overlap = max(0, view.bounds.maxY - keyboardFrameInView.minY - view.safeAreaInsets.bottom)
 
         keyboardBottomConstraint?.constant = -overlap
-        UIView.animate(withDuration: duration) {
+        animateAlongsideKeyboard(duration: duration, userInfo: notification.userInfo) {
             self.view.layoutIfNeeded()
         }
     }
@@ -132,9 +132,22 @@ final class ChatViewController: UIViewController {
     @objc private func keyboardWillHide(_ notification: Notification) {
         let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
         keyboardBottomConstraint?.constant = 0
-        UIView.animate(withDuration: duration) {
+        animateAlongsideKeyboard(duration: duration, userInfo: notification.userInfo) {
             self.view.layoutIfNeeded()
         }
+    }
+
+    /// Match system keyboard curve so the composer rides up smoothly (not a flashy snap).
+    private func animateAlongsideKeyboard(
+        duration: TimeInterval,
+        userInfo: [AnyHashable: Any]?,
+        animations: @escaping () -> Void
+    ) {
+        // Curve key is UIView.AnimationCurve raw value; shift into AnimationOptions.
+        let curveRaw = (userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber)?.uintValue
+            ?? UInt(UIView.AnimationCurve.easeInOut.rawValue)
+        let options = UIView.AnimationOptions(rawValue: curveRaw << 16)
+        UIView.animate(withDuration: duration, delay: 0, options: options, animations: animations)
     }
 
     private func bindViewModel() {

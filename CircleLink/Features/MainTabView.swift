@@ -55,5 +55,6 @@ struct MainTabView: View {
             .accessibilityLabel("Profile tab")
             .tag(AppCoordinator.MainTab.profile)
         }
+        .tint(CLColor.primary)
     }
 }
