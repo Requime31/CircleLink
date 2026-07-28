@@ -3,34 +3,18 @@ import SwiftUI
 struct ConnectView: View {
     @ObservedObject var viewModel: ConnectViewModel
 
-    @State private var reportTarget: ModerationTarget?
-    @State private var blockTarget: ModerationTarget?
-
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    if let moderationMessage = viewModel.moderationMessage {
-                        HStack(alignment: .top, spacing: CLSpacing.sm) {
-                            Text(moderationMessage)
-                                .font(CLTypography.caption)
-                                .foregroundStyle(CLColor.ink)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .accessibilityLabel(moderationMessage)
-                            Button("Dismiss") {
-                                viewModel.clearModerationFeedback()
-                            }
-                            .font(CLTypography.caption)
-                            .foregroundStyle(CLColor.primary)
-                            .accessibilityLabel("Dismiss moderation message")
-                        }
-                    }
-
+                VStack(alignment: .leading, spacing: CLSpacing.lg) {
                     if let actionErrorMessage = viewModel.actionErrorMessage {
                         Text(actionErrorMessage)
-                            .font(CLTypography.caption)
+                            .font(CLTypography.footnote)
                             .foregroundStyle(CLColor.error)
+                            .padding(CLSpacing.sm)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(CLColor.errorSoft)
+                            .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
                             .accessibilityLabel("Connect error: \(actionErrorMessage)")
                     }
 
@@ -39,9 +23,10 @@ struct ConnectView: View {
                     incomingSection
                     matchedSection
                 }
-                .padding(CLSpacing.base)
+                .padding(.horizontal, CLSpacing.md)
+                .padding(.vertical, CLSpacing.md)
             }
-            .background(CLColor.canvas)
+            .clCanvasBackground()
             .navigationTitle("Connect")
             .task {
                 await viewModel.load()
@@ -103,22 +88,20 @@ struct ConnectView: View {
 
     @ViewBuilder
     private var communityPickerSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.md) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Text("Community")
-                .font(CLTypography.section)
+                .font(CLTypography.headline)
                 .foregroundStyle(CLColor.ink)
 
             switch viewModel.communitiesState {
             case .idle, .loading:
                 ProgressView("Loading communities…")
                     .tint(CLColor.primary)
+                    .foregroundStyle(CLColor.inkMuted)
             case .empty:
-                CLEmptyState(
-                    systemImage: "person.3",
-                    title: "Join a community first",
-                    message: "Pick a community on the Communities tab, then come back to find people."
-                )
-                .frame(maxHeight: 220)
+                Text("Join a community first to find people.")
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkMuted)
             case let .error(message):
                 sectionError(message) {
                     Task { await viewModel.load() }
@@ -133,17 +116,23 @@ struct ConnectView: View {
                 } label: {
                     HStack {
                         Text(selectedCommunityName(from: communities))
-                            .font(CLTypography.bodyMedium)
+                            .font(CLTypography.body.weight(.medium))
                             .foregroundStyle(CLColor.ink)
                         Spacer()
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(CLColor.muted)
+                            .foregroundStyle(CLColor.inkMuted)
+                            .accessibilityHidden(true)
                     }
-                    .padding(.horizontal, CLSpacing.base)
+                    .padding(.horizontal, CLSpacing.md)
                     .frame(height: 48)
-                    .background(CLColor.surfaceSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.md))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(CLColor.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
+                            .stroke(CLColor.hairline, lineWidth: 1)
+                    )
                 }
                 .accessibilityLabel("Select community")
             }
@@ -154,24 +143,25 @@ struct ConnectView: View {
 
     @ViewBuilder
     private var candidatesSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.md) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Text("People nearby")
-                .font(CLTypography.section)
+                .font(CLTypography.headline)
                 .foregroundStyle(CLColor.ink)
 
             if viewModel.selectedCommunityId == nil {
                 Text("Select a community to see candidates.")
-                    .font(CLTypography.callout)
-                    .foregroundStyle(CLColor.muted)
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkMuted)
             } else {
                 switch viewModel.candidatesState {
                 case .idle, .loading:
                     ProgressView("Loading candidates…")
                         .tint(CLColor.primary)
+                        .foregroundStyle(CLColor.inkMuted)
                 case .empty:
                     Text("No new people to connect with here.")
-                        .font(CLTypography.callout)
-                        .foregroundStyle(CLColor.muted)
+                        .font(CLTypography.subheadline)
+                        .foregroundStyle(CLColor.inkMuted)
                 case let .error(message):
                     sectionError(message) {
                         if let communityId = viewModel.selectedCommunityId {
@@ -187,20 +177,7 @@ struct ConnectView: View {
                             ) {
                                 Task { await viewModel.sendConnect(to: user.id) }
                             }
-                            .contextMenu {
-                                Button("Report…") {
-                                    reportTarget = ModerationTarget(
-                                        userId: user.id,
-                                        displayName: user.displayName
-                                    )
-                                }
-                                Button("Block…", role: .destructive) {
-                                    blockTarget = ModerationTarget(
-                                        userId: user.id,
-                                        displayName: user.displayName
-                                    )
-                                }
-                            }
+                            .clAppear()
                         }
                     }
                 }
@@ -212,19 +189,20 @@ struct ConnectView: View {
 
     @ViewBuilder
     private var incomingSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.md) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Text("Incoming requests")
-                .font(CLTypography.section)
+                .font(CLTypography.headline)
                 .foregroundStyle(CLColor.ink)
 
             switch viewModel.incomingState {
             case .idle, .loading:
                 ProgressView("Loading requests…")
                     .tint(CLColor.primary)
+                    .foregroundStyle(CLColor.inkMuted)
             case .empty:
                 Text("No pending requests.")
-                    .font(CLTypography.callout)
-                    .foregroundStyle(CLColor.muted)
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkMuted)
             case let .error(message):
                 sectionError(message) {
                     Task { await viewModel.load() }
@@ -271,19 +249,20 @@ struct ConnectView: View {
 
     @ViewBuilder
     private var matchedSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.md) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Text("Matched")
-                .font(CLTypography.section)
+                .font(CLTypography.headline)
                 .foregroundStyle(CLColor.ink)
 
             switch viewModel.matchedState {
             case .idle, .loading:
                 ProgressView("Loading matches…")
                     .tint(CLColor.primary)
+                    .foregroundStyle(CLColor.inkMuted)
             case .empty:
                 Text("Accepted connections will show here.")
-                    .font(CLTypography.callout)
-                    .foregroundStyle(CLColor.muted)
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkMuted)
             case let .error(message):
                 sectionError(message) {
                     Task { await viewModel.load() }
@@ -323,14 +302,14 @@ struct ConnectView: View {
     }
 
     private func sectionError(_ message: String, retry: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+        VStack(alignment: .leading, spacing: CLSpacing.xs) {
             Text(message)
-                .font(CLTypography.callout)
-                .foregroundStyle(CLColor.muted)
+                .font(CLTypography.subheadline)
+                .foregroundStyle(CLColor.inkSecondary)
                 .accessibilityLabel("Error: \(message)")
             Button("Retry", action: retry)
-                .font(CLTypography.buttonSmall)
-                .foregroundStyle(CLColor.primary)
+                .font(CLTypography.subheadline.weight(.medium))
+                .foregroundStyle(CLColor.primaryPressed)
                 .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                 .accessibilityLabel("Retry loading section")
         }
@@ -354,7 +333,7 @@ private struct CandidateRowView: View {
     let onConnect: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: CLSpacing.md) {
+        HStack(alignment: .center, spacing: CLSpacing.sm) {
             AvatarImageView(
                 localPreview: nil,
                 avatarBase64: user.avatarBase64,
@@ -362,40 +341,36 @@ private struct CandidateRowView: View {
                 size: 52
             )
 
-            VStack(alignment: .leading, spacing: CLSpacing.xs) {
+            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
                 Text(user.displayName)
-                    .font(CLTypography.section)
+                    .font(CLTypography.headline)
                     .foregroundStyle(CLColor.ink)
                     .lineLimit(1)
 
                 if !user.interests.isEmpty {
                     Text(user.interests.prefix(3).joined(separator: " · "))
-                        .font(CLTypography.caption)
-                        .foregroundStyle(CLColor.muted)
+                        .font(CLTypography.footnote)
+                        .foregroundStyle(CLColor.inkMuted)
                         .lineLimit(1)
                 }
             }
 
-            Spacer(minLength: CLSpacing.sm)
+            Spacer(minLength: CLSpacing.xs)
 
             Button(action: onConnect) {
                 if isConnecting {
                     ProgressView()
-                        .frame(width: 88, height: AccessibilityHelpers.minimumTouchTarget)
+                        .tint(CLColor.onPrimary)
                 } else {
                     Text("Connect")
-                        .font(CLTypography.buttonSmall)
-                        .frame(width: 88, height: AccessibilityHelpers.minimumTouchTarget)
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(CLColor.primary)
+            .buttonStyle(CLPrimaryButtonStyle(fillsWidth: false))
+            .frame(minWidth: 96)
             .disabled(isConnecting)
             .accessibilityLabel("Connect with \(user.displayName)")
         }
-        .padding(CLSpacing.md)
-        .background(CLColor.surfaceSoft)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md))
+        .clCardStyle()
     }
 }
 
@@ -406,8 +381,8 @@ private struct IncomingRequestRowView: View {
     let onDecline: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.md) {
-            HStack(spacing: CLSpacing.md) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+            HStack(spacing: CLSpacing.sm) {
                 AvatarImageView(
                     localPreview: nil,
                     avatarBase64: item.peer.avatarBase64,
@@ -415,15 +390,15 @@ private struct IncomingRequestRowView: View {
                     size: 52
                 )
 
-                VStack(alignment: .leading, spacing: CLSpacing.xs) {
+                VStack(alignment: .leading, spacing: CLSpacing.xxs) {
                     Text(item.peer.displayName)
-                        .font(CLTypography.section)
+                        .font(CLTypography.headline)
                         .foregroundStyle(CLColor.ink)
 
                     if !item.peer.interests.isEmpty {
                         Text(item.peer.interests.prefix(3).joined(separator: " · "))
-                            .font(CLTypography.caption)
-                            .foregroundStyle(CLColor.muted)
+                            .font(CLTypography.footnote)
+                            .foregroundStyle(CLColor.inkMuted)
                             .lineLimit(1)
                     }
                 }
@@ -431,43 +406,33 @@ private struct IncomingRequestRowView: View {
                 Spacer(minLength: 0)
             }
 
-            HStack(spacing: CLSpacing.md) {
+            HStack(spacing: CLSpacing.sm) {
                 Button(action: onDecline) {
                     if isResponding {
                         ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                            .tint(CLColor.ink)
                     } else {
                         Text("Decline")
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                     }
                 }
-                .buttonStyle(.bordered)
-                .tint(CLColor.ink)
+                .buttonStyle(CLSecondaryButtonStyle())
                 .disabled(isResponding)
                 .accessibilityLabel("Decline \(item.peer.displayName)")
 
                 Button(action: onAccept) {
                     if isResponding {
                         ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                            .tint(CLColor.onPrimary)
                     } else {
                         Text("Accept")
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(CLColor.primary)
+                .buttonStyle(CLPrimaryButtonStyle())
                 .disabled(isResponding)
                 .accessibilityLabel("Accept \(item.peer.displayName)")
             }
         }
-        .padding(CLSpacing.md)
-        .background(CLColor.surfaceSoft)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md))
+        .clCardStyle()
     }
 }
 
@@ -477,7 +442,7 @@ private struct MatchedRowView: View {
     let onOpenChat: () -> Void
 
     var body: some View {
-        HStack(spacing: CLSpacing.md) {
+        HStack(spacing: CLSpacing.sm) {
             AvatarImageView(
                 localPreview: nil,
                 avatarBase64: item.peer.avatarBase64,
@@ -485,35 +450,31 @@ private struct MatchedRowView: View {
                 size: 52
             )
 
-            VStack(alignment: .leading, spacing: CLSpacing.xs) {
+            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
                 Text(item.peer.displayName)
-                    .font(CLTypography.section)
+                    .font(CLTypography.headline)
                     .foregroundStyle(CLColor.ink)
 
                 Text("Connected")
-                    .font(CLTypography.caption)
-                    .foregroundStyle(CLColor.muted)
+                    .font(CLTypography.footnote)
+                    .foregroundStyle(CLColor.success)
             }
 
-            Spacer(minLength: CLSpacing.sm)
+            Spacer(minLength: CLSpacing.xs)
 
             Button(action: onOpenChat) {
                 if isOpening {
                     ProgressView()
-                        .frame(width: 100, height: AccessibilityHelpers.minimumTouchTarget)
+                        .tint(CLColor.onPrimary)
                 } else {
                     Text("Open Chat")
-                        .font(CLTypography.buttonSmall)
-                        .frame(width: 100, height: AccessibilityHelpers.minimumTouchTarget)
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(CLColor.primary)
+            .buttonStyle(CLPrimaryButtonStyle(fillsWidth: false))
+            .frame(minWidth: 112)
             .disabled(isOpening)
             .accessibilityLabel("Open chat with \(item.peer.displayName)")
         }
-        .padding(CLSpacing.md)
-        .background(CLColor.surfaceSoft)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md))
+        .clCardStyle()
     }
 }

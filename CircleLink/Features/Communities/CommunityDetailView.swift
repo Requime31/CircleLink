@@ -11,6 +11,7 @@ struct CommunityDetailView: View {
             case .idle, .loading:
                 ProgressView("Loading community…")
                     .tint(CLColor.primary)
+                    .foregroundStyle(CLColor.inkMuted)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .error(message):
                 errorState(message: message)
@@ -20,7 +21,7 @@ struct CommunityDetailView: View {
                 detailContent(community: community)
             }
         }
-        .background(CLColor.canvas)
+        .clCanvasBackground()
         .navigationTitle(viewModel.communityState.loadedValue?.name ?? "Community")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -36,43 +37,44 @@ struct CommunityDetailView: View {
                 membershipSection
                 membersSection
             }
-            .padding(CLSpacing.lg)
+            .padding(.horizontal, CLSpacing.md)
+            .padding(.vertical, CLSpacing.lg)
+            .clAppear()
         }
     }
 
     @ViewBuilder
     private func headerSection(community: Community) -> some View {
-        VStack(alignment: .leading, spacing: CLSpacing.md) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Text(community.interestTag)
-                .font(CLTypography.callout)
+                .font(CLTypography.caption)
                 .foregroundStyle(CLColor.ink)
-                .padding(.horizontal, CLSpacing.md)
-                .padding(.vertical, CLSpacing.sm)
-                .background(CLColor.surfaceSoft)
+                .padding(.horizontal, CLSpacing.sm)
+                .padding(.vertical, CLSpacing.xxs)
+                .background(CLColor.primarySoft)
                 .clipShape(Capsule())
 
             Text(community.description)
                 .font(CLTypography.body)
-                .foregroundStyle(CLColor.muted)
+                .foregroundStyle(CLColor.inkSecondary)
 
             Text(memberCountLabel(for: community.memberCount))
-                .font(CLTypography.caption)
-                .foregroundStyle(CLColor.muted)
+                .font(CLTypography.footnote)
+                .foregroundStyle(CLColor.inkMuted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
     private var membershipSection: some View {
-        VStack(spacing: CLSpacing.md) {
+        VStack(spacing: CLSpacing.sm) {
             if viewModel.isMember {
                 Button {
                     Task { await viewModel.leave() }
                 } label: {
                     membershipButtonLabel(title: "Leave Community", isLoading: viewModel.isMembershipActionInFlight)
                 }
-                .buttonStyle(.bordered)
-                .tint(CLColor.ink)
+                .buttonStyle(CLSecondaryButtonStyle())
                 .disabled(viewModel.isMembershipActionInFlight)
                 .accessibilityLabel("Leave community")
 
@@ -83,21 +85,9 @@ struct CommunityDetailView: View {
                         }
                     }
                 } label: {
-                    Group {
-                        if viewModel.isOpeningGroupChat {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-                        } else {
-                            Text("Open Group Chat")
-                                .font(CLTypography.button)
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-                        }
-                    }
+                    membershipButtonLabel(title: "Open Group Chat", isLoading: viewModel.isOpeningGroupChat)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(CLColor.primary)
+                .buttonStyle(CLPrimaryButtonStyle())
                 .disabled(viewModel.isOpeningGroupChat || viewModel.isMembershipActionInFlight)
                 .accessibilityLabel("Open group chat")
                 .accessibilityHint("Opens the community group chat")
@@ -107,16 +97,19 @@ struct CommunityDetailView: View {
                 } label: {
                     membershipButtonLabel(title: "Join Community", isLoading: viewModel.isMembershipActionInFlight)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(CLColor.primary)
+                .buttonStyle(CLPrimaryButtonStyle())
                 .disabled(viewModel.isMembershipActionInFlight)
                 .accessibilityLabel("Join community")
             }
 
             if let membershipErrorMessage = viewModel.membershipErrorMessage {
                 Text(membershipErrorMessage)
-                    .font(CLTypography.caption)
+                    .font(CLTypography.footnote)
                     .foregroundStyle(CLColor.error)
+                    .padding(CLSpacing.sm)
+                    .frame(maxWidth: .infinity)
+                    .background(CLColor.errorSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
                     .multilineTextAlignment(.center)
                     .accessibilityLabel("Membership error: \(membershipErrorMessage)")
             }
@@ -125,9 +118,9 @@ struct CommunityDetailView: View {
 
     @ViewBuilder
     private var membersSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.md) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Text("Members")
-                .font(CLTypography.section)
+                .font(CLTypography.headline)
                 .foregroundStyle(CLColor.ink)
 
             switch viewModel.membersState {
@@ -135,28 +128,26 @@ struct CommunityDetailView: View {
                 ProgressView("Loading members…")
                     .tint(CLColor.primary)
                     .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, CLSpacing.sm)
             case .empty:
-                CLEmptyState(
-                    systemImage: "person.crop.circle.badge.questionmark",
-                    title: "No members yet",
-                    message: "Be the first to join this community."
-                )
-                .frame(maxHeight: 200)
+                Text("No members yet.")
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkMuted)
             case let .error(message):
-                CLEmptyState(
-                    systemImage: "exclamationmark.triangle",
-                    title: message,
-                    actionTitle: "Retry",
-                    actionAccessibilityLabel: "Retry loading members",
-                    titleAccessibilityLabel: "Members error: \(message)"
-                ) {
-                    Task { await viewModel.load() }
-                }
-                .frame(maxHeight: 220)
+                Text(message)
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkSecondary)
+                    .accessibilityLabel("Members error: \(message)")
             case let .loaded(members):
-                LazyVStack(spacing: CLSpacing.md) {
+                LazyVStack(spacing: 0) {
                     ForEach(members) { member in
                         MemberRowView(user: member)
+                        if member.id != members.last?.id {
+                            Rectangle()
+                                .fill(CLColor.hairline)
+                                .frame(height: 1)
+                                .padding(.leading, MemberRowView.avatarSize + CLSpacing.sm)
+                        }
                     }
                 }
             }
@@ -164,30 +155,35 @@ struct CommunityDetailView: View {
     }
 
     private func errorState(message: String) -> some View {
-        CLEmptyState(
-            systemImage: "exclamationmark.triangle",
-            title: message,
-            actionTitle: "Retry",
-            actionAccessibilityLabel: "Retry loading community",
-            titleAccessibilityLabel: "Error: \(message)"
-        ) {
-            Task { await viewModel.load() }
+        VStack(spacing: CLSpacing.sm) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 40))
+                .foregroundStyle(CLColor.error)
+                .padding(CLSpacing.md)
+                .background(Circle().fill(CLColor.errorSoft))
+                .accessibilityHidden(true)
+            Text(message)
+                .font(CLTypography.body)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(CLColor.inkSecondary)
+            Button("Retry") {
+                Task { await viewModel.load() }
+            }
+            .buttonStyle(CLSecondaryButtonStyle())
+            .padding(.top, CLSpacing.xs)
+            .accessibilityLabel("Retry loading community")
         }
+        .padding(CLSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
     private func membershipButtonLabel(title: String, isLoading: Bool) -> some View {
-        Group {
-            if isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-            } else {
-                Text(title)
-                    .font(CLTypography.button)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-            }
+        if isLoading {
+            ProgressView()
+                .tint(CLColor.onPrimary)
+        } else {
+            Text(title)
         }
     }
 
@@ -197,23 +193,27 @@ struct CommunityDetailView: View {
 }
 
 private struct MemberRowView: View {
+    static let avatarSize: CGFloat = 44
+
     let user: User
 
     var body: some View {
-        HStack(spacing: CLSpacing.md) {
+        HStack(spacing: CLSpacing.sm) {
             AvatarImageView(
                 localPreview: nil,
                 avatarBase64: user.avatarBase64,
                 avatarURL: user.avatarURL,
-                size: 44
+                size: Self.avatarSize
             )
 
             Text(user.displayName)
-                .font(CLTypography.callout)
+                .font(CLTypography.headline)
                 .foregroundStyle(CLColor.ink)
 
             Spacer()
         }
+        .padding(.vertical, CLSpacing.sm)
+        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Member: \(user.displayName)")
     }

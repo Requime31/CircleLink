@@ -1,11 +1,16 @@
 import SwiftUI
 
 struct ChatViewControllerWrapper: UIViewControllerRepresentable {
-    let viewModel: ChatViewModel
+    @ObservedObject var viewModel: ChatViewModel
+    var onSenderAvatarTapped: ((String) -> Void)?
 
     func makeUIViewController(context: Context) -> ChatViewController {
-        ChatViewController(viewModel: viewModel)
+        let controller = ChatViewController(viewModel: viewModel)
+        controller.onSenderAvatarTapped = onSenderAvatarTapped
+        return controller
     }
 
-    func updateUIViewController(_ uiViewController: ChatViewController, context: Context) {}
+    func updateUIViewController(_ uiViewController: ChatViewController, context: Context) {
+        uiViewController.onSenderAvatarTapped = onSenderAvatarTapped
+    }
 }

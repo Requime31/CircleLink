@@ -14,21 +14,26 @@ struct ProfileEditView: View {
                 if case .loading = viewModel.saveState {
                     ProgressView("Saving changes…")
                         .tint(CLColor.primary)
+                        .foregroundStyle(CLColor.inkMuted)
                         .frame(maxWidth: .infinity)
                 }
 
                 if case let .error(message) = viewModel.saveState {
                     Text(message)
-                        .font(CLTypography.caption)
+                        .font(CLTypography.footnote)
                         .foregroundStyle(CLColor.error)
                         .multilineTextAlignment(.center)
+                        .padding(CLSpacing.sm)
                         .frame(maxWidth: .infinity)
+                        .background(CLColor.errorSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
                         .accessibilityLabel("Error: \(message)")
                 }
             }
             .padding(CLSpacing.lg)
+            .clAppear()
         }
-        .background(CLColor.canvas)
+        .clCanvasBackground()
         .navigationTitle("Edit Profile")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -46,12 +51,8 @@ struct ProfileEditView: View {
             }
         } label: {
             Text("Save")
-                .font(CLTypography.button)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(CLColor.primary)
+        .buttonStyle(CLPrimaryButtonStyle())
         .disabled(!viewModel.canSave || viewModel.saveState == .loading)
         .accessibilityLabel("Save profile changes")
     }

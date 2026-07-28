@@ -15,6 +15,7 @@ struct CommunitiesListView: View {
                 case .idle, .loading:
                     ProgressView("Loading communities…")
                         .tint(CLColor.primary)
+                        .foregroundStyle(CLColor.inkMuted)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .empty:
                     emptyState
@@ -24,7 +25,7 @@ struct CommunitiesListView: View {
                     communitiesList(communities)
                 }
             }
-            .background(CLColor.canvas)
+            .clCanvasBackground()
             .navigationTitle("Communities")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -45,13 +46,9 @@ struct CommunitiesListView: View {
                     onCommunitySelected(communityId)
                 }
             }
-            .sheet(isPresented: $showCreateSheet) {
-                CreateCommunitySheet(viewModel: viewModel) {
-                    showCreateSheet = false
-                }
-            }
-            .task {
-                await viewModel.loadCommunities()
+            // onAppear (not only .task): re-runs when popping back from detail so counts stay fresh.
+            .onAppear {
+                viewModel.refreshOnAppear()
             }
         }
     }
@@ -59,7 +56,7 @@ struct CommunitiesListView: View {
     @ViewBuilder
     private func communitiesList(_ communities: [Community]) -> some View {
         ScrollView {
-            LazyVStack(spacing: CLSpacing.base) {
+            LazyVStack(spacing: CLSpacing.md) {
                 ForEach(communities) { community in
                     NavigationLink(value: community.id) {
                         CommunityCardView(community: community)
@@ -68,32 +65,60 @@ struct CommunitiesListView: View {
                     .accessibilityLabel("\(community.name), \(community.memberCount) members")
                 }
             }
-            .padding(CLSpacing.base)
+            .padding(.horizontal, CLSpacing.md)
+            .padding(.vertical, CLSpacing.md)
+            .clAppear()
         }
     }
 
     private var emptyState: some View {
-        CLEmptyState(
-            systemImage: "person.3",
-            title: "No communities yet",
-            message: "Create one around an interest to start meeting people.",
-            actionTitle: "Create community",
-            actionAccessibilityLabel: "Create community"
-        ) {
-            showCreateSheet = true
+        VStack(spacing: CLSpacing.sm) {
+            Image(systemName: "person.3")
+                .font(.system(size: 40))
+                .foregroundStyle(CLColor.inkMuted)
+                .padding(CLSpacing.md)
+                .background(Circle().fill(CLColor.primarySoft))
+                .accessibilityHidden(true)
+            Text("No communities yet")
+                .font(CLTypography.title2)
+                .foregroundStyle(CLColor.ink)
+            Text("Interest-based groups will appear here.")
+                .font(CLTypography.subheadline)
+                .foregroundStyle(CLColor.inkSecondary)
+                .multilineTextAlignment(.center)
+            Button("Refresh") {
+                Task { await viewModel.loadCommunities() }
+            }
+            .buttonStyle(CLSecondaryButtonStyle())
+            .padding(.top, CLSpacing.xs)
+            .accessibilityLabel("Refresh communities list")
         }
+        .padding(CLSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorState(message: String) -> some View {
-        CLEmptyState(
-            systemImage: "exclamationmark.triangle",
-            title: message,
-            actionTitle: "Retry",
-            actionAccessibilityLabel: "Retry loading communities",
-            titleAccessibilityLabel: "Error: \(message)"
-        ) {
-            Task { await viewModel.loadCommunities() }
+        VStack(spacing: CLSpacing.sm) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 40))
+                .foregroundStyle(CLColor.error)
+                .padding(CLSpacing.md)
+                .background(Circle().fill(CLColor.errorSoft))
+                .accessibilityHidden(true)
+            Text(message)
+                .font(CLTypography.body)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(CLColor.inkSecondary)
+                .accessibilityLabel("Error: \(message)")
+            Button("Retry") {
+                Task { await viewModel.loadCommunities() }
+            }
+            .buttonStyle(CLSecondaryButtonStyle())
+            .padding(.top, CLSpacing.xs)
+            .accessibilityLabel("Retry loading communities")
         }
+        .padding(CLSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -101,38 +126,36 @@ private struct CommunityCardView: View {
     let community: Community
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.md) {
-            HStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+            HStack(alignment: .top, spacing: CLSpacing.xs) {
                 Text(community.name)
-                    .font(CLTypography.section)
+                    .font(CLTypography.headline)
                     .foregroundStyle(CLColor.ink)
                     .multilineTextAlignment(.leading)
 
-                Spacer()
+                Spacer(minLength: CLSpacing.xs)
 
                 Text(community.interestTag)
-                    .font(CLTypography.callout)
+                    .font(CLTypography.caption)
                     .foregroundStyle(CLColor.ink)
-                    .padding(.horizontal, CLSpacing.md)
-                    .padding(.vertical, CLSpacing.sm)
-                    .background(CLColor.surfaceSoft)
+                    .padding(.horizontal, CLSpacing.sm)
+                    .padding(.vertical, CLSpacing.xxs)
+                    .background(CLColor.primarySoft)
                     .clipShape(Capsule())
             }
 
             Text(community.description)
-                .font(CLTypography.callout)
-                .foregroundStyle(CLColor.muted)
+                .font(CLTypography.subheadline)
+                .foregroundStyle(CLColor.inkSecondary)
                 .lineLimit(3)
                 .multilineTextAlignment(.leading)
 
             Text(memberCountLabel)
-                .font(CLTypography.caption)
-                .foregroundStyle(CLColor.muted)
+                .font(CLTypography.footnote)
+                .foregroundStyle(CLColor.inkMuted)
         }
-        .padding(CLSpacing.base)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(CLColor.surfaceSoft)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md))
+        .clCardStyle()
     }
 
     private var memberCountLabel: String {

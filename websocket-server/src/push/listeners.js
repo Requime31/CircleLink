@@ -128,6 +128,17 @@ async function handleNewMessage(doc) {
 
   await Promise.all(
     recipients.map(async (userId) => {
+      // Per-user mute lives on users/{uid}/chatRefs/{chatId}.muted (Phase 6).
+      const chatRefSnap = await db
+        .collection('users')
+        .doc(userId)
+        .collection('chatRefs')
+        .doc(chatId)
+        .get();
+      if (chatRefSnap.exists && chatRefSnap.get('muted') === true) {
+        return;
+      }
+
       const token = await fcmTokenForUser(userId);
       if (!token) return;
 

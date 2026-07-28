@@ -51,10 +51,15 @@ enum FirestoreChatMapper {
         from document: DocumentSnapshot,
         titleOverride: String? = nil,
         avatarURL: URL? = nil,
-        avatarBase64: String? = nil
+        avatarBase64: String? = nil,
+        peerUserId: String? = nil,
+        isMuted: Bool = false
     ) throws -> ChatSummary {
         let data = document.data() ?? [:]
         let typeRaw = data["type"] as? String ?? ChatType.direct.rawValue
+        let communityId = (data["communityId"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedCommunityId = (communityId?.isEmpty == false) ? communityId : nil
 
         return ChatSummary(
             id: document.documentID,
@@ -64,10 +69,15 @@ enum FirestoreChatMapper {
             lastMessageAt: (data["lastMessageAt"] as? Timestamp)?.dateValue(),
             unreadCount: data["unreadCount"] as? Int ?? 0,
             avatarURL: avatarURL,
-            avatarBase64: avatarBase64
+            avatarBase64: avatarBase64,
+            communityId: resolvedCommunityId,
+            peerUserId: peerUserId,
+            isMuted: isMuted
         )
     }
 
+    /// Preview / last-message patch only — never writes `muted` / `hidden`
+    /// so peer merges cannot wipe the owner's mute/hide state.
     static func chatRefData(
         lastMessageText: String?,
         lastMessageAt: Date
@@ -76,6 +86,14 @@ enum FirestoreChatMapper {
             "lastMessageText": lastMessageText as Any? ?? NSNull(),
             "lastMessageAt": Timestamp(date: lastMessageAt)
         ]
+    }
+
+    static func isHiddenChatRef(_ data: [String: Any]) -> Bool {
+        data["hidden"] as? Bool == true
+    }
+
+    static func isMutedChatRef(_ data: [String: Any]) -> Bool {
+        data["muted"] as? Bool == true
     }
 
     static func directChatId(userIdA: String, userIdB: String) -> String {

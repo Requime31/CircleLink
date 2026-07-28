@@ -83,7 +83,18 @@ final class AppDependencies {
     }
 
     func makeChatsViewModel() -> ChatsViewModel {
-        ChatsViewModel(chatRepository: chatRepository)
+        ChatsViewModel(
+            chatRepository: chatRepository,
+            currentUserId: authRepository.currentUser?.id ?? ""
+        )
+    }
+
+    func makeChatInfoViewModel(chatId: String) -> ChatInfoViewModel {
+        ChatInfoViewModel(
+            chatId: chatId,
+            currentUserId: authRepository.currentUser?.id ?? "",
+            chatRepository: chatRepository
+        )
     }
 
     func makeChatViewModel(
@@ -121,6 +132,33 @@ final class AppDependencies {
             authRepository: authRepository,
             userRepository: userRepository,
             onProfileSaved: onProfileSaved
+        )
+    }
+
+    /// Peer (other user) profile sheet. Pass `communityId` when known so Connect works.
+    /// Sheet owns its ViewModel — prefer this over creating the VM in a `.sheet` closure.
+    func makePeerProfileSheet(
+        userId: String,
+        communityId: String? = nil
+    ) -> PeerProfileSheet {
+        PeerProfileSheet(
+            userId: userId,
+            communityId: communityId,
+            userRepository: userRepository,
+            connectionRepository: connectionRepository
+        )
+    }
+
+    /// Prefer `makePeerProfileSheet` for presentation. Use this when embedding `PeerProfileView` directly.
+    func makePeerProfileViewModel(
+        userId: String,
+        communityId: String? = nil
+    ) -> PeerProfileViewModel {
+        PeerProfileViewModel(
+            userId: userId,
+            communityId: communityId,
+            userRepository: userRepository,
+            connectionRepository: connectionRepository
         )
     }
 }

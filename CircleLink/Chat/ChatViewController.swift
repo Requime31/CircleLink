@@ -4,6 +4,8 @@ import UIKit
 
 final class ChatViewController: UIViewController {
     private let viewModel: ChatViewModel
+    /// Incoming avatar tap → Peer Profile (wired from SwiftUI).
+    var onSenderAvatarTapped: ((String) -> Void)?
     private var cancellables = Set<AnyCancellable>()
     private var displayedMessages: [ChatMessageItem] = []
     private var keyboardBottomConstraint: NSLayoutConstraint?
@@ -50,7 +52,9 @@ final class ChatViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = viewModel.chatTitle
+        // Title / info live in SwiftUI toolbar (ChatThreadView).
+        title = nil
+        navigationItem.largeTitleDisplayMode = .never
         view.accessibilityLabel = "Chat with \(viewModel.chatTitle)"
         view.backgroundColor = ChatAppearance.canvas
         setupLayout()
@@ -124,7 +128,7 @@ final class ChatViewController: UIViewController {
         let overlap = max(0, view.bounds.maxY - keyboardFrameInView.minY - view.safeAreaInsets.bottom)
 
         keyboardBottomConstraint?.constant = -overlap
-        UIView.animate(withDuration: duration) {
+        animateAlongsideKeyboard(duration: duration, userInfo: notification.userInfo) {
             self.view.layoutIfNeeded()
         }
     }
@@ -132,9 +136,22 @@ final class ChatViewController: UIViewController {
     @objc private func keyboardWillHide(_ notification: Notification) {
         let duration = notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
         keyboardBottomConstraint?.constant = 0
-        UIView.animate(withDuration: duration) {
+        animateAlongsideKeyboard(duration: duration, userInfo: notification.userInfo) {
             self.view.layoutIfNeeded()
         }
+    }
+
+    /// Match system keyboard curve so the composer rides up smoothly (not a flashy snap).
+    private func animateAlongsideKeyboard(
+        duration: TimeInterval,
+        userInfo: [AnyHashable: Any]?,
+        animations: @escaping () -> Void
+    ) {
+        // Curve key is UIView.AnimationCurve raw value; shift into AnimationOptions.
+        let curveRaw = (userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber)?.uintValue
+            ?? UInt(UIView.AnimationCurve.easeInOut.rawValue)
+        let options = UIView.AnimationOptions(rawValue: curveRaw << 16)
+        UIView.animate(withDuration: duration, delay: 0, options: options, animations: animations)
     }
 
     private func bindViewModel() {
@@ -216,12 +233,20 @@ extension ChatViewController: UITableViewDataSource {
         }
 
         let item = viewModel.messages[indexPath.row]
-        cell.configure(with: item) { [weak self] in
-            guard let self else { return }
-            Task {
-                await self.viewModel.retry(clientMessageId: item.clientMessageId)
-            }
-        }
+        cell.configure(
+            with: item,
+            onRetry: { [weak self] in
+                guard let self else { return }
+                Task {
+                    await self.viewModel.retry(clientMessageId: item.clientMessageId)
+                }
+            },
+            onAvatarTap: item.isOutgoing
+                ? nil
+                : { [weak self] in
+                    self?.onSenderAvatarTapped?(item.senderId)
+                }
+        )
         return cell
     }
 }

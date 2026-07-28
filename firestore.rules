@@ -54,19 +54,34 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && request.auth.uid == userId;
 
-      // Phase 8: per-user chat references
-      // Owner always; a chat participant may write another participant's ref
-      // (needed so createDirectChat / sendMessage can batch-update both sides).
+      // Phase 8: per-user chat references (+ Phase 6 muted / hidden)
+      // Owner: full write (mute / hide / unhide / leave delete).
+      // Peer participant: preview fields only — must not touch muted / hidden.
       match /chatRefs/{chatId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
-        allow write: if isSignedIn() && (
+
+        allow create: if isSignedIn() && (
           request.auth.uid == userId
           || (
             chatExists(chatId)
             && request.auth.uid in chatDoc(chatId).data.get('participantIds', [])
             && userId in chatDoc(chatId).data.get('participantIds', [])
+            && request.resource.data.keys().hasOnly(['lastMessageText', 'lastMessageAt'])
           )
         );
+
+        allow update: if isSignedIn() && (
+          request.auth.uid == userId
+          || (
+            chatExists(chatId)
+            && request.auth.uid in chatDoc(chatId).data.get('participantIds', [])
+            && userId in chatDoc(chatId).data.get('participantIds', [])
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['lastMessageText', 'lastMessageAt'])
+          )
+        );
+
+        allow delete: if isSignedIn() && request.auth.uid == userId;
       }
 
       // Phase 14: owner-only block list
@@ -139,7 +154,11 @@ service cloud.firestore {
       match /members/{userId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn() && request.auth.uid == userId;
-        allow delete: if isSignedIn() && request.auth.uid == userId;
+        // Own leave, or clean up membership when the user profile was deleted.
+        allow delete: if isSignedIn() && (
+          request.auth.uid == userId
+          || !exists(/databases/$(database)/documents/users/$(userId))
+        );
       }
     }
 
@@ -203,6 +222,14 @@ service cloud.firestore {
           request.auth.uid == resource.data.toUserId
           && resource.data.status == 'pending'
           && request.resource.data.status in ['accepted', 'declined']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        )
+        // Either party may unmatch (accepted → declined). Status-only; chats stay.
+        || (
+          (request.auth.uid == resource.data.fromUserId
+            || request.auth.uid == resource.data.toUserId)
+          && resource.data.status == 'accepted'
+          && request.resource.data.status == 'declined'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         )
         // Either party may reopen a declined request as a new pending connect.
