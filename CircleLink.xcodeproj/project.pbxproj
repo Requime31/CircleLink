@@ -14,14 +14,30 @@
 		F95630FE30079F430074C843 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D40000000100000003 /* FirebaseFirestore */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		F9B5DD4F300F92BB008684E2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F931237030069F9C002688D5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F931237730069F9C002688D5;
+			remoteInfo = CircleLink;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		F931237830069F9C002688D5 /* CircleLink.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CircleLink.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F9B5DD4B300F92BB008684E2 /* CircleLinkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CircleLinkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F931237A30069F9C002688D5 /* CircleLink */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = CircleLink;
+			sourceTree = "<group>";
+		};
+		F9B5DD4C300F92BB008684E2 /* CircleLinkTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CircleLinkTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -39,6 +55,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F9B5DD48300F92BB008684E2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -46,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				F931237A30069F9C002688D5 /* CircleLink */,
+				F9B5DD4C300F92BB008684E2 /* CircleLinkTests */,
 				F931237930069F9C002688D5 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -54,6 +78,7 @@
 			isa = PBXGroup;
 			children = (
 				F931237830069F9C002688D5 /* CircleLink.app */,
+				F9B5DD4B300F92BB008684E2 /* CircleLinkTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -88,6 +113,29 @@
 			productReference = F931237830069F9C002688D5 /* CircleLink.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F9B5DD4A300F92BB008684E2 /* CircleLinkTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F9B5DD53300F92BB008684E2 /* Build configuration list for PBXNativeTarget "CircleLinkTests" */;
+			buildPhases = (
+				F9B5DD47300F92BB008684E2 /* Sources */,
+				F9B5DD48300F92BB008684E2 /* Frameworks */,
+				F9B5DD49300F92BB008684E2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F9B5DD50300F92BB008684E2 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F9B5DD4C300F92BB008684E2 /* CircleLinkTests */,
+			);
+			name = CircleLinkTests;
+			packageProductDependencies = (
+			);
+			productName = CircleLinkTests;
+			productReference = F9B5DD4B300F92BB008684E2 /* CircleLinkTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -100,6 +148,10 @@
 				TargetAttributes = {
 					F931237730069F9C002688D5 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					F9B5DD4A300F92BB008684E2 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = F931237730069F9C002688D5;
 					};
 				};
 			};
@@ -122,12 +174,20 @@
 			projectRoot = "";
 			targets = (
 				F931237730069F9C002688D5 /* CircleLink */,
+				F9B5DD4A300F92BB008684E2 /* CircleLinkTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		F931237630069F9C002688D5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F9B5DD49300F92BB008684E2 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -144,7 +204,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F9B5DD47300F92BB008684E2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F9B5DD50300F92BB008684E2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F931237730069F9C002688D5 /* CircleLink */;
+			targetProxy = F9B5DD4F300F92BB008684E2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F931238130069F9D002688D5 /* Debug */ = {
@@ -342,6 +417,50 @@
 			};
 			name = Release;
 		};
+		F9B5DD51300F92BB008684E2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7ZMD5KP5YT;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.roman.helloswift.CircleLinkTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CircleLink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CircleLink";
+			};
+			name = Debug;
+		};
+		F9B5DD52300F92BB008684E2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7ZMD5KP5YT;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.roman.helloswift.CircleLinkTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CircleLink.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CircleLink";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -359,6 +478,15 @@
 			buildConfigurations = (
 				F931238430069F9D002688D5 /* Debug */,
 				F931238530069F9D002688D5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F9B5DD53300F92BB008684E2 /* Build configuration list for PBXNativeTarget "CircleLinkTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F9B5DD51300F92BB008684E2 /* Debug */,
+				F9B5DD52300F92BB008684E2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
