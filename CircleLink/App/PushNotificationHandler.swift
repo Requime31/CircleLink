@@ -48,7 +48,9 @@ final class PushNotificationHandler: NSObject {
         case .denied:
             // iOS will not show the dialog again until the user enables it in Settings.
             defaults.set(true, forKey: Self.didRequestPermissionKey)
+            #if DEBUG
             print("[Push] notification permission denied — enable in Settings → CircleLink")
+            #endif
             return
 
         case .notDetermined:
@@ -59,16 +61,22 @@ final class PushNotificationHandler: NSObject {
         }
 
         do {
+            #if DEBUG
             print("[Push] requesting notification permission…")
+            #endif
             let granted = try await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .badge, .sound])
             defaults.set(true, forKey: Self.didRequestPermissionKey)
+            #if DEBUG
             print("[Push] permission granted=\(granted)")
+            #endif
             guard granted else { return }
             registerForRemoteNotifications()
             await uploadCurrentFCMToken()
         } catch {
+            #if DEBUG
             print("[Push] requestAuthorization failed: \(error.localizedDescription)")
+            #endif
         }
     }
 
@@ -96,7 +104,9 @@ final class PushNotificationHandler: NSObject {
     }
 
     func didFailToRegisterForRemoteNotifications(error: Error) {
+        #if DEBUG
         print("[Push] APNs registration failed: \(error.localizedDescription)")
+        #endif
     }
 
     func didReceiveFCMToken(_ token: String?) {
@@ -110,14 +120,18 @@ final class PushNotificationHandler: NSObject {
         do {
             try await Messaging.messaging().deleteToken()
         } catch {
+            #if DEBUG
             print("[Push] deleteToken failed: \(error.localizedDescription)")
+            #endif
         }
         #endif
 
         do {
             try await userRepository.clearFCMToken()
         } catch {
+            #if DEBUG
             print("[Push] clearFCMToken failed: \(error.localizedDescription)")
+            #endif
         }
     }
 
@@ -140,7 +154,9 @@ final class PushNotificationHandler: NSObject {
             let token = try await Messaging.messaging().token()
             await storeFCMToken(token)
         } catch {
+            #if DEBUG
             print("[Push] FCM token fetch failed: \(error.localizedDescription)")
+            #endif
         }
         #endif
     }
@@ -151,7 +167,9 @@ final class PushNotificationHandler: NSObject {
         do {
             try await userRepository.updateFCMToken(token)
         } catch {
+            #if DEBUG
             print("[Push] updateFCMToken failed: \(error.localizedDescription)")
+            #endif
         }
     }
 }

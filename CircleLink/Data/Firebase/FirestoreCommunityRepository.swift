@@ -6,6 +6,8 @@ enum FirestoreCommunityError: LocalizedError {
     case notAuthenticated
     case communityNotFound
     case invalidData
+    case invalidName
+    case nameTooLong
 
     var errorDescription: String? {
         switch self {
@@ -15,6 +17,10 @@ enum FirestoreCommunityError: LocalizedError {
             return "Community could not be found."
         case .invalidData:
             return "Community data is invalid."
+        case .invalidName:
+            return "Enter a community name."
+        case .nameTooLong:
+            return "Name must be 60 characters or fewer."
         }
     }
 }
@@ -98,5 +104,58 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
         batch.deleteDocument(memberRef)
         batch.updateData(["memberCount": FieldValue.increment(Int64(-1))], forDocument: communityRef)
         try await batch.commit()
+    }
+
+    func createCommunity(
+        name: String,
+        description: String,
+        interestTag: String
+    ) async throws -> Community {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw FirestoreCommunityError.notAuthenticated
+        }
+
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw FirestoreCommunityError.invalidName
+        }
+        guard trimmedName.count <= 60 else {
+            throw FirestoreCommunityError.nameTooLong
+        }
+
+        let trimmedDescription = String(
+            description.trimmingCharacters(in: .whitespacesAndNewlines).prefix(280)
+        )
+        let trimmedTag = interestTag.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTag.isEmpty else {
+            throw FirestoreCommunityError.invalidData
+        }
+
+        let communityRef = db.collection(communitiesCollection).document()
+        let memberRef = communityRef.collection(membersCollection).document(userId)
+
+        let batch = db.batch()
+        batch.setData(
+            FirestoreCommunityMapper.createCommunityData(
+                name: trimmedName,
+                description: trimmedDescription,
+                interestTag: trimmedTag,
+                createdBy: userId
+            ),
+            forDocument: communityRef
+        )
+        batch.setData(
+            FirestoreCommunityMapper.memberData(role: .admin),
+            forDocument: memberRef
+        )
+        try await batch.commit()
+
+        return Community(
+            id: communityRef.documentID,
+            name: trimmedName,
+            description: trimmedDescription,
+            interestTag: trimmedTag,
+            memberCount: 1
+        )
     }
 }

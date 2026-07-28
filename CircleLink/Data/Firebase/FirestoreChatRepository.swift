@@ -229,7 +229,9 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
 
             let registration = query.addSnapshotListener { snapshot, error in
                 if let error {
+                    #if DEBUG
                     print("[FirestoreChatRepository] messages listener error: \(error.localizedDescription)")
+                    #endif
                     return
                 }
 
@@ -247,7 +249,9 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                         )
                         continuation.yield(message)
                     } catch {
+                        #if DEBUG
                         print("[FirestoreChatRepository] message map failed: \(error.localizedDescription)")
+                        #endif
                     }
                 }
             }
