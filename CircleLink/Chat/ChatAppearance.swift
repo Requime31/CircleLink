@@ -56,6 +56,9 @@ enum ChatAppearance {
     static let timestampSpacing: CGFloat = 4
     static let sideGutter: CGFloat = 16
     static let oppositeGutter: CGFloat = 64
+    /// Fixed media width so image-only bubbles don’t collapse to the timestamp width.
+    static let bubbleImageWidth: CGFloat = 220
+    static let bubbleImageHeight: CGFloat = 180
 
     // MARK: Typography (Dynamic Type)
 

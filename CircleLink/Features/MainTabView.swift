@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @Binding var selectedTab: AppCoordinator.MainTab
+    @Binding var pendingChatRoute: ChatThreadRoute?
 
     @ObservedObject var communitiesViewModel: CommunitiesViewModel
     @ObservedObject var chatsViewModel: ChatsViewModel
@@ -9,7 +10,9 @@ struct MainTabView: View {
     @ObservedObject var profileViewModel: ProfileViewModel
 
     let makeCommunityDetailViewModel: (String) -> CommunityDetailViewModel
-    let onChatSelected: (String) -> Void
+    let makeChatViewModel: (String, String) -> ChatViewModel?
+    let makeChatInfoViewModel: (String) -> ChatInfoViewModel
+    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
     let onCommunitySelected: (String) -> Void
     let onOpenGroupChat: (String, String) -> Void
     let onSignOut: () -> Void
@@ -19,6 +22,7 @@ struct MainTabView: View {
             CommunitiesListView(
                 viewModel: communitiesViewModel,
                 makeDetailViewModel: makeCommunityDetailViewModel,
+                makePeerProfileSheet: makePeerProfileSheet,
                 onCommunitySelected: onCommunitySelected,
                 onOpenGroupChat: onOpenGroupChat
             )
@@ -30,7 +34,10 @@ struct MainTabView: View {
 
             ChatListView(
                 viewModel: chatsViewModel,
-                onChatSelected: onChatSelected
+                pendingChatRoute: $pendingChatRoute,
+                makeChatViewModel: makeChatViewModel,
+                makeChatInfoViewModel: makeChatInfoViewModel,
+                makePeerProfileSheet: makePeerProfileSheet
             )
             .tabItem {
                 Label("Chats", systemImage: "bubble.left.and.bubble.right")

@@ -4,6 +4,8 @@ import UIKit
 
 final class ChatViewController: UIViewController {
     private let viewModel: ChatViewModel
+    /// Incoming avatar tap → Peer Profile (wired from SwiftUI).
+    var onSenderAvatarTapped: ((String) -> Void)?
     private var cancellables = Set<AnyCancellable>()
     private var displayedMessages: [ChatMessageItem] = []
     private var keyboardBottomConstraint: NSLayoutConstraint?
@@ -50,7 +52,9 @@ final class ChatViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        title = viewModel.chatTitle
+        // Title / info live in SwiftUI toolbar (ChatThreadView).
+        title = nil
+        navigationItem.largeTitleDisplayMode = .never
         view.accessibilityLabel = "Chat with \(viewModel.chatTitle)"
         view.backgroundColor = ChatAppearance.canvas
         setupLayout()
@@ -229,12 +233,20 @@ extension ChatViewController: UITableViewDataSource {
         }
 
         let item = viewModel.messages[indexPath.row]
-        cell.configure(with: item) { [weak self] in
-            guard let self else { return }
-            Task {
-                await self.viewModel.retry(clientMessageId: item.clientMessageId)
-            }
-        }
+        cell.configure(
+            with: item,
+            onRetry: { [weak self] in
+                guard let self else { return }
+                Task {
+                    await self.viewModel.retry(clientMessageId: item.clientMessageId)
+                }
+            },
+            onAvatarTap: item.isOutgoing
+                ? nil
+                : { [weak self] in
+                    self?.onSenderAvatarTapped?(item.senderId)
+                }
+        )
         return cell
     }
 }

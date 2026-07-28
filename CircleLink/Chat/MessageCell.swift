@@ -2,6 +2,20 @@ import UIKit
 
 final class MessageCell: UITableViewCell {
     static let reuseIdentifier = "MessageCell"
+    static let avatarSize: CGFloat = 32
+
+    private let avatarImageView: UIImageView = {
+        let imageView = UIImageView()
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.layer.cornerRadius = MessageCell.avatarSize / 2
+        imageView.backgroundColor = ChatAppearance.primarySoft
+        imageView.isUserInteractionEnabled = true
+        imageView.isHidden = true
+        imageView.accessibilityIgnoresInvertColors = true
+        return imageView
+    }()
 
     private let bubbleView: UIView = {
         let view = UIView()
@@ -61,8 +75,12 @@ final class MessageCell: UITableViewCell {
     private var leadingConstraint: NSLayoutConstraint?
     private var trailingConstraint: NSLayoutConstraint?
     private var imageHeightConstraint: NSLayoutConstraint?
+    private var imageWidthConstraint: NSLayoutConstraint?
+    private var avatarWidthConstraint: NSLayoutConstraint?
     private var onRetry: (() -> Void)?
+    private var onAvatarTap: (() -> Void)?
     private var imageLoadTask: Task<Void, Never>?
+    private var avatarLoadTask: Task<Void, Never>?
     private var canRetryViaAccessibility = false
     private var isOutgoingBubble = false
     private let bubbleMaskLayer = CAShapeLayer()
@@ -76,6 +94,8 @@ final class MessageCell: UITableViewCell {
         bubbleView.layer.mask = bubbleMaskLayer
         setupLayout()
         retryButton.addTarget(self, action: #selector(retryTapped), for: .touchUpInside)
+        let avatarTap = UITapGestureRecognizer(target: self, action: #selector(avatarTapped))
+        avatarImageView.addGestureRecognizer(avatarTap)
     }
 
     @available(*, unavailable)
@@ -87,19 +107,31 @@ final class MessageCell: UITableViewCell {
         super.prepareForReuse()
         imageLoadTask?.cancel()
         imageLoadTask = nil
+        avatarLoadTask?.cancel()
+        avatarLoadTask = nil
         imageAttachmentView.image = nil
         imageAttachmentView.isHidden = true
+        imageHeightConstraint?.constant = 0
+        imageWidthConstraint?.isActive = false
+        avatarImageView.image = nil
+        avatarImageView.isHidden = true
         messageLabel.text = nil
         messageLabel.isHidden = false
         statusIndicator.stopAnimating()
         retryButton.isHidden = true
         onRetry = nil
+        onAvatarTap = nil
         canRetryViaAccessibility = false
         accessibilityElements = nil
     }
 
-    func configure(with item: ChatMessageItem, onRetry: @escaping () -> Void) {
+    func configure(
+        with item: ChatMessageItem,
+        onRetry: @escaping () -> Void,
+        onAvatarTap: (() -> Void)? = nil
+    ) {
         self.onRetry = onRetry
+        self.onAvatarTap = onAvatarTap
 
         let timeText = item.createdAt.formatted(date: .omitted, time: .shortened)
         timestampLabel.text = timeText
@@ -113,6 +145,7 @@ final class MessageCell: UITableViewCell {
         }
 
         configureImage(for: item)
+        configureAvatar(for: item)
         configureBubbleStyle(isOutgoing: item.isOutgoing)
         configureStatus(item.status, isOutgoing: item.isOutgoing)
 
@@ -121,7 +154,8 @@ final class MessageCell: UITableViewCell {
             senderLabel: item.senderLabel,
             spokenText: spokenText,
             timeText: timeText,
-            isFailedOutgoing: item.status == .failed && item.isOutgoing
+            isFailedOutgoing: item.status == .failed && item.isOutgoing,
+            showsAvatar: !item.isOutgoing
         )
     }
 
@@ -131,19 +165,34 @@ final class MessageCell: UITableViewCell {
         return true
     }
 
-    /// VoiceOver order: sender → text → time (separate elements, not one combined label).
     private func configureVoiceOver(
         senderLabel: String,
         spokenText: String,
         timeText: String,
-        isFailedOutgoing: Bool
+        isFailedOutgoing: Bool,
+        showsAvatar: Bool
     ) {
         isAccessibilityElement = false
         canRetryViaAccessibility = isFailedOutgoing
 
+        var elements: [UIAccessibilityElement] = []
+
+        if showsAvatar {
+            let avatarElement = ActivatableAccessibilityElement(accessibilityContainer: self)
+            avatarElement.accessibilityLabel = "\(senderLabel) profile"
+            avatarElement.accessibilityTraits = .button
+            avatarElement.accessibilityHint = "Opens profile"
+            avatarElement.onActivate = { [weak self] in
+                self?.avatarTapped()
+                return true
+            }
+            elements.append(avatarElement)
+        }
+
         let senderElement = UIAccessibilityElement(accessibilityContainer: self)
         senderElement.accessibilityLabel = senderLabel
         senderElement.accessibilityTraits = .staticText
+        elements.append(senderElement)
 
         let textElement = ActivatableAccessibilityElement(accessibilityContainer: self)
         textElement.accessibilityLabel = spokenText
@@ -157,13 +206,14 @@ final class MessageCell: UITableViewCell {
         } else {
             textElement.accessibilityTraits = .staticText
         }
+        elements.append(textElement)
 
         let timeElement = UIAccessibilityElement(accessibilityContainer: self)
         timeElement.accessibilityLabel = timeText
         timeElement.accessibilityTraits = .staticText
+        elements.append(timeElement)
 
-        // Frames updated in layoutSubviews so VoiceOver hit-testing stays correct.
-        accessibilityElements = [senderElement, textElement, timeElement]
+        accessibilityElements = elements
         setNeedsLayout()
     }
 
@@ -171,31 +221,79 @@ final class MessageCell: UITableViewCell {
         super.layoutSubviews()
         updateBubbleMask()
 
-        guard let elements = accessibilityElements as? [UIAccessibilityElement], elements.count == 3 else {
+        guard let elements = accessibilityElements as? [UIAccessibilityElement] else {
             return
         }
 
         let bubbleFrame = contentView.convert(bubbleView.bounds, from: bubbleView)
-        let third = bubbleFrame.height / 3
+        let avatarFrame = contentView.convert(avatarImageView.bounds, from: avatarImageView)
+        var index = 0
 
-        elements[0].accessibilityFrameInContainerSpace = CGRect(
+        if !avatarImageView.isHidden, index < elements.count {
+            elements[index].accessibilityFrameInContainerSpace = avatarFrame
+            index += 1
+        }
+
+        let remaining = elements.count - index
+        guard remaining >= 3 else { return }
+        let third = bubbleFrame.height / 3
+        elements[index].accessibilityFrameInContainerSpace = CGRect(
             x: bubbleFrame.minX,
             y: bubbleFrame.minY,
             width: bubbleFrame.width,
             height: max(third, 1)
         )
-        elements[1].accessibilityFrameInContainerSpace = CGRect(
+        elements[index + 1].accessibilityFrameInContainerSpace = CGRect(
             x: bubbleFrame.minX,
             y: bubbleFrame.minY + third,
             width: bubbleFrame.width,
             height: max(third, 1)
         )
-        elements[2].accessibilityFrameInContainerSpace = CGRect(
+        elements[index + 2].accessibilityFrameInContainerSpace = CGRect(
             x: bubbleFrame.minX,
             y: bubbleFrame.minY + 2 * third,
             width: bubbleFrame.width,
             height: max(bubbleFrame.height - 2 * third, 1)
         )
+    }
+
+    private func configureAvatar(for item: ChatMessageItem) {
+        avatarLoadTask?.cancel()
+        avatarLoadTask = nil
+
+        guard !item.isOutgoing else {
+            avatarImageView.isHidden = true
+            avatarImageView.image = nil
+            avatarWidthConstraint?.constant = 0
+            return
+        }
+
+        avatarImageView.isHidden = false
+        avatarWidthConstraint?.constant = Self.avatarSize
+        avatarImageView.image = placeholderAvatarImage()
+
+        if let base64 = item.senderAvatarBase64,
+           let data = Data(base64Encoded: base64),
+           let image = UIImage(data: data) {
+            avatarImageView.image = image
+            return
+        }
+
+        if let url = item.senderAvatarURL {
+            avatarLoadTask = Task { [weak self] in
+                guard let self else { return }
+                let image = try? await ImageLoader.shared.load(from: url)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self.avatarImageView.image = image ?? self.placeholderAvatarImage()
+                }
+            }
+        }
+    }
+
+    private func placeholderAvatarImage() -> UIImage? {
+        UIImage(systemName: "person.crop.circle.fill")?
+            .withTintColor(ChatAppearance.inkMuted, renderingMode: .alwaysOriginal)
     }
 
     private func configureImage(for item: ChatMessageItem) {
@@ -204,14 +302,12 @@ final class MessageCell: UITableViewCell {
         if let localData = item.localImageData,
            let image = UIImage(data: localData, scale: UIScreen.main.scale) {
             imageAttachmentView.image = image
-            imageAttachmentView.isHidden = false
-            imageHeightConstraint?.constant = 180
+            applyImageSizeConstraints(isVisible: true)
             return
         }
 
         if let url = item.imageURL {
-            imageAttachmentView.isHidden = false
-            imageHeightConstraint?.constant = 180
+            applyImageSizeConstraints(isVisible: true)
             imageLoadTask = Task { [weak self] in
                 guard let self else { return }
                 let image = try? await ImageLoader.shared.load(from: url)
@@ -224,8 +320,21 @@ final class MessageCell: UITableViewCell {
         }
 
         imageAttachmentView.image = nil
-        imageAttachmentView.isHidden = true
-        imageHeightConstraint?.constant = 0
+        applyImageSizeConstraints(isVisible: false)
+    }
+
+    /// Explicit width+height for media — without width, Auto Layout collapses the bubble
+    /// to the timestamp intrinsic size (thin vertical strip).
+    private func applyImageSizeConstraints(isVisible: Bool) {
+        imageAttachmentView.isHidden = !isVisible
+        if isVisible {
+            imageHeightConstraint?.constant = ChatAppearance.bubbleImageHeight
+            imageWidthConstraint?.constant = ChatAppearance.bubbleImageWidth
+            imageWidthConstraint?.isActive = true
+        } else {
+            imageHeightConstraint?.constant = 0
+            imageWidthConstraint?.isActive = false
+        }
     }
 
     private func configureBubbleStyle(isOutgoing: Bool) {
@@ -250,8 +359,8 @@ final class MessageCell: UITableViewCell {
             messageLabel.textColor = ChatAppearance.ink
             timestampLabel.textColor = ChatAppearance.inkMuted
             leadingConstraint = bubbleView.leadingAnchor.constraint(
-                equalTo: contentView.leadingAnchor,
-                constant: ChatAppearance.sideGutter
+                equalTo: avatarImageView.trailingAnchor,
+                constant: 8
             )
             trailingConstraint = bubbleView.trailingAnchor.constraint(
                 lessThanOrEqualTo: contentView.trailingAnchor,
@@ -284,7 +393,6 @@ final class MessageCell: UITableViewCell {
         }
     }
 
-    /// Soft tail: corner nearest the edge is slightly tighter (~12), others ~18.
     private func updateBubbleMask() {
         let bounds = bubbleView.bounds
         guard bounds.width > 0, bounds.height > 0 else { return }
@@ -338,6 +446,7 @@ final class MessageCell: UITableViewCell {
     }
 
     private func setupLayout() {
+        contentView.addSubview(avatarImageView)
         contentView.addSubview(bubbleView)
         contentView.addSubview(statusIndicator)
         contentView.addSubview(retryButton)
@@ -347,11 +456,28 @@ final class MessageCell: UITableViewCell {
         bubbleView.addSubview(timestampLabel)
 
         imageHeightConstraint = imageAttachmentView.heightAnchor.constraint(equalToConstant: 0)
+        imageWidthConstraint = imageAttachmentView.widthAnchor.constraint(
+            equalToConstant: ChatAppearance.bubbleImageWidth
+        )
+        imageWidthConstraint?.isActive = false
+        avatarWidthConstraint = avatarImageView.widthAnchor.constraint(equalToConstant: 0)
         let padH = ChatAppearance.bubblePaddingH
         let padV = ChatAppearance.bubblePaddingV
         let spacing = ChatAppearance.bubbleSpacingV
 
+        // Keep media from being crushed by the timestamp’s intrinsic width.
+        imageAttachmentView.setContentCompressionResistancePriority(.required, for: .horizontal)
+        imageAttachmentView.setContentHuggingPriority(.required, for: .horizontal)
+
         NSLayoutConstraint.activate([
+            avatarImageView.leadingAnchor.constraint(
+                equalTo: contentView.leadingAnchor,
+                constant: ChatAppearance.sideGutter
+            ),
+            avatarImageView.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor),
+            avatarWidthConstraint!,
+            avatarImageView.heightAnchor.constraint(equalTo: avatarImageView.widthAnchor),
+
             bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: spacing),
             bubbleView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -spacing),
 
@@ -382,9 +508,12 @@ final class MessageCell: UITableViewCell {
     @objc private func retryTapped() {
         onRetry?()
     }
+
+    @objc private func avatarTapped() {
+        onAvatarTap?()
+    }
 }
 
-/// UIAccessibilityElement that can handle double-tap activate (retry failed send).
 private final class ActivatableAccessibilityElement: UIAccessibilityElement {
     var onActivate: (() -> Bool)?
 

@@ -52,65 +52,120 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     // MARK: - ChatRepository
 
     func fetchChats() async throws -> [ChatSummary] {
+        try await fetchOrganizedChats().visible
+    }
+
+    func fetchHiddenChats() async throws -> [ChatSummary] {
+        try await fetchOrganizedChats().hidden
+    }
+
+    func fetchOrganizedChats() async throws -> OrganizedChats {
         guard let userId = Auth.auth().currentUser?.uid else {
             throw FirestoreChatError.notAuthenticated
         }
 
+        // Soft limit covers active + hidden; hidden are filtered client-side.
         let refsSnapshot = try await db.collection(usersCollection)
             .document(userId)
             .collection(chatRefsCollection)
             .order(by: "lastMessageAt", descending: true)
-            .limit(to: 50)
+            .limit(to: 100)
             .getDocuments()
 
-        var summaries: [ChatSummary] = []
-        summaries.reserveCapacity(refsSnapshot.documents.count)
+        var visible: [ChatSummary] = []
+        var hidden: [ChatSummary] = []
+        visible.reserveCapacity(refsSnapshot.documents.count)
+        hidden.reserveCapacity(8)
 
         for refDoc in refsSnapshot.documents {
-            let chatId = refDoc.documentID
-            let chatDoc = try await db.collection(chatsCollection).document(chatId).getDocument()
-            guard chatDoc.exists else { continue }
-
-            let data = chatDoc.data() ?? [:]
-            let typeRaw = data["type"] as? String ?? ChatType.direct.rawValue
-            let type = ChatType(rawValue: typeRaw) ?? .direct
-            let participants = FirestoreChatMapper.participantIds(from: data)
-
-            var titleOverride: String?
-            var avatarURL: URL?
-            var avatarBase64: String?
-
-            if type == .direct,
-               let peerId = participants.first(where: { $0 != userId }),
-               let peer = try await fetchUser(userId: peerId) {
-                titleOverride = peer.displayName.isEmpty ? "Chat" : peer.displayName
-                avatarURL = peer.avatarURL
-                avatarBase64 = peer.avatarBase64
-            }
-            // Group chats keep `title` from the chat document (community name).
-
-            var summary = try FirestoreChatMapper.chatSummary(
-                from: chatDoc,
-                titleOverride: titleOverride,
-                avatarURL: avatarURL,
-                avatarBase64: avatarBase64
-            )
-
-            // Prefer ref timestamps when chat doc is missing lastMessageAt.
             let refData = refDoc.data()
-            if summary.lastMessageAt == nil {
-                summary.lastMessageAt = (refData["lastMessageAt"] as? Timestamp)?.dateValue()
-            }
-            if summary.lastMessageText == nil {
-                summary.lastMessageText = refData["lastMessageText"] as? String
-            }
+            guard let summary = try await makeSummary(
+                chatId: refDoc.documentID,
+                refData: refData,
+                currentUserId: userId
+            ) else { continue }
 
-            summaries.append(summary)
+            if FirestoreChatMapper.isHiddenChatRef(refData) {
+                hidden.append(summary)
+            } else {
+                visible.append(summary)
+            }
         }
 
-        return summaries.sorted {
+        let byRecency: (ChatSummary, ChatSummary) -> Bool = {
             ($0.lastMessageAt ?? .distantPast) > ($1.lastMessageAt ?? .distantPast)
         }
+        return OrganizedChats(
+            visible: visible.sorted(by: byRecency),
+            hidden: hidden.sorted(by: byRecency)
+        )
+    }
+
+    func setChatMuted(chatId: String, muted: Bool) async throws {
+        try await updateOwnChatRef(chatId: chatId, data: ["muted": muted])
+    }
+
+    func hideChat(chatId: String) async throws {
+        try await updateOwnChatRef(
+            chatId: chatId,
+            data: [
+                "hidden": true,
+                "hiddenAt": Timestamp(date: Date())
+            ]
+        )
+    }
+
+    func unhideChat(chatId: String) async throws {
+        try await updateOwnChatRef(
+            chatId: chatId,
+            data: [
+                "hidden": false,
+                "hiddenAt": FieldValue.delete()
+            ]
+        )
+    }
+
+    func fetchChatInfo(chatId: String) async throws -> ChatInfo {
+        guard Auth.auth().currentUser?.uid != nil else {
+            throw FirestoreChatError.notAuthenticated
+        }
+
+        let chatDoc = try await db.collection(chatsCollection).document(chatId).getDocument()
+        guard chatDoc.exists else {
+            throw FirestoreChatError.chatNotFound
+        }
+
+        let data = chatDoc.data() ?? [:]
+        let typeRaw = data["type"] as? String ?? ChatType.direct.rawValue
+        let type = ChatType(rawValue: typeRaw) ?? .direct
+        let communityId = (data["communityId"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedCommunityId = (communityId?.isEmpty == false) ? communityId : nil
+        let title = (data["title"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle: String
+        if let title, !title.isEmpty {
+            resolvedTitle = title
+        } else {
+            resolvedTitle = "Chat"
+        }
+        let participantIds = FirestoreChatMapper.participantIds(from: data)
+
+        var participants: [User] = []
+        participants.reserveCapacity(participantIds.count)
+        for participantId in participantIds {
+            if let user = try await fetchUser(userId: participantId) {
+                participants.append(user)
+            }
+        }
+
+        return ChatInfo(
+            id: chatId,
+            type: type,
+            title: resolvedTitle,
+            communityId: resolvedCommunityId,
+            participants: participants
+        )
     }
 
     func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
@@ -388,12 +443,11 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         return chatId
     }
 
-    func leaveGroupChat(communityId: String) async throws {
+    func leaveChat(chatId: String) async throws {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
             throw FirestoreChatError.notAuthenticated
         }
 
-        let chatId = FirestoreChatMapper.groupChatId(communityId: communityId)
         let chatRef = db.collection(chatsCollection).document(chatId)
         let existing = try await chatRef.getDocument()
         guard existing.exists else { return }
@@ -410,7 +464,72 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             .delete()
     }
 
+    func leaveGroupChat(communityId: String) async throws {
+        let chatId = FirestoreChatMapper.groupChatId(communityId: communityId)
+        try await leaveChat(chatId: chatId)
+    }
+
     // MARK: - Private
+
+    private func makeSummary(
+        chatId: String,
+        refData: [String: Any],
+        currentUserId: String
+    ) async throws -> ChatSummary? {
+        let chatDoc = try await db.collection(chatsCollection).document(chatId).getDocument()
+        guard chatDoc.exists else { return nil }
+
+        let data = chatDoc.data() ?? [:]
+        let typeRaw = data["type"] as? String ?? ChatType.direct.rawValue
+        let type = ChatType(rawValue: typeRaw) ?? .direct
+        let participants = FirestoreChatMapper.participantIds(from: data)
+
+        var titleOverride: String?
+        var avatarURL: URL?
+        var avatarBase64: String?
+        var peerUserId: String?
+
+        if type == .direct,
+           let peerId = participants.first(where: { $0 != currentUserId }),
+           let peer = try await fetchUser(userId: peerId) {
+            titleOverride = peer.displayName.isEmpty ? "Chat" : peer.displayName
+            avatarURL = peer.avatarURL
+            avatarBase64 = peer.avatarBase64
+            peerUserId = peerId
+        }
+        // Group chats keep `title` from the chat document (community name).
+
+        var summary = try FirestoreChatMapper.chatSummary(
+            from: chatDoc,
+            titleOverride: titleOverride,
+            avatarURL: avatarURL,
+            avatarBase64: avatarBase64,
+            peerUserId: peerUserId,
+            isMuted: FirestoreChatMapper.isMutedChatRef(refData)
+        )
+
+        // Prefer ref timestamps when chat doc is missing lastMessageAt.
+        if summary.lastMessageAt == nil {
+            summary.lastMessageAt = (refData["lastMessageAt"] as? Timestamp)?.dateValue()
+        }
+        if summary.lastMessageText == nil {
+            summary.lastMessageText = refData["lastMessageText"] as? String
+        }
+
+        return summary
+    }
+
+    private func updateOwnChatRef(chatId: String, data: [String: Any]) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw FirestoreChatError.notAuthenticated
+        }
+
+        try await db.collection(usersCollection)
+            .document(userId)
+            .collection(chatRefsCollection)
+            .document(chatId)
+            .setData(data, merge: true)
+    }
 
     /// Ensures the current user is listed as a participant and has a chatRef.
     /// Does **not** set `type` / `title` — those are owned by createDirect/createGroup.

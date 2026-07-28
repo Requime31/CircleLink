@@ -14,6 +14,9 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var loadState: LoadState = .idle
     @Published private(set) var isLoadingMore = false
     @Published private(set) var canLoadMore = true
+    /// From chat doc — used for Peer Profile Connect in group chats.
+    @Published private(set) var communityId: String?
+    @Published private(set) var isGroupChat = false
 
     let chatId: String
     /// Navigation title — peer name for direct, community name for group.
@@ -25,6 +28,7 @@ final class ChatViewModel: ObservableObject {
     private var liveMessagesTask: Task<Void, Never>?
     private var knownMessageIds = Set<String>()
     private var knownClientMessageIds = Set<String>()
+    private var participantsById: [String: User] = [:]
 
     init(
         chatId: String,
@@ -64,12 +68,16 @@ final class ChatViewModel: ObservableObject {
         guard loadState != .loading else { return }
         loadState = .loading
 
+        async let participantsLoad: Void = loadParticipants()
+        async let fetchedMessages = chatRepository.fetchMessages(
+            chatId: chatId,
+            limit: pageSize,
+            before: nil
+        )
+
         do {
-            let fetched = try await chatRepository.fetchMessages(
-                chatId: chatId,
-                limit: pageSize,
-                before: nil
-            )
+            _ = await participantsLoad
+            let fetched = try await fetchedMessages
             messages = mapToDisplayItems(fetched)
             rebuildKnownIdentifiers()
             canLoadMore = fetched.count == pageSize
@@ -138,7 +146,7 @@ final class ChatViewModel: ObservableObject {
                 clientMessageId: clientMessageId
             )
             updateMessage(clientMessageId: clientMessageId) { item in
-                ChatMessageItem(
+                decoratedItem(
                     message: Message(
                         id: clientMessageId,
                         chatId: item.chatId,
@@ -149,14 +157,12 @@ final class ChatViewModel: ObservableObject {
                         clientMessageId: clientMessageId,
                         status: .sent
                     ),
-                    currentUserId: currentUserId,
-                    senderLabel: item.senderLabel,
                     localImageData: item.localImageData
                 )
             }
         } catch {
             updateMessage(clientMessageId: clientMessageId) { item in
-                ChatMessageItem(
+                decoratedItem(
                     message: Message(
                         id: item.id,
                         chatId: item.chatId,
@@ -167,8 +173,6 @@ final class ChatViewModel: ObservableObject {
                         clientMessageId: clientMessageId,
                         status: .failed
                     ),
-                    currentUserId: currentUserId,
-                    senderLabel: item.senderLabel,
                     localImageData: item.localImageData
                 )
             }
@@ -180,7 +184,7 @@ final class ChatViewModel: ObservableObject {
               item.status == .failed else { return }
 
         updateMessage(clientMessageId: clientMessageId) { item in
-            ChatMessageItem(
+            decoratedItem(
                 message: Message(
                     id: item.id,
                     chatId: item.chatId,
@@ -191,8 +195,6 @@ final class ChatViewModel: ObservableObject {
                     clientMessageId: clientMessageId,
                     status: .sending
                 ),
-                currentUserId: currentUserId,
-                senderLabel: item.senderLabel,
                 localImageData: item.localImageData
             )
         }
@@ -205,7 +207,7 @@ final class ChatViewModel: ObservableObject {
                 clientMessageId: clientMessageId
             )
             updateMessage(clientMessageId: clientMessageId) { item in
-                ChatMessageItem(
+                decoratedItem(
                     message: Message(
                         id: clientMessageId,
                         chatId: item.chatId,
@@ -216,14 +218,12 @@ final class ChatViewModel: ObservableObject {
                         clientMessageId: clientMessageId,
                         status: .sent
                     ),
-                    currentUserId: currentUserId,
-                    senderLabel: item.senderLabel,
                     localImageData: item.localImageData
                 )
             }
         } catch {
             updateMessage(clientMessageId: clientMessageId) { item in
-                ChatMessageItem(
+                decoratedItem(
                     message: Message(
                         id: item.id,
                         chatId: item.chatId,
@@ -234,8 +234,6 @@ final class ChatViewModel: ObservableObject {
                         clientMessageId: clientMessageId,
                         status: .failed
                     ),
-                    currentUserId: currentUserId,
-                    senderLabel: item.senderLabel,
                     localImageData: item.localImageData
                 )
             }
@@ -266,7 +264,7 @@ final class ChatViewModel: ObservableObject {
         if knownClientMessageIds.contains(clientMessageId) {
             if let index = messages.firstIndex(where: { $0.clientMessageId == clientMessageId }) {
                 let existing = messages[index]
-                messages[index] = ChatMessageItem(
+                messages[index] = decoratedItem(
                     message: Message(
                         id: message.id,
                         chatId: message.chatId,
@@ -277,8 +275,6 @@ final class ChatViewModel: ObservableObject {
                         clientMessageId: clientMessageId,
                         status: .sent
                     ),
-                    currentUserId: currentUserId,
-                    senderLabel: existing.senderLabel,
                     localImageData: existing.localImageData
                 )
                 knownMessageIds.insert(message.id)
@@ -292,17 +288,73 @@ final class ChatViewModel: ObservableObject {
             return
         }
 
-        let item = ChatMessageItem(message: message, currentUserId: currentUserId)
+        let item = decoratedItem(message: message)
         messages.insert(item, at: 0)
         trackIdentifiers(for: [item])
     }
 
     // MARK: - Private
 
+    private func loadParticipants() async {
+        do {
+            let info = try await chatRepository.fetchChatInfo(chatId: chatId)
+            communityId = info.communityId
+            isGroupChat = info.type == .group
+            var map: [String: User] = [:]
+            for user in info.participants {
+                map[user.id] = user
+            }
+            participantsById = map
+            // Refresh labels/avatars if messages already loaded.
+            if !messages.isEmpty {
+                messages = messages.map { item in
+                    decoratedItem(
+                        message: Message(
+                            id: item.id,
+                            chatId: item.chatId,
+                            senderId: item.senderId,
+                            text: item.text,
+                            imageURL: item.imageURL,
+                            createdAt: item.createdAt,
+                            clientMessageId: item.clientMessageId,
+                            status: item.status
+                        ),
+                        localImageData: item.localImageData
+                    )
+                }
+            }
+        } catch {
+            // Participants are best-effort — chat still works without avatars.
+        }
+    }
+
     private func mapToDisplayItems(_ messages: [Message]) -> [ChatMessageItem] {
         messages
-            .map { ChatMessageItem(message: $0, currentUserId: currentUserId) }
+            .map { decoratedItem(message: $0) }
             .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private func decoratedItem(
+        message: Message,
+        localImageData: Data? = nil
+    ) -> ChatMessageItem {
+        let peer = participantsById[message.senderId]
+        let label: String
+        if message.senderId == currentUserId {
+            label = "You"
+        } else if let name = peer?.displayName, !name.isEmpty {
+            label = name
+        } else {
+            label = "Member"
+        }
+        return ChatMessageItem(
+            message: message,
+            currentUserId: currentUserId,
+            senderLabel: label,
+            localImageData: localImageData,
+            senderAvatarURL: peer?.avatarURL,
+            senderAvatarBase64: peer?.avatarBase64
+        )
     }
 
     private func updateMessage(

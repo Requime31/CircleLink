@@ -28,6 +28,12 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
             return try FirestoreUserMapper.user(from: document)
         }
 
+        // Bootstrap only the signed-in owner's missing doc (auth/onboarding).
+        // Never create a profile when loading another user (peer sheet / Connect).
+        guard Auth.auth().currentUser?.uid == userId else {
+            throw FirestoreUserError.profileNotFound
+        }
+
         let data = FirestoreUserMapper.defaultProfileData()
         try await db.collection(usersCollection).document(userId).setData(data)
         let created = try await db.collection(usersCollection).document(userId).getDocument()

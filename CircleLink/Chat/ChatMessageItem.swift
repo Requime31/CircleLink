@@ -12,12 +12,16 @@ struct ChatMessageItem: Equatable, Identifiable {
     let clientMessageId: String
     let status: MessageStatus
     let isOutgoing: Bool
+    let senderAvatarURL: URL?
+    let senderAvatarBase64: String?
 
     init(
         message: Message,
         currentUserId: String,
         senderLabel: String = "Member",
-        localImageData: Data? = nil
+        localImageData: Data? = nil,
+        senderAvatarURL: URL? = nil,
+        senderAvatarBase64: String? = nil
     ) {
         id = message.id
         chatId = message.chatId
@@ -30,6 +34,8 @@ struct ChatMessageItem: Equatable, Identifiable {
         clientMessageId = message.clientMessageId ?? message.id
         status = message.status
         isOutgoing = message.senderId == currentUserId
+        self.senderAvatarURL = senderAvatarURL
+        self.senderAvatarBase64 = senderAvatarBase64
     }
 
     static func optimistic(

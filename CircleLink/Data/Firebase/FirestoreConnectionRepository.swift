@@ -8,6 +8,7 @@ enum FirestoreConnectionError: LocalizedError {
     case duplicateRequest
     case requestNotFound
     case notRecipient
+    case notParticipant
     case invalidStatusTransition
 
     var errorDescription: String? {
@@ -22,6 +23,8 @@ enum FirestoreConnectionError: LocalizedError {
             return "Connection request not found."
         case .notRecipient:
             return "Only the recipient can respond to this request."
+        case .notParticipant:
+            return "Only people in this connection can change it."
         case .invalidStatusTransition:
             return "This request can no longer be updated."
         }
@@ -193,6 +196,52 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
 
         let newStatus = accept ? ConnectionStatus.accepted : ConnectionStatus.declined
         try await requestRef.updateData(["status": newStatus.rawValue])
+    }
+
+    func fetchConnection(with peerId: String) async throws -> ConnectionRequest? {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            throw FirestoreConnectionError.notAuthenticated
+        }
+
+        guard currentUserId != peerId else {
+            throw FirestoreConnectionError.invalidPeer
+        }
+
+        let pairKey = Self.pairKey(currentUserId, peerId)
+        let document = try await db.collection(requestsCollection).document(pairKey).getDocument()
+        guard document.exists else { return nil }
+        return try FirestoreConnectionMapper.request(from: document)
+    }
+
+    func removeConnection(with peerId: String) async throws {
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            throw FirestoreConnectionError.notAuthenticated
+        }
+
+        guard currentUserId != peerId else {
+            throw FirestoreConnectionError.invalidPeer
+        }
+
+        let pairKey = Self.pairKey(currentUserId, peerId)
+        let requestRef = db.collection(requestsCollection).document(pairKey)
+        let document = try await requestRef.getDocument()
+        guard document.exists else {
+            throw FirestoreConnectionError.requestNotFound
+        }
+
+        let data = document.data() ?? [:]
+        let fromUserId = data["fromUserId"] as? String
+        let toUserId = data["toUserId"] as? String
+        guard currentUserId == fromUserId || currentUserId == toUserId else {
+            throw FirestoreConnectionError.notParticipant
+        }
+
+        let statusRaw = data["status"] as? String ?? ""
+        guard statusRaw == ConnectionStatus.accepted.rawValue else {
+            throw FirestoreConnectionError.invalidStatusTransition
+        }
+
+        try await requestRef.updateData(["status": ConnectionStatus.declined.rawValue])
     }
 
     // MARK: - Private

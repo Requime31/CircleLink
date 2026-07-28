@@ -2,10 +2,17 @@ import SwiftUI
 
 struct ChatListView: View {
     @ObservedObject var viewModel: ChatsViewModel
-    let onChatSelected: (String) -> Void
+    @Binding var pendingChatRoute: ChatThreadRoute?
+    let makeChatViewModel: (String, String) -> ChatViewModel?
+    let makeChatInfoViewModel: (String) -> ChatInfoViewModel
+    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+
+    @State private var path = NavigationPath()
+    @State private var previewCache: [String: [ChatMessageItem]] = [:]
+    @State private var previewLoadingIds: Set<String> = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 switch viewModel.state {
                 case .idle, .loading:
@@ -17,38 +24,214 @@ struct ChatListView: View {
                     emptyState
                 case let .error(message):
                     errorState(message: message)
-                case let .loaded(chats):
-                    chatsList(chats)
+                case .loaded:
+                    mainListContent
                 }
             }
             .clCanvasBackground()
             .navigationTitle("Chats")
+            .searchable(
+                text: $viewModel.searchText,
+                placement: .navigationBarDrawer(displayMode: .automatic),
+                prompt: "Search chats"
+            )
+            .navigationDestination(for: ChatThreadRoute.self) { route in
+                chatThreadDestination(route)
+            }
+            .navigationDestination(for: ChatInfoRoute.self) { route in
+                ChatInfoView(
+                    viewModel: makeChatInfoViewModel(route.chatId),
+                    makePeerProfileSheet: makePeerProfileSheet,
+                    onLeftChat: {
+                        path = NavigationPath()
+                        Task { await viewModel.loadChats() }
+                    }
+                )
+            }
+            .navigationDestination(for: HiddenChatsRoute.self) { _ in
+                HiddenChatsView(
+                    viewModel: viewModel,
+                    path: $path
+                )
+            }
             .task {
                 await viewModel.loadChats()
             }
             .refreshable {
                 await viewModel.loadChats()
             }
+            .onAppear {
+                consumePendingChatRoute()
+            }
+            .onChange(of: pendingChatRoute) { _ in
+                consumePendingChatRoute()
+            }
+            .alert(
+                "Something went wrong",
+                isPresented: Binding(
+                    get: { viewModel.actionErrorMessage != nil },
+                    set: { if !$0 { viewModel.clearActionError() } }
+                )
+            ) {
+                Button("OK", role: .cancel) { viewModel.clearActionError() }
+            } message: {
+                Text(viewModel.actionErrorMessage ?? "")
+            }
         }
     }
 
     @ViewBuilder
-    private func chatsList(_ chats: [ChatSummary]) -> some View {
-        List(chats) { chat in
-            Button {
-                onChatSelected(chat.id)
-            } label: {
-                ChatRowView(chat: chat)
+    private var mainListContent: some View {
+        let chats = viewModel.filteredVisibleChats
+        let query = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let showHiddenFooter = viewModel.hiddenCount > 0 && query.isEmpty
+
+        if chats.isEmpty && !showHiddenFooter {
+            searchEmptyState
+        } else {
+            chatsList(chats, showHiddenFooter: showHiddenFooter)
+        }
+    }
+
+    private func consumePendingChatRoute() {
+        guard let route = pendingChatRoute else { return }
+        path = NavigationPath()
+        path.append(route)
+        pendingChatRoute = nil
+    }
+
+    @ViewBuilder
+    private func chatThreadDestination(_ route: ChatThreadRoute) -> some View {
+        if let chatViewModel = makeChatViewModel(route.chatId, route.title) {
+            ChatThreadView(
+                viewModel: chatViewModel,
+                makePeerProfileSheet: makePeerProfileSheet,
+                onOpenChatInfo: {
+                    path.append(ChatInfoRoute(chatId: route.chatId))
+                }
+            )
+        } else {
+            Text("Unable to open chat.")
+                .font(CLTypography.body)
+                .foregroundStyle(CLColor.inkSecondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clCanvasBackground()
+        }
+    }
+
+    @ViewBuilder
+    private func chatsList(_ chats: [ChatSummary], showHiddenFooter: Bool) -> some View {
+        List {
+            ForEach(chats) { chat in
+                Button {
+                    openThread(
+                        ChatThreadRoute(
+                            chatId: chat.id,
+                            title: chat.title,
+                            communityId: chat.communityId
+                        )
+                    )
+                } label: {
+                    ChatListRowView(chat: chat)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(ChatListAccessibility.label(for: chat))
+                .listRowBackground(CLColor.canvas)
+                .listRowSeparatorTint(CLColor.hairline)
+                .contextMenu {
+                    Button {
+                        openThread(
+                            ChatThreadRoute(
+                                chatId: chat.id,
+                                title: chat.title,
+                                communityId: chat.communityId
+                            )
+                        )
+                    } label: {
+                        Label("Open Chat", systemImage: "bubble.left")
+                    }
+
+                    Button {
+                        Task {
+                            await viewModel.setMuted(chatId: chat.id, muted: !chat.isMuted)
+                        }
+                    } label: {
+                        Label(
+                            chat.isMuted ? "Unmute" : "Mute",
+                            systemImage: chat.isMuted ? "bell" : "bell.slash"
+                        )
+                    }
+
+                    Button(role: .destructive) {
+                        Task { await viewModel.hideChat(chatId: chat.id) }
+                    } label: {
+                        Label("Hide", systemImage: "eye.slash")
+                    }
+                } preview: {
+                    ConversationPeekPreview(
+                        chatTitle: chat.title,
+                        isGroup: chat.type == .group,
+                        messages: previewCache[chat.id] ?? [],
+                        isLoading: previewLoadingIds.contains(chat.id)
+                    )
+                    .task {
+                        await loadPreviewIfNeeded(for: chat.id)
+                    }
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(accessibilityLabel(for: chat))
-            .listRowBackground(CLColor.canvas)
-            .listRowSeparatorTint(CLColor.hairline)
+
+            if showHiddenFooter {
+                Button {
+                    path.append(HiddenChatsRoute())
+                } label: {
+                    HStack(spacing: CLSpacing.sm) {
+                        Image(systemName: "eye.slash")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(CLColor.inkMuted)
+                            .frame(width: 52, alignment: .center)
+
+                        Text("Hidden chats")
+                            .font(CLTypography.headline)
+                            .foregroundStyle(CLColor.ink)
+
+                        Spacer(minLength: CLSpacing.xs)
+
+                        Text("\(viewModel.hiddenCount)")
+                            .font(CLTypography.subheadline)
+                            .foregroundStyle(CLColor.inkMuted)
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(CLColor.inkMuted)
+                    }
+                    .padding(.vertical, CLSpacing.xxs)
+                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Hidden chats, \(viewModel.hiddenCount)")
+                .listRowBackground(CLColor.canvas)
+                .listRowSeparatorTint(CLColor.hairline)
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(CLColor.canvas)
         .clAppear()
+    }
+
+    private func openThread(_ route: ChatThreadRoute) {
+        path.append(route)
+    }
+
+    private func loadPreviewIfNeeded(for chatId: String) async {
+        if previewCache[chatId] != nil || previewLoadingIds.contains(chatId) {
+            return
+        }
+        previewLoadingIds.insert(chatId)
+        let messages = await viewModel.fetchConversationPreview(chatId: chatId)
+        previewCache[chatId] = messages
+        previewLoadingIds.remove(chatId)
     }
 
     private var emptyState: some View {
@@ -77,6 +260,26 @@ struct ChatListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var searchEmptyState: some View {
+        VStack(spacing: CLSpacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 40))
+                .foregroundStyle(CLColor.inkMuted)
+                .padding(CLSpacing.md)
+                .background(Circle().fill(CLColor.surfaceSoft))
+                .accessibilityHidden(true)
+            Text("No chats found")
+                .font(CLTypography.title2)
+                .foregroundStyle(CLColor.ink)
+            Text("Try a different name or message.")
+                .font(CLTypography.subheadline)
+                .foregroundStyle(CLColor.inkSecondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(CLSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     private func errorState(message: String) -> some View {
         VStack(spacing: CLSpacing.sm) {
             Image(systemName: "exclamationmark.triangle")
@@ -100,101 +303,4 @@ struct ChatListView: View {
         .padding(CLSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
-    private func accessibilityLabel(for chat: ChatSummary) -> String {
-        var parts: [String] = []
-        if chat.type == .group {
-            parts.append("Group chat")
-        }
-        parts.append(chat.title)
-        if let lastMessageText = chat.lastMessageText, !lastMessageText.isEmpty {
-            parts.append(lastMessageText)
-        }
-        if chat.unreadCount > 0 {
-            parts.append("\(chat.unreadCount) unread")
-        }
-        return parts.joined(separator: ", ")
-    }
-}
-
-private struct ChatRowView: View {
-    let chat: ChatSummary
-
-    var body: some View {
-        HStack(spacing: CLSpacing.sm) {
-            ZStack(alignment: .topTrailing) {
-                AvatarImageView(
-                    localPreview: nil,
-                    avatarBase64: chat.avatarBase64,
-                    avatarURL: chat.avatarURL,
-                    size: 52
-                )
-
-                if chat.unreadCount > 0 {
-                    unreadIndicator
-                        .offset(x: 4, y: -2)
-                        .accessibilityHidden(true)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(chat.title)
-                        .font(CLTypography.headline)
-                        .foregroundStyle(CLColor.ink)
-                        .lineLimit(1)
-
-                    Spacer(minLength: CLSpacing.xs)
-
-                    if let lastMessageAt = chat.lastMessageAt {
-                        Text(lastMessageAt.formatted(ChatListDateFormat.style))
-                            .font(CLTypography.caption)
-                            .foregroundStyle(CLColor.inkMuted)
-                    }
-                }
-
-                Text(chat.lastMessageText ?? "No messages yet")
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkSecondary)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.vertical, CLSpacing.xxs)
-        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-        .contentShape(Rectangle())
-    }
-
-    @ViewBuilder
-    private var unreadIndicator: some View {
-        if chat.unreadCount == 1 {
-            Circle()
-                .fill(CLColor.primary)
-                .frame(width: 10, height: 10)
-                .overlay(
-                    Circle()
-                        .stroke(CLColor.canvas, lineWidth: 2)
-                )
-        } else {
-            Text(unreadBadgeText)
-                .font(CLTypography.caption)
-                .foregroundStyle(CLColor.onPrimary)
-                .padding(.horizontal, CLSpacing.xs)
-                .padding(.vertical, CLSpacing.xxs)
-                .background(CLColor.primarySoft)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(CLColor.hairline, lineWidth: 1)
-                )
-        }
-    }
-
-    private var unreadBadgeText: String {
-        chat.unreadCount > 99 ? "99+" : "\(chat.unreadCount)"
-    }
-}
-
-private enum ChatListDateFormat {
-    static let style = Date.FormatStyle(date: .abbreviated, time: .shortened)
-        .locale(.current)
 }

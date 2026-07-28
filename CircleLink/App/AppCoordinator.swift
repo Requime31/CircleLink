@@ -21,8 +21,8 @@ final class AppCoordinator: ObservableObject {
 
     @Published private(set) var route: Route
     @Published private(set) var currentProfile: User?
-    @Published var presentedChatId: String?
-    @Published var presentedChatTitle: String = "Chat"
+    /// External entry (Connect / community / deep link) → Chats tab pushes this route.
+    @Published var pendingChatRoute: ChatThreadRoute?
     @Published var selectedTab: MainTab = .communities
 
     private let dependencies: AppDependencies
@@ -101,12 +101,20 @@ final class AppCoordinator: ObservableObject {
                         get: { self.selectedTab },
                         set: { self.selectedTab = $0 }
                     ),
+                    pendingChatRoute: Binding(
+                        get: { self.pendingChatRoute },
+                        set: { self.pendingChatRoute = $0 }
+                    ),
                     communitiesViewModel: communitiesViewModel,
                     chatsViewModel: chatsViewModel,
                     connectViewModel: connectViewModel,
                     profileViewModel: profileViewModel,
                     makeCommunityDetailViewModel: dependencies.makeCommunityDetailViewModel,
-                    onChatSelected: onChatSelected,
+                    makeChatViewModel: { chatId, title in
+                        self.dependencies.makeChatViewModel(chatId: chatId, title: title)
+                    },
+                    makeChatInfoViewModel: dependencies.makeChatInfoViewModel,
+                    makePeerProfileSheet: dependencies.makePeerProfileSheet,
                     onCommunitySelected: onCommunitySelected,
                     onOpenGroupChat: onOpenGroupChat,
                     onSignOut: signOut
@@ -115,32 +123,6 @@ final class AppCoordinator: ObservableObject {
         }
         .task {
             await self.bootstrapIfNeeded()
-        }
-        .sheet(isPresented: Binding(
-            get: { self.presentedChatId != nil },
-            set: { if !$0 { self.dismissChat() } }
-        )) {
-            if let chatId = self.presentedChatId,
-               let chatViewModel = self.dependencies.makeChatViewModel(
-                chatId: chatId,
-                title: self.presentedChatTitle
-               ) {
-                NavigationStack {
-                    ChatViewControllerWrapper(viewModel: chatViewModel)
-                        .ignoresSafeArea(.keyboard, edges: .bottom)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button("Close") {
-                                    self.dismissChat()
-                                }
-                                .accessibilityLabel("Close chat")
-                            }
-                        }
-                }
-            } else {
-                Text("Unable to open chat.")
-                    .accessibilityLabel("Unable to open chat")
-            }
         }
     }
 
@@ -192,8 +174,7 @@ final class AppCoordinator: ObservableObject {
     func handleSignedOut() {
         currentProfile = nil
         pendingDeepLink = nil
-        presentedChatId = nil
-        presentedChatTitle = "Chat"
+        pendingChatRoute = nil
         selectedTab = .communities
         authViewModel.resetForm()
         ageGateViewModel.resetForm()
@@ -285,12 +266,6 @@ final class AppCoordinator: ObservableObject {
         openChat(chatId: chatId, title: chatTitle(for: chatId))
     }
 
-    func dismissChat() {
-        presentedChatId = nil
-        presentedChatTitle = "Chat"
-        Task { await chatsViewModel.loadChats() }
-    }
-
     func onCommunitySelected(communityId: String) {
         print("[AppCoordinator] onCommunitySelected: \(communityId)")
     }
@@ -301,8 +276,19 @@ final class AppCoordinator: ObservableObject {
     }
 
     private func openChat(chatId: String, title: String) {
-        presentedChatTitle = title
-        presentedChatId = chatId
+        selectedTab = .chats
+        let communityId: String?
+        if case let .loaded(chats) = chatsViewModel.state,
+           let match = chats.first(where: { $0.id == chatId }) {
+            communityId = match.communityId
+        } else {
+            communityId = nil
+        }
+        pendingChatRoute = ChatThreadRoute(
+            chatId: chatId,
+            title: title,
+            communityId: communityId
+        )
     }
 
     private func chatTitle(for chatId: String) -> String {
