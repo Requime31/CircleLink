@@ -15,7 +15,7 @@ struct CLEmptyState: View {
         VStack(spacing: CLSpacing.md) {
             Image(systemName: systemImage)
                 .font(.system(size: 48, weight: .regular))
-                .foregroundStyle(CLColor.muted)
+                .foregroundStyle(CLColor.inkMuted)
                 .accessibilityHidden(true)
 
             Text(title)
@@ -27,15 +27,14 @@ struct CLEmptyState: View {
             if let message {
                 Text(message)
                     .font(CLTypography.callout)
-                    .foregroundStyle(CLColor.muted)
+                    .foregroundStyle(CLColor.inkMuted)
                     .multilineTextAlignment(.center)
             }
 
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
-                    .font(CLTypography.buttonSmall)
-                    .buttonStyle(.borderedProminent)
-                    .tint(CLColor.primary)
+                    .font(CLTypography.button)
+                    .buttonStyle(CLPrimaryButtonStyle(fillsWidth: false))
                     .padding(.top, CLSpacing.xs)
                     .accessibilityLabel(actionAccessibilityLabel ?? actionTitle)
             }

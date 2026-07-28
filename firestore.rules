@@ -20,10 +20,23 @@ service cloud.firestore {
         && request.auth.uid in chatDoc(chatId).data.get('participantIds', []);
     }
 
-    // Allow reads when chat is new (not created yet) or user is a participant.
+    // Allow reads when chat is new (not created yet), user is a participant,
+    // or user is a member of the community that owns this group chat
+    // (needed so joiners can open/leave before they are in participantIds).
     function canAccessChat(chatId) {
       return isSignedIn()
-        && (!chatExists(chatId) || request.auth.uid in chatDoc(chatId).data.get('participantIds', []));
+        && (
+          !chatExists(chatId)
+          || request.auth.uid in chatDoc(chatId).data.get('participantIds', [])
+          || isGroupChatCommunityMember(chatId)
+        );
+    }
+
+    function isGroupChatCommunityMember(chatId) {
+      return chatExists(chatId)
+        && chatDoc(chatId).data.get('type', '') == 'group'
+        && chatDoc(chatId).data.keys().hasAll(['communityId'])
+        && isCommunityMember(chatDoc(chatId).data.communityId);
     }
 
     function isCommunityMember(communityId) {

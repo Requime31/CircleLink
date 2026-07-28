@@ -27,6 +27,9 @@ enum CLColor {
     static let onPrimary = Color(red: 0.102, green: 0.102, blue: 0.102)     // #1A1A1A
     static let onPrimaryStrong = Color.white
 
+    // Soft tints (communities / interests) — light use only
+    static let tintCream = Color(red: 0.973, green: 0.945, blue: 0.906)     // #F8F1E7
+
     // Semantic
     static let error = Color(red: 0.851, green: 0.310, blue: 0.310)         // #D94F4F
     static let errorSoft = Color(red: 0.988, green: 0.918, blue: 0.918)     // #FCEAEA

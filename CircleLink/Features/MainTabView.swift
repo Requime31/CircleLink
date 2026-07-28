@@ -45,7 +45,10 @@ struct MainTabView: View {
             .accessibilityLabel("Chats tab")
             .tag(AppCoordinator.MainTab.chats)
 
-            ConnectView(viewModel: connectViewModel)
+            ConnectView(
+                viewModel: connectViewModel,
+                makePeerProfileSheet: makePeerProfileSheet
+            )
                 .tabItem {
                     Label("Connect", systemImage: "link")
                 }

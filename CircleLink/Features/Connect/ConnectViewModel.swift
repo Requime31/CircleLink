@@ -27,10 +27,12 @@ final class ConnectViewModel: ObservableObject {
     @Published private(set) var selectedCommunityId: String?
     @Published private(set) var actionErrorMessage: String?
     @Published private(set) var moderationMessage: String?
-    @Published private(set) var connectingUserId: String?
     @Published private(set) var respondingRequestId: String?
     @Published private(set) var openingChatPeerId: String?
     @Published private(set) var moderatingUserId: String?
+
+    /// Session-only Pass skips — not persisted; cleared on community change / resetForm only.
+    @Published private(set) var passedCandidateIds: Set<String> = []
 
     private let connectionRepository: ConnectionRepository
     private let chatRepository: ChatRepository
@@ -41,6 +43,26 @@ final class ConnectViewModel: ObservableObject {
     private let onOpenChat: (String) -> Void
 
     private var blockedUserIds = Set<String>()
+    /// Ignores stale candidate responses when the user switches community quickly.
+    private var candidatesLoadGeneration = 0
+
+    /// Ranked candidates minus people Pass'd this session.
+    var deckCandidates: [User] {
+        guard case let .loaded(candidates) = candidatesState else { return [] }
+        return candidates.filter { !passedCandidateIds.contains($0.id) }
+    }
+
+    var topCandidate: User? { deckCandidates.first }
+
+    var incomingCount: Int {
+        guard case let .loaded(items) = incomingState else { return 0 }
+        return items.count
+    }
+
+    var matchedCount: Int {
+        guard case let .loaded(items) = matchedState else { return 0 }
+        return items.count
+    }
 
     init(
         connectionRepository: ConnectionRepository,
@@ -66,6 +88,20 @@ final class ConnectViewModel: ObservableObject {
         await loadIncoming()
         await loadMatched()
 
+        if let selectedCommunityId {
+            await loadCandidates(communityId: selectedCommunityId)
+        }
+    }
+
+    /// Local Pass only — does not hide the peer in Firestore.
+    func passCandidate(userId: String) {
+        guard !userId.isEmpty else { return }
+        passedCandidateIds.insert(userId)
+    }
+
+    func refreshAfterPeerSheet() async {
+        await loadIncoming()
+        await loadMatched()
         if let selectedCommunityId {
             await loadCandidates(communityId: selectedCommunityId)
         }
@@ -120,29 +156,12 @@ final class ConnectViewModel: ObservableObject {
 
     func selectCommunity(_ communityId: String) async {
         selectedCommunityId = communityId
+        resetPassedCandidates()
         await loadCandidates(communityId: communityId)
     }
 
-    func sendConnect(to userId: String) async {
-        guard let communityId = selectedCommunityId else {
-            actionErrorMessage = "Select a community first."
-            return
-        }
-
-        connectingUserId = userId
-        actionErrorMessage = nil
-
-        do {
-            try await connectionRepository.sendConnect(to: userId, in: communityId)
-            await loadCandidates(communityId: communityId)
-        } catch {
-            actionErrorMessage = error.localizedDescription
-        }
-
-        connectingUserId = nil
-    }
-
     func accept(requestId: String, fromUserId: String) async {
+        _ = fromUserId
         respondingRequestId = requestId
         actionErrorMessage = nil
 
@@ -154,19 +173,11 @@ final class ConnectViewModel: ObservableObject {
             return
         }
 
-        // Accept already committed — always refresh matched so Open Chat is available
-        // even if createDirectChat fails next.
+        // Accept only — user opens chat manually from Matches (no auto-navigation).
         await loadIncoming()
         await loadMatched()
         if let communityId = selectedCommunityId {
             await loadCandidates(communityId: communityId)
-        }
-
-        do {
-            let chatId = try await chatRepository.createDirectChat(with: fromUserId)
-            onOpenChat(chatId)
-        } catch {
-            actionErrorMessage = error.localizedDescription
         }
 
         respondingRequestId = nil
@@ -208,14 +219,19 @@ final class ConnectViewModel: ObservableObject {
         selectedCommunityId = nil
         actionErrorMessage = nil
         moderationMessage = nil
-        connectingUserId = nil
         respondingRequestId = nil
         openingChatPeerId = nil
         moderatingUserId = nil
         blockedUserIds = []
+        candidatesLoadGeneration += 1
+        resetPassedCandidates()
     }
 
     // MARK: - Private loads
+
+    private func resetPassedCandidates() {
+        passedCandidateIds = []
+    }
 
     private func loadBlockedUsers() async {
         do {
@@ -257,13 +273,24 @@ final class ConnectViewModel: ObservableObject {
     }
 
     private func loadCandidates(communityId: String) async {
+        candidatesLoadGeneration += 1
+        let generation = candidatesLoadGeneration
         candidatesState = .loading
 
         do {
             let candidates = try await connectionRepository.fetchCandidates(communityId: communityId)
                 .filter { !blockedUserIds.contains($0.id) }
+            guard generation == candidatesLoadGeneration,
+                  selectedCommunityId == communityId
+            else { return }
+
+            // Drop session Pass ids that are no longer in the fresh list.
+            passedCandidateIds = passedCandidateIds.intersection(Set(candidates.map(\.id)))
             candidatesState = candidates.isEmpty ? .empty : .loaded(candidates)
         } catch {
+            guard generation == candidatesLoadGeneration,
+                  selectedCommunityId == communityId
+            else { return }
             candidatesState = .error(error.localizedDescription)
         }
     }

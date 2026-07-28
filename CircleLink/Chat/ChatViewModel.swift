@@ -17,6 +17,9 @@ final class ChatViewModel: ObservableObject {
     /// From chat doc — used for Peer Profile Connect in group chats.
     @Published private(set) var communityId: String?
     @Published private(set) var isGroupChat = false
+    /// Success / error copy for report & block alerts in `ChatSheetView`.
+    @Published private(set) var moderationMessage: String?
+    @Published private(set) var moderationErrorMessage: String?
 
     let chatId: String
     /// Navigation title — peer name for direct, community name for group.
@@ -33,6 +36,8 @@ final class ChatViewModel: ObservableObject {
     private var knownMessageIds = Set<String>()
     private var knownClientMessageIds = Set<String>()
     private var participantsById: [String: User] = [:]
+    /// Prevents overlapping report/block requests.
+    private var isModerating = false
 
     var canModeratePeer: Bool {
         peerUserId != nil && moderationRepository != nil
