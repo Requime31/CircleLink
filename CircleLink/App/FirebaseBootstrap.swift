@@ -24,6 +24,7 @@ enum FirebaseBootstrap {
         guard FirebaseApp.app() == nil else { return }
 
         guard let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") else {
+            #if DEBUG
             print(
                 """
                 [CircleLink] GoogleService-Info.plist not found in app bundle.
@@ -32,24 +33,31 @@ enum FirebaseBootstrap {
                 See App/FIREBASE_SETUP.md
                 """
             )
+            #endif
             return
         }
 
         guard let options = FirebaseOptions(contentsOfFile: plistPath) else {
+            #if DEBUG
             print("[CircleLink] Failed to read Firebase options from GoogleService-Info.plist.")
+            #endif
             return
         }
 
         FirebaseApp.configure(options: options)
         configureFirestorePersistence()
+        #if DEBUG
         print("[CircleLink] Firebase configured (project: \(options.projectID ?? "unknown")).")
+        #endif
         #else
+        #if DEBUG
         print(
             """
             [CircleLink] Firebase SDK not linked.
             Add Firebase iOS SDK via SPM — see App/FIREBASE_SETUP.md.
             """
         )
+        #endif
         #endif
     }
 

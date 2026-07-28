@@ -83,11 +83,70 @@ service cloud.firestore {
 
         allow delete: if isSignedIn() && request.auth.uid == userId;
       }
+
+      // Phase 14: owner-only block list
+      match /blocked/{blockedUid} {
+        allow read, write: if isSignedIn()
+          && request.auth.uid == userId
+          && userId != blockedUid;
+      }
     }
 
-    // Phase 5: interest-based communities
+    // Phase 14: append-only user reports (no client reads)
+    match /reports/{reportId} {
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'reporterId', 'reportedUserId', 'reason', 'createdAt', 'chatId', 'communityId'
+        ])
+        && request.resource.data.keys().hasAll([
+          'reporterId', 'reportedUserId', 'reason', 'createdAt'
+        ])
+        && request.auth.uid == request.resource.data.reporterId
+        && request.resource.data.reporterId is string
+        && request.resource.data.reportedUserId is string
+        && request.resource.data.reporterId != request.resource.data.reportedUserId
+        && request.resource.data.reportedUserId.size() > 0
+        && request.resource.data.reportedUserId.size() <= 128
+        && request.resource.data.reason in ['spam', 'harassment', 'inappropriate', 'other']
+        && request.resource.data.createdAt is timestamp
+        && (
+          !('chatId' in request.resource.data)
+          || (
+            request.resource.data.chatId is string
+            && request.resource.data.chatId.size() > 0
+            && request.resource.data.chatId.size() <= 256
+          )
+        )
+        && (
+          !('communityId' in request.resource.data)
+          || (
+            request.resource.data.communityId is string
+            && request.resource.data.communityId.size() > 0
+            && request.resource.data.communityId.size() <= 128
+          )
+        );
+      allow read, update, delete: if false;
+    }
+
+    // Phase 5 / 14: interest-based communities (+ client create)
     match /communities/{communityId} {
       allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'name', 'description', 'interestTag', 'memberCount', 'createdBy'
+        ])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdBy is string
+        && request.resource.data.memberCount == 1
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 280
+        && request.resource.data.interestTag is string
+        && request.resource.data.interestTag.size() > 0
+        && request.resource.data.interestTag.size() <= 40;
 
       allow update: if isSignedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount']);

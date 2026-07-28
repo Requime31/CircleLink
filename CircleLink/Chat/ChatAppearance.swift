@@ -65,4 +65,24 @@ enum ChatAppearance {
     static var bodyFont: UIFont { .preferredFont(forTextStyle: .body) }
     static var captionFont: UIFont { .preferredFont(forTextStyle: .caption1) }
     static var titleFont: UIFont { .preferredFont(forTextStyle: .headline) }
+
+    enum Spacing {
+        static let bubbleVertical: CGFloat = 4
+        static let bubbleHorizontalInset: CGFloat = 16
+        static let bubbleOppositeInset: CGFloat = 64
+        static let bubblePaddingH: CGFloat = 12
+        static let bubblePaddingV: CGFloat = 8
+        static let timestampGap: CGFloat = 4
+        static let statusGap: CGFloat = 8
+        static let barEdge: CGFloat = 8
+        static let fieldMinHeight: CGFloat = 36
+        static let barMinHeight: CGFloat = 56
+        static let imageHeight: CGFloat = 180
+    }
+
+    enum Radius {
+        static let bubble: CGFloat = 16
+        static let image: CGFloat = 12
+        static let field: CGFloat = 8
+    }
 }

@@ -6,6 +6,8 @@ struct CommunitiesListView: View {
     let onCommunitySelected: (String) -> Void
     let onOpenGroupChat: (String, String) -> Void
 
+    @State private var showCreateSheet = false
+
     var body: some View {
         NavigationStack {
             Group {
@@ -25,6 +27,16 @@ struct CommunitiesListView: View {
             }
             .clCanvasBackground()
             .navigationTitle("Communities")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showCreateSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Create community")
+                }
+            }
             .navigationDestination(for: String.self) { communityId in
                 CommunityDetailView(
                     viewModel: makeDetailViewModel(communityId),

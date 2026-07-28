@@ -47,4 +47,19 @@ enum FirestoreCommunityMapper {
             "role": role.rawValue
         ]
     }
+
+    static func createCommunityData(
+        name: String,
+        description: String,
+        interestTag: String,
+        createdBy: String
+    ) -> [String: Any] {
+        [
+            "name": name,
+            "description": description,
+            "interestTag": interestTag,
+            "memberCount": 1,
+            "createdBy": createdBy
+        ]
+    }
 }

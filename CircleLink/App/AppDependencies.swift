@@ -10,6 +10,7 @@ final class AppDependencies {
     let communityRepository: CommunityRepository
     let connectionRepository: ConnectionRepository
     let chatRepository: ChatRepository
+    let moderationRepository: ModerationRepository
     let pushNotificationHandler: PushNotificationHandler
 
     init(
@@ -19,6 +20,7 @@ final class AppDependencies {
         communityRepository: CommunityRepository? = nil,
         connectionRepository: ConnectionRepository? = nil,
         chatRepository: ChatRepository? = nil,
+        moderationRepository: ModerationRepository? = nil,
         pushNotificationHandler: PushNotificationHandler? = nil
     ) {
         let resolvedTokenStorage = tokenStorage ?? KeychainTokenStorage()
@@ -37,6 +39,7 @@ final class AppDependencies {
         self.chatRepository = chatRepository ?? FirestoreChatRepository(
             imageStorage: resolvedImageStorage
         )
+        self.moderationRepository = moderationRepository ?? FirestoreModerationRepository()
         self.pushNotificationHandler = pushNotificationHandler ?? PushNotificationHandler(
             userRepository: resolvedUserRepository,
             authRepository: self.authRepository
@@ -94,13 +97,21 @@ final class AppDependencies {
         )
     }
 
-    func makeChatViewModel(chatId: String, title: String = "Chat") -> ChatViewModel? {
+    func makeChatViewModel(
+        chatId: String,
+        title: String = "Chat",
+        onPeerBlocked: (() -> Void)? = nil
+    ) -> ChatViewModel? {
         guard let currentUserId = authRepository.currentUser?.id else { return nil }
+        let peerUserId = DirectChatPeer.peerUserId(chatId: chatId, currentUserId: currentUserId)
         return ChatViewModel(
             chatId: chatId,
             currentUserId: currentUserId,
             chatRepository: chatRepository,
-            chatTitle: title
+            chatTitle: title,
+            peerUserId: peerUserId,
+            moderationRepository: peerUserId == nil ? nil : moderationRepository,
+            onPeerBlocked: onPeerBlocked
         )
     }
 
@@ -111,6 +122,7 @@ final class AppDependencies {
             communityRepository: communityRepository,
             userRepository: userRepository,
             authRepository: authRepository,
+            moderationRepository: moderationRepository,
             onOpenChat: onOpenChat
         )
     }

@@ -496,10 +496,16 @@ final class MessageCell: UITableViewCell {
             timestampLabel.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor, constant: -padV),
 
             statusIndicator.centerYAnchor.constraint(equalTo: bubbleView.centerYAnchor),
-            statusIndicator.trailingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: -8),
+            statusIndicator.trailingAnchor.constraint(
+                equalTo: bubbleView.leadingAnchor,
+                constant: -ChatAppearance.Spacing.statusGap
+            ),
 
             retryButton.centerYAnchor.constraint(equalTo: bubbleView.centerYAnchor),
-            retryButton.trailingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: -8),
+            retryButton.trailingAnchor.constraint(
+                equalTo: bubbleView.leadingAnchor,
+                constant: -ChatAppearance.Spacing.statusGap
+            ),
             retryButton.widthAnchor.constraint(equalToConstant: AccessibilityHelpers.minimumTouchTarget),
             retryButton.heightAnchor.constraint(equalToConstant: AccessibilityHelpers.minimumTouchTarget)
         ])

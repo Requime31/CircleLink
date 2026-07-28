@@ -13,6 +13,7 @@ final class InputBarView: UIView {
         field.translatesAutoresizingMaskIntoConstraints = false
         field.placeholder = "Message"
         field.font = ChatAppearance.bodyFont
+        field.textColor = ChatAppearance.ink
         field.adjustsFontForContentSizeCategory = true
         field.borderStyle = .none
         field.backgroundColor = ChatAppearance.surface
@@ -78,7 +79,10 @@ final class InputBarView: UIView {
     }
 
     override var intrinsicContentSize: CGSize {
-        CGSize(width: UIView.noIntrinsicMetric, height: max(56, AccessibilityHelpers.minimumTouchTarget + 12))
+        CGSize(
+            width: UIView.noIntrinsicMetric,
+            height: max(ChatAppearance.Spacing.barMinHeight, AccessibilityHelpers.minimumTouchTarget + 12)
+        )
     }
 
     func clearText() {
@@ -93,6 +97,7 @@ final class InputBarView: UIView {
         addSubview(sendButton)
 
         let touch = AccessibilityHelpers.minimumTouchTarget
+        let edge = ChatAppearance.Spacing.barEdge
 
         NSLayoutConstraint.activate([
             topSeparator.topAnchor.constraint(equalTo: topAnchor),
@@ -100,18 +105,18 @@ final class InputBarView: UIView {
             topSeparator.trailingAnchor.constraint(equalTo: trailingAnchor),
             topSeparator.heightAnchor.constraint(equalToConstant: 1),
 
-            attachButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            attachButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: edge),
             attachButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             attachButton.widthAnchor.constraint(equalToConstant: touch),
             attachButton.heightAnchor.constraint(equalToConstant: touch),
 
-            sendButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            sendButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -edge),
             sendButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             sendButton.widthAnchor.constraint(equalToConstant: touch),
             sendButton.heightAnchor.constraint(equalToConstant: touch),
 
-            textField.leadingAnchor.constraint(equalTo: attachButton.trailingAnchor, constant: 8),
-            textField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),
+            textField.leadingAnchor.constraint(equalTo: attachButton.trailingAnchor, constant: edge),
+            textField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -edge),
             textField.centerYAnchor.constraint(equalTo: centerYAnchor),
             textField.heightAnchor.constraint(greaterThanOrEqualToConstant: 40)
         ])

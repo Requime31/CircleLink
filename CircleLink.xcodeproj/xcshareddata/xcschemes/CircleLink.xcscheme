@@ -29,7 +29,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A10TEST01000000000000006"
+               BlueprintIdentifier = "F9B5DD4A300F92BB008684E2"
                BuildableName = "CircleLinkTests.xctest"
                BlueprintName = "CircleLinkTests"
                ReferencedContainer = "container:CircleLink.xcodeproj">
@@ -49,7 +49,7 @@
             parallelizable = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "A10TEST01000000000000006"
+               BlueprintIdentifier = "F9B5DD4A300F92BB008684E2"
                BuildableName = "CircleLinkTests.xctest"
                BlueprintName = "CircleLinkTests"
                ReferencedContainer = "container:CircleLink.xcodeproj">

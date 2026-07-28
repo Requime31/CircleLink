@@ -21,8 +21,12 @@ final class ChatViewModel: ObservableObject {
     let chatId: String
     /// Navigation title — peer name for direct, community name for group.
     let chatTitle: String
+    /// Direct-chat peer only; `nil` for group chats.
+    let peerUserId: String?
     private let chatRepository: ChatRepository
+    private let moderationRepository: ModerationRepository?
     private let currentUserId: String
+    private let onPeerBlocked: (() -> Void)?
     private let pageSize = 30
 
     private var liveMessagesTask: Task<Void, Never>?
@@ -30,16 +34,26 @@ final class ChatViewModel: ObservableObject {
     private var knownClientMessageIds = Set<String>()
     private var participantsById: [String: User] = [:]
 
+    var canModeratePeer: Bool {
+        peerUserId != nil && moderationRepository != nil
+    }
+
     init(
         chatId: String,
         currentUserId: String,
         chatRepository: ChatRepository,
-        chatTitle: String = "Chat"
+        chatTitle: String = "Chat",
+        peerUserId: String? = nil,
+        moderationRepository: ModerationRepository? = nil,
+        onPeerBlocked: (() -> Void)? = nil
     ) {
         self.chatId = chatId
         self.currentUserId = currentUserId
         self.chatRepository = chatRepository
         self.chatTitle = chatTitle
+        self.peerUserId = peerUserId
+        self.moderationRepository = moderationRepository
+        self.onPeerBlocked = onPeerBlocked
     }
 
     deinit {
@@ -60,6 +74,50 @@ final class ChatViewModel: ObservableObject {
     func onDisappear() {
         liveMessagesTask?.cancel()
         liveMessagesTask = nil
+    }
+
+    // MARK: - Moderation (direct chats)
+
+    func reportPeer(reason: ReportReason) async {
+        guard let peerUserId, let moderationRepository, !isModerating else { return }
+        isModerating = true
+        moderationMessage = nil
+        moderationErrorMessage = nil
+
+        do {
+            try await moderationRepository.reportUser(
+                userId: peerUserId,
+                reason: reason,
+                chatId: chatId,
+                communityId: nil
+            )
+            moderationMessage = "Thanks — we’ll review this report."
+        } catch {
+            moderationErrorMessage = error.localizedDescription
+        }
+
+        isModerating = false
+    }
+
+    func blockPeer() async {
+        guard let peerUserId, let moderationRepository, !isModerating else { return }
+        isModerating = true
+        moderationMessage = nil
+        moderationErrorMessage = nil
+
+        do {
+            try await moderationRepository.blockUser(peerUserId)
+            onPeerBlocked?()
+        } catch {
+            moderationErrorMessage = error.localizedDescription
+        }
+
+        isModerating = false
+    }
+
+    func clearModerationFeedback() {
+        moderationMessage = nil
+        moderationErrorMessage = nil
     }
 
     // MARK: - Load

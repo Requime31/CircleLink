@@ -117,7 +117,6 @@ struct ProfileView: View {
             .padding(.top, CLSpacing.xs)
             .accessibilityLabel("Retry loading profile")
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorState(message: String) -> some View {

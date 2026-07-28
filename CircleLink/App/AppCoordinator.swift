@@ -193,7 +193,9 @@ final class AppCoordinator: ObservableObject {
                 try dependencies.authRepository.signOut()
                 handleSignedOut()
             } catch {
+                #if DEBUG
                 print("[AppCoordinator] signOut failed: \(error.localizedDescription)")
+                #endif
             }
         }
     }
@@ -267,7 +269,8 @@ final class AppCoordinator: ObservableObject {
     }
 
     func onCommunitySelected(communityId: String) {
-        print("[AppCoordinator] onCommunitySelected: \(communityId)")
+        // Hook reserved for analytics / deep-link context (Phase 14+: no debug noise).
+        _ = communityId
     }
 
     /// Group chat entry — `chatId` is a real Firestore id from `createGroupChat`.
