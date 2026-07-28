@@ -12,6 +12,9 @@ final class CommunityDetailViewModel: ObservableObject {
 
     let communityId: String
 
+    /// Used by the View to skip opening peer profile for the current user.
+    var currentUserId: String? { authRepository.currentUser?.id }
+
     private let communityRepository: CommunityRepository
     private let chatRepository: ChatRepository
     private let authRepository: AuthRepository

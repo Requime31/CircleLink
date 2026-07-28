@@ -1,87 +1,190 @@
 import SwiftUI
 
+/// Connect tab root = Discover (community + swipe deck).
+/// Liked you / Matches are push destinations. Connect action lives in PeerProfileSheet.
 struct ConnectView: View {
     @ObservedObject var viewModel: ConnectViewModel
+    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+
+    @State private var reportTarget: ModerationTarget?
+    @State private var blockTarget: ModerationTarget?
+    @State private var presentedPeer: PresentedPeer?
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: CLSpacing.lg) {
-                    if let actionErrorMessage = viewModel.actionErrorMessage {
-                        Text(actionErrorMessage)
-                            .font(CLTypography.footnote)
-                            .foregroundStyle(CLColor.error)
-                            .padding(CLSpacing.sm)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(CLColor.errorSoft)
-                            .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-                            .accessibilityLabel("Connect error: \(actionErrorMessage)")
-                    }
+            discoverContent
+                .clCanvasBackground()
+                .navigationTitle("Connect")
+                .toolbar {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        NavigationLink(value: ConnectDestination.likedYou) {
+                            toolbarLabel(
+                                title: "Liked you",
+                                systemImage: "heart",
+                                badge: viewModel.incomingCount
+                            )
+                        }
+                        .accessibilityLabel(likedYouAccessibilityLabel)
 
-                    communityPickerSection
-                    candidatesSection
-                    incomingSection
-                    matchedSection
+                        NavigationLink(value: ConnectDestination.matches) {
+                            toolbarLabel(
+                                title: "Matches",
+                                systemImage: "link",
+                                badge: viewModel.matchedCount
+                            )
+                        }
+                        .accessibilityLabel(matchesAccessibilityLabel)
+                    }
                 }
-                .padding(.horizontal, CLSpacing.md)
-                .padding(.vertical, CLSpacing.md)
-            }
-            .clCanvasBackground()
-            .navigationTitle("Connect")
-            .task {
-                await viewModel.load()
-            }
-            .refreshable {
-                await viewModel.load()
-            }
-            .confirmationDialog(
-                "Why are you reporting this user?",
-                isPresented: Binding(
-                    get: { reportTarget != nil },
-                    set: { if !$0 { reportTarget = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                if let reportTarget {
-                    ForEach(ReportReason.allCases, id: \.self) { reason in
-                        Button(reason.title) {
-                            Task {
-                                await viewModel.report(userId: reportTarget.userId, reason: reason)
+                .navigationDestination(for: ConnectDestination.self) { destination in
+                    switch destination {
+                    case .likedYou:
+                        LikedYouView(
+                            viewModel: viewModel,
+                            onSelectPeer: { presentPeer($0) },
+                            onReport: { userId, name in
+                                reportTarget = ModerationTarget(userId: userId, displayName: name)
+                            },
+                            onBlock: { userId, name in
+                                blockTarget = ModerationTarget(userId: userId, displayName: name)
+                            }
+                        )
+                    case .matches:
+                        MatchesView(
+                            viewModel: viewModel,
+                            onSelectPeer: { presentPeer($0) },
+                            onReport: { userId, name in
+                                reportTarget = ModerationTarget(userId: userId, displayName: name)
+                            },
+                            onBlock: { userId, name in
+                                blockTarget = ModerationTarget(userId: userId, displayName: name)
+                            }
+                        )
+                    }
+                }
+                .task {
+                    await viewModel.load()
+                }
+                .refreshable {
+                    await viewModel.load()
+                }
+                .sheet(item: $presentedPeer) { peer in
+                    makePeerProfileSheet(peer.userId, viewModel.selectedCommunityId)
+                        .onDisappear {
+                            Task { await viewModel.refreshAfterPeerSheet() }
+                        }
+                }
+                .confirmationDialog(
+                    "Why are you reporting this user?",
+                    isPresented: Binding(
+                        get: { reportTarget != nil },
+                        set: { if !$0 { reportTarget = nil } }
+                    ),
+                    titleVisibility: .visible
+                ) {
+                    if let reportTarget {
+                        ForEach(ReportReason.allCases, id: \.self) { reason in
+                            Button(reason.title) {
+                                Task {
+                                    await viewModel.report(userId: reportTarget.userId, reason: reason)
+                                }
                             }
                         }
                     }
-                }
-                Button("Cancel", role: .cancel) {
-                    reportTarget = nil
-                }
-            }
-            .confirmationDialog(
-                blockConfirmTitle,
-                isPresented: Binding(
-                    get: { blockTarget != nil },
-                    set: { if !$0 { blockTarget = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                if let blockTarget {
-                    Button("Block", role: .destructive) {
-                        Task {
-                            await viewModel.block(userId: blockTarget.userId)
-                        }
+                    Button("Cancel", role: .cancel) {
+                        reportTarget = nil
                     }
                 }
-                Button("Cancel", role: .cancel) {
-                    blockTarget = nil
+                .confirmationDialog(
+                    blockConfirmTitle,
+                    isPresented: Binding(
+                        get: { blockTarget != nil },
+                        set: { if !$0 { blockTarget = nil } }
+                    ),
+                    titleVisibility: .visible
+                ) {
+                    if let blockTarget {
+                        Button("Block", role: .destructive) {
+                            Task {
+                                await viewModel.block(userId: blockTarget.userId)
+                            }
+                        }
+                    }
+                    Button("Cancel", role: .cancel) {
+                        blockTarget = nil
+                    }
                 }
-            }
         }
     }
 
-    private var blockConfirmTitle: String {
-        if let name = blockTarget?.displayName {
-            return "Block \(name)? They won’t appear in Connect for you."
+    // MARK: - Discover
+
+    private var discoverContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: CLSpacing.lg) {
+                if let actionErrorMessage = viewModel.actionErrorMessage {
+                    Text(actionErrorMessage)
+                        .font(CLTypography.footnote)
+                        .foregroundStyle(CLColor.error)
+                        .padding(CLSpacing.sm)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(CLColor.errorSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+                        .accessibilityLabel("Connect error: \(actionErrorMessage)")
+                }
+
+                if let moderationMessage = viewModel.moderationMessage {
+                    Text(moderationMessage)
+                        .font(CLTypography.footnote)
+                        .foregroundStyle(CLColor.inkSecondary)
+                        .padding(CLSpacing.sm)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(CLColor.surfaceSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+                        .onTapGesture { viewModel.clearModerationFeedback() }
+                }
+
+                communityPickerSection
+                deckSection
+            }
+            .padding(.horizontal, CLSpacing.md)
+            .padding(.vertical, CLSpacing.md)
         }
-        return "Block this user? They won’t appear in Connect for you."
+    }
+
+    private func toolbarLabel(title: String, systemImage: String, badge: Int) -> some View {
+        ZStack(alignment: .topTrailing) {
+            Image(systemName: systemImage)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(CLColor.ink)
+                .frame(minWidth: 28, minHeight: AccessibilityHelpers.minimumTouchTarget)
+
+            if badge > 0 {
+                Text(badge > 99 ? "99+" : "\(badge)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(CLColor.onPrimary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(CLColor.primary)
+                    .clipShape(Capsule())
+                    .offset(x: 8, y: -4)
+                    .accessibilityHidden(true)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+    }
+
+    private var likedYouAccessibilityLabel: String {
+        let count = viewModel.incomingCount
+        if count == 0 { return "Liked you" }
+        return "Liked you, \(count) pending"
+    }
+
+    private var matchesAccessibilityLabel: String {
+        let count = viewModel.matchedCount
+        if count == 0 { return "Matches" }
+        return "Matches, \(count)"
     }
 
     // MARK: - Community picker
@@ -139,161 +242,95 @@ struct ConnectView: View {
         }
     }
 
-    // MARK: - Candidates
+    // MARK: - Deck
 
     @ViewBuilder
-    private var candidatesSection: some View {
+    private var deckSection: some View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("People nearby")
+            Text("Discover")
                 .font(CLTypography.headline)
                 .foregroundStyle(CLColor.ink)
 
             if viewModel.selectedCommunityId == nil {
-                Text("Select a community to see candidates.")
+                Text("Select a community to see people.")
                     .font(CLTypography.subheadline)
                     .foregroundStyle(CLColor.inkMuted)
             } else {
                 switch viewModel.candidatesState {
                 case .idle, .loading:
-                    ProgressView("Loading candidates…")
+                    ProgressView("Loading people…")
                         .tint(CLColor.primary)
                         .foregroundStyle(CLColor.inkMuted)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, CLSpacing.xl)
                 case .empty:
-                    Text("No new people to connect with here.")
-                        .font(CLTypography.subheadline)
-                        .foregroundStyle(CLColor.inkMuted)
+                    deckEmpty(
+                        title: "No one new here",
+                        message: "Check another community, or come back later."
+                    )
                 case let .error(message):
                     sectionError(message) {
                         if let communityId = viewModel.selectedCommunityId {
                             Task { await viewModel.selectCommunity(communityId) }
                         }
                     }
-                case let .loaded(candidates):
-                    LazyVStack(spacing: CLSpacing.md) {
-                        ForEach(candidates) { user in
-                            CandidateRowView(
-                                user: user,
-                                isConnecting: viewModel.connectingUserId == user.id
-                            ) {
-                                Task { await viewModel.sendConnect(to: user.id) }
-                            }
-                            .clAppear()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Incoming
-
-    @ViewBuilder
-    private var incomingSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("Incoming requests")
-                .font(CLTypography.headline)
-                .foregroundStyle(CLColor.ink)
-
-            switch viewModel.incomingState {
-            case .idle, .loading:
-                ProgressView("Loading requests…")
-                    .tint(CLColor.primary)
-                    .foregroundStyle(CLColor.inkMuted)
-            case .empty:
-                Text("No pending requests.")
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkMuted)
-            case let .error(message):
-                sectionError(message) {
-                    Task { await viewModel.load() }
-                }
-            case let .loaded(items):
-                LazyVStack(spacing: CLSpacing.md) {
-                    ForEach(items) { item in
-                        IncomingRequestRowView(
-                            item: item,
-                            isResponding: viewModel.respondingRequestId == item.id,
-                            onAccept: {
-                                Task {
-                                    await viewModel.accept(
-                                        requestId: item.request.id,
-                                        fromUserId: item.request.fromUserId
-                                    )
+                case .loaded:
+                    if let top = viewModel.topCandidate {
+                        let underlay = viewModel.deckCandidates.dropFirst().first
+                        ConnectDiscoverDeckView(
+                            top: top,
+                            underlay: underlay,
+                            onPass: {
+                                withAnimation(CLMotion.soft) {
+                                    viewModel.passCandidate(userId: top.id)
                                 }
                             },
-                            onDecline: {
-                                Task { await viewModel.decline(requestId: item.request.id) }
-                            }
+                            onViewProfile: { presentPeer(top) }
                         )
-                        .contextMenu {
-                            Button("Report…") {
-                                reportTarget = ModerationTarget(
-                                    userId: item.peer.id,
-                                    displayName: item.peer.displayName
-                                )
-                            }
-                            Button("Block…", role: .destructive) {
-                                blockTarget = ModerationTarget(
-                                    userId: item.peer.id,
-                                    displayName: item.peer.displayName
-                                )
-                            }
-                        }
+                        .clAppear()
+                    } else {
+                        deckEmpty(
+                            title: "You’re all caught up",
+                            message: "Pull to refresh, or pick another community."
+                        )
                     }
                 }
             }
         }
     }
 
-    // MARK: - Matched
-
-    @ViewBuilder
-    private var matchedSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("Matched")
-                .font(CLTypography.headline)
+    private func deckEmpty(title: String, message: String) -> some View {
+        VStack(spacing: CLSpacing.sm) {
+            Image(systemName: "person.2")
+                .font(.system(size: 36, weight: .regular))
+                .foregroundStyle(CLColor.inkMuted)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(CLTypography.title2)
                 .foregroundStyle(CLColor.ink)
-
-            switch viewModel.matchedState {
-            case .idle, .loading:
-                ProgressView("Loading matches…")
-                    .tint(CLColor.primary)
-                    .foregroundStyle(CLColor.inkMuted)
-            case .empty:
-                Text("Accepted connections will show here.")
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkMuted)
-            case let .error(message):
-                sectionError(message) {
-                    Task { await viewModel.load() }
-                }
-            case let .loaded(items):
-                LazyVStack(spacing: CLSpacing.md) {
-                    ForEach(items) { item in
-                        MatchedRowView(
-                            item: item,
-                            isOpening: viewModel.openingChatPeerId == item.peer.id
-                        ) {
-                            Task { await viewModel.openChat(with: item.peer.id) }
-                        }
-                        .contextMenu {
-                            Button("Report…") {
-                                reportTarget = ModerationTarget(
-                                    userId: item.peer.id,
-                                    displayName: item.peer.displayName
-                                )
-                            }
-                            Button("Block…", role: .destructive) {
-                                blockTarget = ModerationTarget(
-                                    userId: item.peer.id,
-                                    displayName: item.peer.displayName
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+                .multilineTextAlignment(.center)
+            Text(message)
+                .font(CLTypography.subheadline)
+                .foregroundStyle(CLColor.inkMuted)
+                .multilineTextAlignment(.center)
         }
+        .padding(CLSpacing.lg)
+        .frame(maxWidth: .infinity)
+        .background(CLColor.surfaceSoft)
+        .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
+    }
+
+    // MARK: - Helpers
+
+    private var blockConfirmTitle: String {
+        if let name = blockTarget?.displayName {
+            return "Block \(name)? They won’t appear in Connect for you."
+        }
+        return "Block this user? They won’t appear in Connect for you."
+    }
+
+    private func presentPeer(_ user: User) {
+        presentedPeer = PresentedPeer(userId: user.id, displayName: user.displayName)
     }
 
     private func selectedCommunityName(from communities: [Community]) -> String {
@@ -316,165 +353,23 @@ struct ConnectView: View {
     }
 }
 
-// MARK: - Moderation target
+// MARK: - Navigation / presentation models
 
-private struct ModerationTarget: Identifiable, Equatable {
+private enum ConnectDestination: Hashable {
+    case likedYou
+    case matches
+}
+
+private struct PresentedPeer: Identifiable, Equatable {
     let userId: String
     let displayName: String
 
     var id: String { userId }
 }
 
-// MARK: - Rows
+private struct ModerationTarget: Identifiable, Equatable {
+    let userId: String
+    let displayName: String
 
-private struct CandidateRowView: View {
-    let user: User
-    let isConnecting: Bool
-    let onConnect: () -> Void
-
-    var body: some View {
-        HStack(alignment: .center, spacing: CLSpacing.sm) {
-            AvatarImageView(
-                localPreview: nil,
-                avatarBase64: user.avatarBase64,
-                avatarURL: user.avatarURL,
-                size: 52
-            )
-
-            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
-                Text(user.displayName)
-                    .font(CLTypography.headline)
-                    .foregroundStyle(CLColor.ink)
-                    .lineLimit(1)
-
-                if !user.interests.isEmpty {
-                    Text(user.interests.prefix(3).joined(separator: " · "))
-                        .font(CLTypography.footnote)
-                        .foregroundStyle(CLColor.inkMuted)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer(minLength: CLSpacing.xs)
-
-            Button(action: onConnect) {
-                if isConnecting {
-                    ProgressView()
-                        .tint(CLColor.onPrimary)
-                } else {
-                    Text("Connect")
-                }
-            }
-            .buttonStyle(CLPrimaryButtonStyle(fillsWidth: false))
-            .frame(minWidth: 96)
-            .disabled(isConnecting)
-            .accessibilityLabel("Connect with \(user.displayName)")
-        }
-        .clCardStyle()
-    }
-}
-
-private struct IncomingRequestRowView: View {
-    let item: ConnectRequestItem
-    let isResponding: Bool
-    let onAccept: () -> Void
-    let onDecline: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            HStack(spacing: CLSpacing.sm) {
-                AvatarImageView(
-                    localPreview: nil,
-                    avatarBase64: item.peer.avatarBase64,
-                    avatarURL: item.peer.avatarURL,
-                    size: 52
-                )
-
-                VStack(alignment: .leading, spacing: CLSpacing.xxs) {
-                    Text(item.peer.displayName)
-                        .font(CLTypography.headline)
-                        .foregroundStyle(CLColor.ink)
-
-                    if !item.peer.interests.isEmpty {
-                        Text(item.peer.interests.prefix(3).joined(separator: " · "))
-                            .font(CLTypography.footnote)
-                            .foregroundStyle(CLColor.inkMuted)
-                            .lineLimit(1)
-                    }
-                }
-
-                Spacer(minLength: 0)
-            }
-
-            HStack(spacing: CLSpacing.sm) {
-                Button(action: onDecline) {
-                    if isResponding {
-                        ProgressView()
-                            .tint(CLColor.ink)
-                    } else {
-                        Text("Decline")
-                    }
-                }
-                .buttonStyle(CLSecondaryButtonStyle())
-                .disabled(isResponding)
-                .accessibilityLabel("Decline \(item.peer.displayName)")
-
-                Button(action: onAccept) {
-                    if isResponding {
-                        ProgressView()
-                            .tint(CLColor.onPrimary)
-                    } else {
-                        Text("Accept")
-                    }
-                }
-                .buttonStyle(CLPrimaryButtonStyle())
-                .disabled(isResponding)
-                .accessibilityLabel("Accept \(item.peer.displayName)")
-            }
-        }
-        .clCardStyle()
-    }
-}
-
-private struct MatchedRowView: View {
-    let item: MatchedConnectionItem
-    let isOpening: Bool
-    let onOpenChat: () -> Void
-
-    var body: some View {
-        HStack(spacing: CLSpacing.sm) {
-            AvatarImageView(
-                localPreview: nil,
-                avatarBase64: item.peer.avatarBase64,
-                avatarURL: item.peer.avatarURL,
-                size: 52
-            )
-
-            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
-                Text(item.peer.displayName)
-                    .font(CLTypography.headline)
-                    .foregroundStyle(CLColor.ink)
-
-                Text("Connected")
-                    .font(CLTypography.footnote)
-                    .foregroundStyle(CLColor.success)
-            }
-
-            Spacer(minLength: CLSpacing.xs)
-
-            Button(action: onOpenChat) {
-                if isOpening {
-                    ProgressView()
-                        .tint(CLColor.onPrimary)
-                } else {
-                    Text("Open Chat")
-                }
-            }
-            .buttonStyle(CLPrimaryButtonStyle(fillsWidth: false))
-            .frame(minWidth: 112)
-            .disabled(isOpening)
-            .accessibilityLabel("Open chat with \(item.peer.displayName)")
-        }
-        .clCardStyle()
-    }
+    var id: String { userId }
 }

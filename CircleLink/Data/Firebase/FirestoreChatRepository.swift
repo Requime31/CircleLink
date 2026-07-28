@@ -400,49 +400,42 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
 
         let chatId = FirestoreChatMapper.groupChatId(communityId: communityId)
         let chatRef = db.collection(chatsCollection).document(chatId)
-        let existing = try await chatRef.getDocument()
         let title = try await fetchCommunityName(communityId: communityId)
         let now = Date()
 
-        if existing.exists {
-            // Cheap re-open: only sync the caller. Other members get themselves when they open.
-            try await chatRef.setData(
-                [
-                    "type": ChatType.group.rawValue,
-                    "communityId": communityId,
-                    "title": title,
-                    "participantIds": FieldValue.arrayUnion([currentUserId])
-                ],
-                merge: true
-            )
-
-            try await ensureChatRefsExist(
-                chatId: chatId,
-                participantIds: [currentUserId],
-                lastMessageText: existing.data()?["lastMessageText"] as? String,
-                lastMessageAt: (existing.data()?["lastMessageAt"] as? Timestamp)?.dateValue() ?? now
-            )
-            return chatId
-        }
-
-        // Step 1: chat doc first so rules see participantIds before chatRefs writes.
+        // Write-first (merge + arrayUnion). Do not getDocument before join —
+        // older rules denied reads for community members not yet in participantIds.
         try await chatRef.setData(
             [
                 "type": ChatType.group.rawValue,
                 "communityId": communityId,
                 "title": title,
-                "participantIds": uniqueParticipants,
-                "lastMessageText": NSNull(),
-                "lastMessageAt": Timestamp(date: now)
+                "participantIds": FieldValue.arrayUnion(uniqueParticipants)
             ],
             merge: true
         )
 
+        // Now a participant — safe to read for lastMessage seeding / chatRefs.
+        let existing = try await chatRef.getDocument()
+        let existingData = existing.data() ?? [:]
+        let lastMessageText = existingData["lastMessageText"] as? String
+        let lastMessageAt = (existingData["lastMessageAt"] as? Timestamp)?.dateValue()
+
+        if lastMessageAt == nil {
+            try await chatRef.setData(
+                [
+                    "lastMessageText": NSNull(),
+                    "lastMessageAt": Timestamp(date: now)
+                ],
+                merge: true
+            )
+        }
+
         try await ensureChatRefsExist(
             chatId: chatId,
-            participantIds: uniqueParticipants,
-            lastMessageText: nil,
-            lastMessageAt: now
+            participantIds: [currentUserId],
+            lastMessageText: lastMessageText,
+            lastMessageAt: lastMessageAt ?? now
         )
         return chatId
     }
@@ -453,13 +446,23 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         }
 
         let chatRef = db.collection(chatsCollection).document(chatId)
-        let existing = try await chatRef.getDocument()
-        guard existing.exists else { return }
 
-        try await chatRef.setData(
-            ["participantIds": FieldValue.arrayRemove([currentUserId])],
-            merge: true
-        )
+        // Remove from participantIds only when present. Non-participants (or missing
+        // chat) still drop their chatRef so Leave Community can finish cleanly.
+        do {
+            let existing = try await chatRef.getDocument()
+            if existing.exists {
+                let participants = FirestoreChatMapper.participantIds(from: existing.data() ?? [:])
+                if participants.contains(currentUserId) {
+                    try await chatRef.setData(
+                        ["participantIds": FieldValue.arrayRemove([currentUserId])],
+                        merge: true
+                    )
+                }
+            }
+        } catch {
+            // Unreadable chat — still clear local ref below.
+        }
 
         try await db.collection(usersCollection)
             .document(currentUserId)

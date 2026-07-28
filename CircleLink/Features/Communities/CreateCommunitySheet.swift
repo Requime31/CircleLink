@@ -65,7 +65,7 @@ struct CreateCommunitySheet: View {
             .overlay {
                 if viewModel.isCreating {
                     ProgressView("Creating…")
-                        .padding(CLSpacing.base)
+                        .padding(CLSpacing.md)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CLRadius.md))
                 }
             }
