@@ -4,93 +4,100 @@ struct AuthView: View {
     @ObservedObject var viewModel: AuthViewModel
 
     var body: some View {
-        VStack(spacing: 24) {
-            VStack(spacing: 8) {
+        VStack(spacing: CLSpacing.lg) {
+            VStack(spacing: CLSpacing.sm) {
                 Text("CircleLink")
-                    .font(.largeTitle.bold())
+                    .font(CLTypography.display)
+                    .foregroundStyle(CLColor.ink)
                 Text("Sign in or create an account")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(CLTypography.callout)
+                    .foregroundStyle(CLColor.muted)
             }
-            .padding(.top, 32)
+            .padding(.top, CLSpacing.xl)
 
             Button {
                 Task { await viewModel.signInWithApple() }
             } label: {
-                HStack(spacing: 8) {
+                HStack(spacing: CLSpacing.sm) {
                     Image(systemName: "apple.logo")
                         .font(.title3)
                     Text("Sign in with Apple")
-                        .font(.headline)
+                        .font(CLTypography.button)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                 .foregroundStyle(.white)
                 .background(Color.black)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm))
             }
             .accessibilityLabel("Sign in with Apple")
 
-            HStack {
-                Rectangle().frame(height: 1).foregroundStyle(.secondary.opacity(0.3))
-                Text("or").font(.footnote).foregroundStyle(.secondary)
-                Rectangle().frame(height: 1).foregroundStyle(.secondary.opacity(0.3))
+            HStack(spacing: CLSpacing.sm) {
+                Rectangle().frame(height: 1).foregroundStyle(CLColor.hairline)
+                Text("or")
+                    .font(CLTypography.caption)
+                    .foregroundStyle(CLColor.muted)
+                Rectangle().frame(height: 1).foregroundStyle(CLColor.hairline)
             }
 
-            VStack(spacing: 12) {
+            VStack(spacing: CLSpacing.md) {
                 TextField("Email", text: $viewModel.email)
                     .textContentType(.emailAddress)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                    .padding(12)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .foregroundStyle(CLColor.ink)
+                    .clTextFieldChrome()
                     .accessibilityLabel("Email")
 
                 SecureField("Password", text: $viewModel.password)
                     .textContentType(.password)
-                    .padding(12)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .foregroundStyle(CLColor.ink)
+                    .clTextFieldChrome()
                     .accessibilityLabel("Password")
 
                 Button {
                     Task { await viewModel.signInWithEmail() }
                 } label: {
                     Text("Sign In with Email")
+                        .font(CLTypography.button)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(CLColor.primary)
                 .accessibilityLabel("Sign in with email and password")
 
                 Button {
                     Task { await viewModel.signUpWithEmail() }
                 } label: {
                     Text("Create Account")
+                        .font(CLTypography.button)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                 }
                 .buttonStyle(.bordered)
+                .tint(CLColor.ink)
                 .accessibilityLabel("Create account with email and password")
             }
 
             if case .loading = viewModel.state {
                 ProgressView("Signing in…")
+                    .tint(CLColor.primary)
             }
 
             if case let .error(message) = viewModel.state {
                 Text(message)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                    .font(CLTypography.caption)
+                    .foregroundStyle(CLColor.error)
                     .multilineTextAlignment(.center)
                     .accessibilityLabel("Error: \(message)")
             }
 
             Spacer()
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, CLSpacing.lg)
+        .background(CLColor.canvas)
         .navigationTitle("Sign In")
         .navigationBarTitleDisplayMode(.inline)
     }

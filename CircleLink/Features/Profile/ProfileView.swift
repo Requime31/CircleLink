@@ -12,6 +12,7 @@ struct ProfileView: View {
                 switch viewModel.state {
                 case .idle, .loading:
                     ProgressView("Loading profile…")
+                        .tint(CLColor.primary)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .empty:
                     emptyState
@@ -21,6 +22,7 @@ struct ProfileView: View {
                     profileContent(user: user)
                 }
             }
+            .background(CLColor.canvas)
             .navigationTitle("Profile")
             .toolbar {
                 if case .loaded = viewModel.state {
@@ -28,6 +30,7 @@ struct ProfileView: View {
                         Button("Edit") {
                             isEditing = true
                         }
+                        .foregroundStyle(CLColor.primary)
                         .accessibilityLabel("Edit profile")
                     }
                 }
@@ -44,7 +47,7 @@ struct ProfileView: View {
     @ViewBuilder
     private func profileContent(user: User) -> some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: CLSpacing.lg) {
                 AvatarImageView(
                     localPreview: viewModel.localAvatarPreview,
                     avatarBase64: user.avatarBase64,
@@ -53,30 +56,33 @@ struct ProfileView: View {
                 )
                 .accessibilityLabel("Profile photo")
 
-                VStack(spacing: 4) {
+                VStack(spacing: CLSpacing.xs) {
                     Text(user.displayName)
-                        .font(.title2.bold())
+                        .font(CLTypography.title2)
+                        .foregroundStyle(CLColor.ink)
                         .accessibilityLabel("Display name: \(user.displayName)")
 
                     if user.interests.isEmpty {
                         Text("No interests yet")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .font(CLTypography.callout)
+                            .foregroundStyle(CLColor.muted)
                     }
                 }
 
                 if !user.interests.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: CLSpacing.sm) {
                         Text("Interests")
-                            .font(.headline)
+                            .font(CLTypography.section)
+                            .foregroundStyle(CLColor.ink)
 
-                        FlowLayout(spacing: 8) {
+                        FlowLayout(spacing: CLSpacing.sm) {
                             ForEach(user.interests, id: \.self) { interest in
                                 Text(interest)
-                                    .font(.subheadline)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(Color.secondary.opacity(0.12))
+                                    .font(CLTypography.callout)
+                                    .foregroundStyle(CLColor.ink)
+                                    .padding(.horizontal, CLSpacing.md)
+                                    .padding(.vertical, CLSpacing.sm)
+                                    .background(CLColor.surfaceSoft)
                                     .clipShape(Capsule())
                             }
                         }
@@ -85,45 +91,32 @@ struct ProfileView: View {
                 }
 
                 LogoutButton(action: onSignOut)
-                    .padding(.top, 16)
+                    .padding(.top, CLSpacing.base)
             }
-            .padding(24)
+            .padding(CLSpacing.lg)
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "person.crop.circle.badge.exclamationmark")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            Text("Profile not found")
-                .font(.title3)
-            Button("Retry") {
-                Task { await viewModel.loadProfile() }
-            }
-            .accessibilityLabel("Retry loading profile")
+        CLEmptyState(
+            systemImage: "person.crop.circle.badge.exclamationmark",
+            title: "Profile not found",
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading profile"
+        ) {
+            Task { await viewModel.loadProfile() }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            Text(message)
-                .font(.body)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("Error: \(message)")
-            Button("Retry") {
-                Task { await viewModel.loadProfile() }
-            }
-            .accessibilityLabel("Retry loading profile")
+        CLEmptyState(
+            systemImage: "exclamationmark.triangle",
+            title: message,
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading profile",
+            titleAccessibilityLabel: "Error: \(message)"
+        ) {
+            Task { await viewModel.loadProfile() }
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
