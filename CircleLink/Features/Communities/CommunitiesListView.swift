@@ -34,8 +34,9 @@ struct CommunitiesListView: View {
                     onCommunitySelected(communityId)
                 }
             }
-            .task {
-                await viewModel.loadCommunities()
+            // onAppear (not only .task): re-runs when popping back from detail so counts stay fresh.
+            .onAppear {
+                viewModel.refreshOnAppear()
             }
         }
     }

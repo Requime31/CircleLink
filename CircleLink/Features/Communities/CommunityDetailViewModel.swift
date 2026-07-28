@@ -88,6 +88,7 @@ final class CommunityDetailViewModel: ObservableObject {
             let members = try await communityRepository.fetchMembers(communityId: communityId)
             membersState = members.isEmpty ? .empty : .loaded(members)
             updateMembership(from: members)
+            syncDisplayedMemberCount(members.count)
 
             guard members.contains(where: { $0.id == currentUserId }) else {
                 membershipErrorMessage = "Only community members can open this group chat."
@@ -141,6 +142,7 @@ final class CommunityDetailViewModel: ObservableObject {
             let members = try await communityRepository.fetchMembers(communityId: communityId)
             membersState = members.isEmpty ? .empty : .loaded(members)
             updateMembership(from: members)
+            syncDisplayedMemberCount(members.count)
         } catch {
             membersState = .error(error.localizedDescription)
         }
@@ -152,5 +154,13 @@ final class CommunityDetailViewModel: ObservableObject {
             return
         }
         isMember = members.contains { $0.id == currentUserId }
+    }
+
+    private func syncDisplayedMemberCount(_ count: Int) {
+        guard case let .loaded(community) = communityState else { return }
+        guard community.memberCount != count else { return }
+        var updated = community
+        updated.memberCount = count
+        communityState = .loaded(updated)
     }
 }

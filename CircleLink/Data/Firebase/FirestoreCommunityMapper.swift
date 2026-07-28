@@ -15,8 +15,19 @@ enum FirestoreCommunityMapper {
             name: name,
             description: description,
             interestTag: interestTag,
-            memberCount: data["memberCount"] as? Int ?? 0
+            memberCount: memberCount(from: data)
         )
+    }
+
+    /// Firestore numbers often arrive as `NSNumber`; plain `as? Int` can fail.
+    static func memberCount(from data: [String: Any]) -> Int {
+        if let int = data["memberCount"] as? Int {
+            return max(0, int)
+        }
+        if let number = data["memberCount"] as? NSNumber {
+            return max(0, number.intValue)
+        }
+        return 0
     }
 
     static func member(from document: DocumentSnapshot) throws -> CommunityMember {
