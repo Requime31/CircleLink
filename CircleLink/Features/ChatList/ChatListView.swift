@@ -30,6 +30,20 @@ struct ChatListView: View {
             }
             .clCanvasBackground()
             .navigationTitle("Chats")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        path.append(HiddenChatsRoute())
+                    } label: {
+                        Image(systemName: "eye.slash")
+                    }
+                    .accessibilityLabel(
+                        viewModel.hiddenCount > 0
+                            ? "Hidden chats, \(viewModel.hiddenCount)"
+                            : "Hidden chats"
+                    )
+                }
+            }
             .searchable(
                 text: $viewModel.searchText,
                 placement: .navigationBarDrawer(displayMode: .automatic),
@@ -83,13 +97,11 @@ struct ChatListView: View {
     @ViewBuilder
     private var mainListContent: some View {
         let chats = viewModel.filteredVisibleChats
-        let query = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let showHiddenFooter = viewModel.hiddenCount > 0 && query.isEmpty
 
-        if chats.isEmpty && !showHiddenFooter {
+        if chats.isEmpty {
             searchEmptyState
         } else {
-            chatsList(chats, showHiddenFooter: showHiddenFooter)
+            chatsList(chats)
         }
     }
 
@@ -120,7 +132,7 @@ struct ChatListView: View {
     }
 
     @ViewBuilder
-    private func chatsList(_ chats: [ChatSummary], showHiddenFooter: Bool) -> some View {
+    private func chatsList(_ chats: [ChatSummary]) -> some View {
         List {
             ForEach(chats) { chat in
                 Button {
@@ -178,40 +190,6 @@ struct ChatListView: View {
                         await loadPreviewIfNeeded(for: chat.id)
                     }
                 }
-            }
-
-            if showHiddenFooter {
-                Button {
-                    path.append(HiddenChatsRoute())
-                } label: {
-                    HStack(spacing: CLSpacing.sm) {
-                        Image(systemName: "eye.slash")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(CLColor.inkMuted)
-                            .frame(width: 52, alignment: .center)
-
-                        Text("Hidden chats")
-                            .font(CLTypography.headline)
-                            .foregroundStyle(CLColor.ink)
-
-                        Spacer(minLength: CLSpacing.xs)
-
-                        Text("\(viewModel.hiddenCount)")
-                            .font(CLTypography.subheadline)
-                            .foregroundStyle(CLColor.inkMuted)
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(CLColor.inkMuted)
-                    }
-                    .padding(.vertical, CLSpacing.xxs)
-                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Hidden chats, \(viewModel.hiddenCount)")
-                .listRowBackground(CLColor.canvas)
-                .listRowSeparatorTint(CLColor.hairline)
             }
         }
         .listStyle(.plain)

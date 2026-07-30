@@ -11,6 +11,15 @@ import FirebaseMessaging
 @MainActor
 final class PushNotificationHandler: NSObject {
     private static let didRequestPermissionKey = "circlelink.didRequestPushPermission"
+    /// In-app preference: when false, FCM token is cleared and not re-uploaded.
+    private static let notificationsEnabledKey = "circlelink.notificationsEnabled"
+
+    enum NotificationsToggleResult: Equatable {
+        case enabled
+        case disabled
+        /// System permission is denied — only iOS Settings can re-enable.
+        case needsSystemSettings
+    }
 
     private let userRepository: UserRepository
     private let authRepository: AuthRepository
@@ -30,6 +39,55 @@ final class PushNotificationHandler: NSObject {
         self.authRepository = authRepository
         self.defaults = defaults
         super.init()
+    }
+
+    // MARK: - In-app notifications preference
+
+    /// Defaults to `true` until the user turns notifications off in Settings.
+    var isNotificationsEnabledPreference: Bool {
+        if defaults.object(forKey: Self.notificationsEnabledKey) == nil {
+            return true
+        }
+        return defaults.bool(forKey: Self.notificationsEnabledKey)
+    }
+
+    /// Current system authorization (for Settings UI).
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    /// Toggle from Settings. Off clears FCM so the push worker has nothing to send.
+    func setNotificationsEnabled(_ enabled: Bool) async -> NotificationsToggleResult {
+        if enabled {
+            let status = await authorizationStatus()
+            switch status {
+            case .denied:
+                return .needsSystemSettings
+
+            case .notDetermined:
+                await requestPermissionIfNeeded()
+                let after = await authorizationStatus()
+                guard after == .authorized || after == .provisional || after == .ephemeral else {
+                    defaults.set(false, forKey: Self.notificationsEnabledKey)
+                    return .needsSystemSettings
+                }
+                defaults.set(true, forKey: Self.notificationsEnabledKey)
+                await refreshTokenIfAuthorized()
+                return .enabled
+
+            case .authorized, .provisional, .ephemeral:
+                defaults.set(true, forKey: Self.notificationsEnabledKey)
+                await refreshTokenIfAuthorized()
+                return .enabled
+
+            @unknown default:
+                return .needsSystemSettings
+            }
+        } else {
+            defaults.set(false, forKey: Self.notificationsEnabledKey)
+            await clearStoredFCMToken()
+            return .disabled
+        }
     }
 
     // MARK: - Permission (meaningful moment only)
@@ -70,7 +128,11 @@ final class PushNotificationHandler: NSObject {
             #if DEBUG
             print("[Push] permission granted=\(granted)")
             #endif
-            guard granted else { return }
+            guard granted else {
+                defaults.set(false, forKey: Self.notificationsEnabledKey)
+                return
+            }
+            defaults.set(true, forKey: Self.notificationsEnabledKey)
             registerForRemoteNotifications()
             await uploadCurrentFCMToken()
         } catch {
@@ -83,15 +145,23 @@ final class PushNotificationHandler: NSObject {
     /// Call when entering the main app (or attaching the handler) so relaunch
     /// refreshes APNs/FCM without re-prompting.
     func refreshTokenIfAuthorized() async {
+        guard isNotificationsEnabledPreference else { return }
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         guard settings.authorizationStatus == .authorized
-            || settings.authorizationStatus == .provisional else { return }
+            || settings.authorizationStatus == .provisional
+            || settings.authorizationStatus == .ephemeral else { return }
         registerForRemoteNotifications()
         await uploadCurrentFCMToken()
     }
 
     func registerForRemoteNotifications() {
         UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    /// Opens the system Settings page for this app.
+    func openSystemSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     // MARK: - APNs / FCM token
@@ -116,6 +186,19 @@ final class PushNotificationHandler: NSObject {
 
     /// Deletes the local FCM token and clears Firestore. Call while still signed in.
     func clearTokenOnSignOut() async {
+        await clearStoredFCMToken()
+    }
+
+    // MARK: - Notification handling
+
+    func handleNotification(userInfo: [AnyHashable: Any]) {
+        guard let deepLink = PushDeepLink.parse(userInfo: userInfo) else { return }
+        onDeepLink?(deepLink)
+    }
+
+    // MARK: - Private
+
+    private func clearStoredFCMToken() async {
         #if canImport(FirebaseMessaging)
         do {
             try await Messaging.messaging().deleteToken()
@@ -135,16 +218,8 @@ final class PushNotificationHandler: NSObject {
         }
     }
 
-    // MARK: - Notification handling
-
-    func handleNotification(userInfo: [AnyHashable: Any]) {
-        guard let deepLink = PushDeepLink.parse(userInfo: userInfo) else { return }
-        onDeepLink?(deepLink)
-    }
-
-    // MARK: - Private
-
     private func uploadCurrentFCMToken() async {
+        guard isNotificationsEnabledPreference else { return }
         #if canImport(FirebaseMessaging)
         guard !isRegistering else { return }
         isRegistering = true
@@ -162,6 +237,7 @@ final class PushNotificationHandler: NSObject {
     }
 
     private func storeFCMToken(_ token: String) async {
+        guard isNotificationsEnabledPreference else { return }
         guard authRepository.currentUser != nil else { return }
 
         do {
