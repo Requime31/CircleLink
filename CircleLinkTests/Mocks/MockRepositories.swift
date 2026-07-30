@@ -282,6 +282,17 @@ final class MockUserRepository: UserRepository, @unchecked Sendable {
         ])
     }
 
+    func fetchProfiles(userIds: [String]) async throws -> [String: User] {
+        if let fetchProfileError { throw fetchProfileError }
+        var result: [String: User] = [:]
+        for id in Set(userIds) where !id.isEmpty {
+            if let profile = profiles[id] {
+                result[id] = profile
+            }
+        }
+        return result
+    }
+
     func updateProfile(_ user: User) async throws {
         updateProfileCallCount += 1
         lastUpdatedUser = user

@@ -173,6 +173,53 @@ service cloud.firestore {
           || !exists(/databases/$(database)/documents/users/$(userId))
         );
       }
+
+      // Phase A: community feed posts (member-only read/create; author delete; no edit)
+      match /posts/{postId} {
+        allow read: if isCommunityMember(communityId);
+
+        allow create: if isCommunityMember(communityId)
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.keys().hasAll(['authorId', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['authorId', 'text', 'imageURL', 'createdAt'])
+          && request.resource.data.authorId is string
+          && request.resource.data.createdAt is timestamp
+          && (
+            (
+              'text' in request.resource.data
+              && request.resource.data.text is string
+              && request.resource.data.text.size() > 0
+              && request.resource.data.text.size() <= 2000
+            )
+            || (
+              'imageURL' in request.resource.data
+              && request.resource.data.imageURL is string
+              && request.resource.data.imageURL.size() > 0
+              && request.resource.data.imageURL.size() <= 2048
+            )
+          )
+          && (
+            !('text' in request.resource.data)
+            || (
+              request.resource.data.text is string
+              && request.resource.data.text.size() > 0
+              && request.resource.data.text.size() <= 2000
+            )
+          )
+          && (
+            !('imageURL' in request.resource.data)
+            || (
+              request.resource.data.imageURL is string
+              && request.resource.data.imageURL.size() > 0
+              && request.resource.data.imageURL.size() <= 2048
+            )
+          );
+
+        allow update: if false;
+
+        allow delete: if isSignedIn()
+          && resource.data.authorId == request.auth.uid;
+      }
     }
 
     // Phase 6 / 10: chat messages (+ group chat membership)

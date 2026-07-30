@@ -111,6 +111,7 @@ Rules summary:
 | `users/{userId}` | signed-in user | read any profile; write own profile |
 | `communities/{id}` | signed-in user | read list/detail; update `memberCount` only |
 | `communities/{id}/members/{userId}` | signed-in user | read members; create/delete **own** membership |
+| `communities/{id}/posts/{postId}` | **community member** | read/create posts; delete **own** only; **no** update |
 
 Communities are seeded manually in Console (no client-side create in MVP).
 

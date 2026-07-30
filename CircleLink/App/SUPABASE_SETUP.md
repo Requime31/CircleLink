@@ -1,9 +1,9 @@
-# Supabase Storage Setup (Phase 6 — Chat images)
+# Supabase Storage Setup (Phase 6 chat images + Phase A community posts)
 
-CircleLink uses **Supabase Storage only for chat image attachments** (free tier).
+CircleLink uses **Supabase Storage** for chat image attachments and community post photos (free tier).
 Auth and database stay on Firebase — Supabase is **not** used for login or Firestore.
 
-Firestore message documents store only the public `imageURL` — not the binary.
+Firestore / post documents store only the public `imageURL` — not the binary.
 Firebase Storage is **not** required.
 
 ## 1. Create Supabase project
@@ -24,13 +24,13 @@ Firebase Storage is **not** required.
 In Supabase Dashboard → SQL Editor, run:
 
 ```sql
--- Allow anyone to read chat images (public bucket)
+-- Allow anyone to read images (public bucket)
 CREATE POLICY "Public read chat images"
 ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'chat-images');
 
--- Allow uploads to chat-images bucket (MVP — tighten in production)
+-- Chat uploads: chats/{chatId}/{messageId}.jpg
 CREATE POLICY "Anon upload chat images"
 ON storage.objects FOR INSERT
 TO anon
@@ -38,9 +38,29 @@ WITH CHECK (
   bucket_id = 'chat-images'
   AND (storage.foldername(name))[1] = 'chats'
 );
+
+-- Phase A: community post photos — communities/{communityId}/{postId}.jpg
+CREATE POLICY "Anon upload community images"
+ON storage.objects FOR INSERT
+TO anon
+WITH CHECK (
+  bucket_id = 'chat-images'
+  AND (storage.foldername(name))[1] = 'communities'
+);
+
+-- Best-effort cleanup when a post is deleted or a Firestore write fails after upload
+CREATE POLICY "Anon delete community images"
+ON storage.objects FOR DELETE
+TO anon
+USING (
+  bucket_id = 'chat-images'
+  AND (storage.foldername(name))[1] = 'communities'
+);
 ```
 
-> **Production:** replace anon upload with authenticated policies or signed uploads.
+> If the SELECT / chat INSERT policies already exist, only run the two **community** policies.
+>
+> **Production:** replace anon upload/delete with authenticated policies or signed uploads.
 
 ## 4. Configure iOS app
 
@@ -71,9 +91,14 @@ chat-images/
   chats/
     {chatId}/
       {clientMessageId}.jpg
+  communities/
+    {communityId}/
+      {postId}.jpg
 ```
 
 ## 6. Data flow
+
+### Chat
 
 ```
 User attaches image
@@ -83,6 +108,17 @@ User attaches image
   → public URL
   → Firestore message { imageURL }
   → MessageCell loads URL via ImageLoader
+```
+
+### Community post (Phase A)
+
+```
+Member composes post (+ optional photo)
+  → ImageCompressor.compressForChat (if photo)
+  → SupabaseCommunityImageStorage.uploadCommunityImage
+  → public URL
+  → Firestore communities/{id}/posts/{postId} { imageURL? }
+  → CommunityPostCardView loads URL via ImageLoader
 ```
 
 ## Free tier limits (typical)
