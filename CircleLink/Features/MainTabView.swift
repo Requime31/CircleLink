@@ -13,6 +13,7 @@ struct MainTabView: View {
     let makeChatViewModel: (String, String) -> ChatViewModel?
     let makeChatInfoViewModel: (String) -> ChatInfoViewModel
     let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+    let pushHandler: PushNotificationHandler
     let onCommunitySelected: (String) -> Void
     let onOpenGroupChat: (String, String) -> Void
     let onSignOut: () -> Void
@@ -57,6 +58,7 @@ struct MainTabView: View {
 
             ProfileView(
                 viewModel: profileViewModel,
+                pushHandler: pushHandler,
                 onSignOut: onSignOut
             )
             .tabItem {
