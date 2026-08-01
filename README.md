@@ -18,6 +18,7 @@ Minimum iOS: **16+**.
 |---|---|
 | macOS + [Xcode](https://developer.apple.com/xcode/) (recent) | Build and run the app |
 | Apple ID / signing | Simulator usually works; device needs a team |
+| [SwiftLint](https://github.com/realm/SwiftLint) (optional) | Style warnings in Xcode during build — `brew install swiftlint` |
 | Firebase project | Auth, Firestore, FCM — see setup below |
 | Supabase project (optional for text-only) | Chat image uploads |
 | Node.js (optional) | Run the push worker locally |
@@ -35,6 +36,17 @@ open CircleLink.xcodeproj
 
 2. Select the **CircleLink** scheme and an iOS Simulator (e.g. iPhone 16).
 3. If SPM packages fail: **File → Packages → Resolve Package Versions**.
+
+### SwiftLint
+
+SwiftLint runs automatically on every **CircleLink** build (warnings only — it does not fail ⌘B).
+
+```bash
+brew install swiftlint   # once
+swiftlint lint           # optional manual run from repo root
+```
+
+Config: [`.swiftlint.yml`](.swiftlint.yml). Lint covers `CircleLink/` and `CircleLinkTests/`.
 
 ---
 
