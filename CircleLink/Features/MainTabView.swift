@@ -10,6 +10,7 @@ struct MainTabView: View {
     @ObservedObject var profileViewModel: ProfileViewModel
 
     let makeCommunityDetailViewModel: (String) -> CommunityDetailViewModel
+    let makeCommunityFeedViewModel: (String) -> CommunityFeedViewModel
     let makeChatViewModel: (String, String) -> ChatViewModel?
     let makeChatInfoViewModel: (String) -> ChatInfoViewModel
     let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
@@ -23,6 +24,7 @@ struct MainTabView: View {
             CommunitiesListView(
                 viewModel: communitiesViewModel,
                 makeDetailViewModel: makeCommunityDetailViewModel,
+                makeFeedViewModel: makeCommunityFeedViewModel,
                 makePeerProfileSheet: makePeerProfileSheet,
                 onCommunitySelected: onCommunitySelected,
                 onOpenGroupChat: onOpenGroupChat

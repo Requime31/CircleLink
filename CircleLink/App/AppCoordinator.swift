@@ -110,6 +110,7 @@ final class AppCoordinator: ObservableObject {
                     connectViewModel: connectViewModel,
                     profileViewModel: profileViewModel,
                     makeCommunityDetailViewModel: dependencies.makeCommunityDetailViewModel,
+                    makeCommunityFeedViewModel: dependencies.makeCommunityFeedViewModel,
                     makeChatViewModel: { chatId, title in
                         self.dependencies.makeChatViewModel(chatId: chatId, title: title)
                     },

@@ -123,6 +123,11 @@ private final class PreviewPeerUserRepository: UserRepository, @unchecked Sendab
     }
 
     func fetchProfile(userId: String) async throws -> User { user }
+
+    func fetchProfiles(userIds: [String]) async throws -> [String: User] {
+        userIds.contains(user.id) ? [user.id: user] : [:]
+    }
+
     func updateProfile(_ user: User) async throws {}
     func confirmAge() async throws {}
     func updateFCMToken(_ token: String) async throws {}
