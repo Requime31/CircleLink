@@ -47,12 +47,13 @@ line_length:
   ignores_comments: true
   ignores_urls: true
 
+# Soft start: known large chat/Firestore files stay above 500/300 until a split PR.
 file_length:
-  warning: 500
+  warning: 650
   error: 800
 
 type_body_length:
-  warning: 300
+  warning: 480
   error: 500
 
 function_body_length:

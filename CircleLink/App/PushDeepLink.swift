@@ -36,7 +36,7 @@ struct PushDeepLink: Equatable, Sendable {
 
     /// Builds a deep link from FCM / APNs `userInfo`.
     /// Returns `nil` when `type` is missing or unknown.
-    static func parse(userInfo: [AnyHashable: Any]) -> PushDeepLink? {
+    static func parse(userInfo: [AnyHashable: Any]) -> Self? {
         let payload = Self.flattenedPayload(from: userInfo)
 
         guard let typeRaw = payload["type"], let kind = Kind(rawValue: typeRaw) else {
@@ -48,7 +48,7 @@ struct PushDeepLink: Equatable, Sendable {
         let tab = Self.nonEmpty(payload["tab"]).flatMap(Tab.init(rawValue:))
         let targetUserId = Self.nonEmpty(payload["targetUserId"])
 
-        return PushDeepLink(
+        return Self(
             kind: kind,
             chatId: chatId,
             requestId: requestId,
