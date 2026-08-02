@@ -3,12 +3,14 @@ import SwiftUI
 /// Connect tab root = Discover (community + swipe deck).
 /// Liked you / Matches are push destinations. Connect action lives in PeerProfileSheet.
 struct ConnectView: View {
-    @ObservedObject var viewModel: ConnectViewModel
+    @ObservedObject var tab: ConnectTabModel
     let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
 
     @State private var reportTarget: ModerationTarget?
     @State private var blockTarget: ModerationTarget?
     @State private var presentedPeer: PresentedPeer?
+
+    private var discovery: ConnectDiscoveryViewModel { tab.discovery }
 
     var body: some View {
         NavigationStack {
@@ -21,7 +23,7 @@ struct ConnectView: View {
                             toolbarLabel(
                                 title: "Liked you",
                                 systemImage: "heart",
-                                badge: viewModel.incomingCount
+                                badge: tab.incomingCount
                             )
                         }
                         .accessibilityLabel(likedYouAccessibilityLabel)
@@ -30,7 +32,7 @@ struct ConnectView: View {
                             toolbarLabel(
                                 title: "Matches",
                                 systemImage: "link",
-                                badge: viewModel.matchedCount
+                                badge: tab.matchedCount
                             )
                         }
                         .accessibilityLabel(matchesAccessibilityLabel)
@@ -40,7 +42,7 @@ struct ConnectView: View {
                     switch destination {
                     case .likedYou:
                         LikedYouView(
-                            viewModel: viewModel,
+                            viewModel: tab.inbox,
                             onSelectPeer: { presentPeer($0) },
                             onReport: { userId, name in
                                 reportTarget = ModerationTarget(userId: userId, displayName: name)
@@ -51,7 +53,7 @@ struct ConnectView: View {
                         )
                     case .matches:
                         MatchesView(
-                            viewModel: viewModel,
+                            viewModel: tab.matches,
                             onSelectPeer: { presentPeer($0) },
                             onReport: { userId, name in
                                 reportTarget = ModerationTarget(userId: userId, displayName: name)
@@ -63,15 +65,15 @@ struct ConnectView: View {
                     }
                 }
                 .task {
-                    await viewModel.load()
+                    await tab.load()
                 }
                 .refreshable {
-                    await viewModel.load()
+                    await tab.load()
                 }
                 .sheet(item: $presentedPeer) { peer in
-                    makePeerProfileSheet(peer.userId, viewModel.selectedCommunityId)
+                    makePeerProfileSheet(peer.userId, tab.selectedCommunityId)
                         .onDisappear {
-                            Task { await viewModel.refreshAfterPeerSheet() }
+                            Task { await tab.refreshAfterPeerSheet() }
                         }
                 }
                 .confirmationDialog(
@@ -86,7 +88,7 @@ struct ConnectView: View {
                         ForEach(ReportReason.allCases, id: \.self) { reason in
                             Button(reason.title) {
                                 Task {
-                                    await viewModel.report(userId: reportTarget.userId, reason: reason)
+                                    await tab.report(userId: reportTarget.userId, reason: reason)
                                 }
                             }
                         }
@@ -106,7 +108,7 @@ struct ConnectView: View {
                     if let blockTarget {
                         Button("Block", role: .destructive) {
                             Task {
-                                await viewModel.block(userId: blockTarget.userId)
+                                await tab.block(userId: blockTarget.userId)
                             }
                         }
                     }
@@ -122,7 +124,7 @@ struct ConnectView: View {
     private var discoverContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CLSpacing.lg) {
-                if let actionErrorMessage = viewModel.actionErrorMessage {
+                if let actionErrorMessage = tab.actionErrorMessage {
                     Text(actionErrorMessage)
                         .font(CLTypography.footnote)
                         .foregroundStyle(CLColor.error)
@@ -133,7 +135,7 @@ struct ConnectView: View {
                         .accessibilityLabel("Connect error: \(actionErrorMessage)")
                 }
 
-                if let moderationMessage = viewModel.moderationMessage {
+                if let moderationMessage = tab.moderationMessage {
                     Text(moderationMessage)
                         .font(CLTypography.footnote)
                         .foregroundStyle(CLColor.inkSecondary)
@@ -141,7 +143,7 @@ struct ConnectView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(CLColor.surfaceSoft)
                         .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-                        .onTapGesture { viewModel.clearModerationFeedback() }
+                        .onTapGesture { tab.clearModerationFeedback() }
                 }
 
                 communityPickerSection
@@ -176,13 +178,13 @@ struct ConnectView: View {
     }
 
     private var likedYouAccessibilityLabel: String {
-        let count = viewModel.incomingCount
+        let count = tab.incomingCount
         if count == 0 { return "Liked you" }
         return "Liked you, \(count) pending"
     }
 
     private var matchesAccessibilityLabel: String {
-        let count = viewModel.matchedCount
+        let count = tab.matchedCount
         if count == 0 { return "Matches" }
         return "Matches, \(count)"
     }
@@ -196,7 +198,7 @@ struct ConnectView: View {
                 .font(CLTypography.headline)
                 .foregroundStyle(CLColor.ink)
 
-            switch viewModel.communitiesState {
+            switch discovery.communitiesState {
             case .idle, .loading:
                 ProgressView("Loading communities…")
                     .tint(CLColor.primary)
@@ -207,13 +209,13 @@ struct ConnectView: View {
                     .foregroundStyle(CLColor.inkMuted)
             case let .error(message):
                 sectionError(message) {
-                    Task { await viewModel.load() }
+                    Task { await tab.load() }
                 }
             case let .loaded(communities):
                 Menu {
                     ForEach(communities) { community in
                         Button(community.name) {
-                            Task { await viewModel.selectCommunity(community.id) }
+                            Task { await discovery.selectCommunity(community.id) }
                         }
                     }
                 } label: {
@@ -251,12 +253,12 @@ struct ConnectView: View {
                 .font(CLTypography.headline)
                 .foregroundStyle(CLColor.ink)
 
-            if viewModel.selectedCommunityId == nil {
+            if discovery.selectedCommunityId == nil {
                 Text("Select a community to see people.")
                     .font(CLTypography.subheadline)
                     .foregroundStyle(CLColor.inkMuted)
             } else {
-                switch viewModel.candidatesState {
+                switch discovery.candidatesState {
                 case .idle, .loading:
                     ProgressView("Loading people…")
                         .tint(CLColor.primary)
@@ -270,19 +272,19 @@ struct ConnectView: View {
                     )
                 case let .error(message):
                     sectionError(message) {
-                        if let communityId = viewModel.selectedCommunityId {
-                            Task { await viewModel.selectCommunity(communityId) }
+                        if let communityId = discovery.selectedCommunityId {
+                            Task { await discovery.selectCommunity(communityId) }
                         }
                     }
                 case .loaded:
-                    if let top = viewModel.topCandidate {
-                        let underlay = viewModel.deckCandidates.dropFirst().first
+                    if let top = discovery.topCandidate {
+                        let underlay = discovery.deckCandidates.dropFirst().first
                         ConnectDiscoverDeckView(
                             top: top,
                             underlay: underlay,
                             onPass: {
                                 withAnimation(CLMotion.soft) {
-                                    viewModel.passCandidate(userId: top.id)
+                                    discovery.passCandidate(userId: top.id)
                                 }
                             },
                             onViewProfile: { presentPeer(top) }
@@ -334,7 +336,7 @@ struct ConnectView: View {
     }
 
     private func selectedCommunityName(from communities: [Community]) -> String {
-        communities.first(where: { $0.id == viewModel.selectedCommunityId })?.name
+        communities.first(where: { $0.id == discovery.selectedCommunityId })?.name
             ?? "Select community"
     }
 

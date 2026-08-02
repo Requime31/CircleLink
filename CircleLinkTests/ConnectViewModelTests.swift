@@ -4,20 +4,72 @@ import Testing
 
 @MainActor
 struct ConnectViewModelTests {
-    private func makeViewModel(
+    private func makeBlockFilter(
+        moderation: StubModerationRepository = StubModerationRepository()
+    ) -> ConnectBlockFilter {
+        ConnectBlockFilter(moderationRepository: moderation)
+    }
+
+    private func makeTab(
         connection: MockConnectionRepository = MockConnectionRepository(),
         chat: MockChatRepository = MockChatRepository(),
         user: MockUserRepository = MockUserRepository(),
         moderation: StubModerationRepository = StubModerationRepository(),
         onOpenChat: @escaping (String) -> Void = { _ in }
-    ) -> ConnectViewModel {
-        ConnectViewModel(
+    ) -> ConnectTabModel {
+        ConnectTabModel(
             connectionRepository: connection,
             chatRepository: chat,
             communityRepository: MockCommunityRepository(),
             userRepository: user,
             authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
             moderationRepository: moderation,
+            onOpenChat: onOpenChat
+        )
+    }
+
+    private func makeDiscovery(
+        connection: MockConnectionRepository = MockConnectionRepository(),
+        moderation: StubModerationRepository = StubModerationRepository()
+    ) async -> ConnectDiscoveryViewModel {
+        let filter = makeBlockFilter(moderation: moderation)
+        await filter.refresh()
+        return ConnectDiscoveryViewModel(
+            connectionRepository: connection,
+            communityRepository: MockCommunityRepository(),
+            blockFilter: filter
+        )
+    }
+
+    private func makeInbox(
+        connection: MockConnectionRepository = MockConnectionRepository(),
+        user: MockUserRepository = MockUserRepository(),
+        moderation: StubModerationRepository = StubModerationRepository()
+    ) async -> ConnectionInboxViewModel {
+        let filter = makeBlockFilter(moderation: moderation)
+        await filter.refresh()
+        return ConnectionInboxViewModel(
+            connectionRepository: connection,
+            userRepository: user,
+            blockFilter: filter
+        )
+    }
+
+    private func makeMatches(
+        connection: MockConnectionRepository = MockConnectionRepository(),
+        chat: MockChatRepository = MockChatRepository(),
+        user: MockUserRepository = MockUserRepository(),
+        moderation: StubModerationRepository = StubModerationRepository(),
+        onOpenChat: @escaping (String) -> Void = { _ in }
+    ) async -> MatchesViewModel {
+        let filter = makeBlockFilter(moderation: moderation)
+        await filter.refresh()
+        return MatchesViewModel(
+            connectionRepository: connection,
+            chatRepository: chat,
+            userRepository: user,
+            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
+            blockFilter: filter,
             onOpenChat: onOpenChat
         )
     }
@@ -51,15 +103,15 @@ struct ConnectViewModelTests {
         let chat = MockChatRepository()
         var openedChatId: String?
 
-        let viewModel = makeViewModel(connection: connection, chat: chat) { openedChatId = $0 }
+        let tab = makeTab(connection: connection, chat: chat) { openedChatId = $0 }
 
-        await viewModel.load()
-        await viewModel.accept(requestId: "req-1", fromUserId: "peer-1")
+        await tab.load()
+        await tab.inbox.accept(requestId: "req-1", fromUserId: "peer-1")
 
         #expect(connection.acceptCallCount == 1)
         #expect(chat.createDirectChatCallCount == 0)
         #expect(openedChatId == nil)
-        if case let .loaded(matched) = viewModel.matchedState {
+        if case let .loaded(matched) = tab.matches.matchedState {
             #expect(matched.contains { $0.request.id == "req-1" })
         } else {
             Issue.record("Expected matched list after accept")
@@ -75,28 +127,28 @@ struct ConnectViewModelTests {
         connection.incoming = [pendingRequest()]
         connection.respondError = Boom()
 
-        let viewModel = makeViewModel(connection: connection)
+        let inbox = await makeInbox(connection: connection)
 
-        await viewModel.load()
-        await viewModel.accept(requestId: "req-1", fromUserId: "peer-1")
+        await inbox.load()
+        await inbox.accept(requestId: "req-1", fromUserId: "peer-1")
 
         #expect(connection.acceptCallCount == 0)
-        #expect(viewModel.actionErrorMessage == "Accept failed")
+        #expect(inbox.actionErrorMessage == "Accept failed")
     }
 
     @Test func declineRemovesIncomingRequest() async {
         let connection = MockConnectionRepository()
         connection.incoming = [pendingRequest(id: "req-2")]
 
-        let viewModel = makeViewModel(connection: connection)
+        let inbox = await makeInbox(connection: connection)
 
-        await viewModel.load()
-        await viewModel.decline(requestId: "req-2")
+        await inbox.load()
+        await inbox.decline(requestId: "req-2")
 
         #expect(connection.declineCallCount == 1)
-        if case .empty = viewModel.incomingState {
+        if case .empty = inbox.incomingState {
             // ok
-        } else if case let .loaded(items) = viewModel.incomingState {
+        } else if case let .loaded(items) = inbox.incomingState {
             #expect(!items.contains { $0.id == "req-2" })
         } else {
             Issue.record("Expected empty or filtered incoming after decline")
@@ -108,9 +160,9 @@ struct ConnectViewModelTests {
         chat.createDirectChatResult = "chat-42"
         var openedChatId: String?
 
-        let viewModel = makeViewModel(chat: chat) { openedChatId = $0 }
+        let matches = await makeMatches(chat: chat) { openedChatId = $0 }
 
-        await viewModel.openChat(with: "peer-1")
+        await matches.openChat(with: "peer-1")
 
         #expect(chat.createDirectChatCallCount == 1)
         #expect(openedChatId == "chat-42")
@@ -129,15 +181,15 @@ struct ConnectViewModelTests {
             )
         ]
 
-        let viewModel = makeViewModel(connection: connection)
-        await viewModel.load()
-        await viewModel.selectCommunity("community-1")
+        let discovery = await makeDiscovery(connection: connection)
+        await discovery.load()
+        await discovery.selectCommunity("community-1")
 
-        #expect(viewModel.deckCandidates.contains { $0.id == "peer-1" })
+        #expect(discovery.deckCandidates.contains { $0.id == "peer-1" })
 
-        viewModel.passCandidate(userId: "peer-1")
+        discovery.passCandidate(userId: "peer-1")
 
-        #expect(!viewModel.deckCandidates.contains { $0.id == "peer-1" })
+        #expect(!discovery.deckCandidates.contains { $0.id == "peer-1" })
     }
 
     @Test func loadIncomingBatchesPeerProfiles() async {
@@ -150,14 +202,14 @@ struct ConnectViewModelTests {
         let user = MockUserRepository()
         user.profiles["peer-2"] = samplePeer(id: "peer-2", name: "Peer Two")
 
-        let viewModel = makeViewModel(connection: connection, user: user)
-        await viewModel.load()
+        let inbox = await makeInbox(connection: connection, user: user)
+        await inbox.load()
 
         #expect(user.fetchProfilesCallCount == 1)
         #expect(user.fetchProfileCallCount == 0)
         #expect(Set(user.lastFetchProfilesUserIds) == Set(["peer-1", "peer-2"]))
 
-        if case let .loaded(items) = viewModel.incomingState {
+        if case let .loaded(items) = inbox.incomingState {
             #expect(items.map(\.peer.id).sorted() == ["peer-1", "peer-2"])
         } else {
             Issue.record("Expected loaded incoming with both peers")
@@ -197,19 +249,19 @@ struct ConnectViewModelTests {
         user.profiles["peer-2"] = samplePeer(id: "peer-2", name: "Peer Two")
         user.profiles["blocked-peer"] = samplePeer(id: "blocked-peer", name: "Blocked")
 
-        let viewModel = makeViewModel(
+        let matches = await makeMatches(
             connection: connection,
             user: user,
             moderation: StubModerationRepository(blockedUserIds: ["blocked-peer"])
         )
-        await viewModel.load()
+        await matches.load()
 
         #expect(user.fetchProfilesCallCount == 1)
         #expect(user.fetchProfileCallCount == 0)
         #expect(Set(user.lastFetchProfilesUserIds) == Set(["peer-1", "peer-2"]))
         #expect(!user.lastFetchProfilesUserIds.contains("blocked-peer"))
 
-        if case let .loaded(items) = viewModel.matchedState {
+        if case let .loaded(items) = matches.matchedState {
             #expect(items.map(\.request.id).sorted() == ["m-1", "m-2"])
         } else {
             Issue.record("Expected matched list without blocked peer")

@@ -32,7 +32,7 @@ final class AppCoordinator: ObservableObject {
     private let chatsViewModel: ChatsViewModel
     private let profileViewModel: ProfileViewModel
 
-    private lazy var connectViewModel: ConnectViewModel = dependencies.makeConnectViewModel { [weak self] chatId in
+    private lazy var connectTabModel: ConnectTabModel = dependencies.makeConnectTabModel { [weak self] chatId in
         self?.onChatSelected(chatId: chatId)
     }
 
@@ -107,7 +107,7 @@ final class AppCoordinator: ObservableObject {
                     ),
                     communitiesViewModel: communitiesViewModel,
                     chatsViewModel: chatsViewModel,
-                    connectViewModel: connectViewModel,
+                    connectTabModel: connectTabModel,
                     profileViewModel: profileViewModel,
                     makeCommunityDetailViewModel: dependencies.makeCommunityDetailViewModel,
                     makeCommunityFeedViewModel: dependencies.makeCommunityFeedViewModel,
@@ -184,7 +184,7 @@ final class AppCoordinator: ObservableObject {
         profileViewModel.resetForm()
         communitiesViewModel.resetForm()
         chatsViewModel.resetForm()
-        connectViewModel.resetForm()
+        connectTabModel.resetForm()
         route = .auth
     }
 

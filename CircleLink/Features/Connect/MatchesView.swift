@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Accepted matches — Open Chat lives here (Accept never auto-opens chat).
 struct MatchesView: View {
-    @ObservedObject var viewModel: ConnectViewModel
+    @ObservedObject var viewModel: MatchesViewModel
     let onSelectPeer: (User) -> Void
     let onReport: (String, String) -> Void
     let onBlock: (String, String) -> Void

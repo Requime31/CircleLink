@@ -126,8 +126,8 @@ final class AppDependencies {
         )
     }
 
-    func makeConnectViewModel(onOpenChat: @escaping (String) -> Void = { _ in }) -> ConnectViewModel {
-        ConnectViewModel(
+    func makeConnectTabModel(onOpenChat: @escaping (String) -> Void = { _ in }) -> ConnectTabModel {
+        ConnectTabModel(
             connectionRepository: connectionRepository,
             chatRepository: chatRepository,
             communityRepository: communityRepository,

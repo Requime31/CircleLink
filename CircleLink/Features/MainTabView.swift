@@ -6,7 +6,7 @@ struct MainTabView: View {
 
     @ObservedObject var communitiesViewModel: CommunitiesViewModel
     @ObservedObject var chatsViewModel: ChatsViewModel
-    @ObservedObject var connectViewModel: ConnectViewModel
+    @ObservedObject var connectTabModel: ConnectTabModel
     @ObservedObject var profileViewModel: ProfileViewModel
 
     let makeCommunityDetailViewModel: (String) -> CommunityDetailViewModel
@@ -49,7 +49,7 @@ struct MainTabView: View {
             .tag(AppCoordinator.MainTab.chats)
 
             ConnectView(
-                viewModel: connectViewModel,
+                tab: connectTabModel,
                 makePeerProfileSheet: makePeerProfileSheet
             )
                 .tabItem {

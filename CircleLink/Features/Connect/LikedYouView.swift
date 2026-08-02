@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Incoming Connect requests — pushed from Discover.
 struct LikedYouView: View {
-    @ObservedObject var viewModel: ConnectViewModel
+    @ObservedObject var viewModel: ConnectionInboxViewModel
     let onSelectPeer: (User) -> Void
     let onReport: (String, String) -> Void
     let onBlock: (String, String) -> Void
