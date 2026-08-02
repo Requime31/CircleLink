@@ -44,8 +44,8 @@ struct ChatMessageItem: Equatable, Identifiable {
         text: String?,
         imageData: Data?,
         clientMessageId: String
-    ) -> ChatMessageItem {
-        ChatMessageItem(
+    ) -> Self {
+        Self(
             message: Message(
                 id: clientMessageId,
                 chatId: chatId,

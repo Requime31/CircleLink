@@ -2,6 +2,11 @@ import Foundation
 
 protocol UserRepository: Sendable {
     func fetchProfile(userId: String) async throws -> User
+
+    /// Batch-loads profiles for feed / lists. Missing docs are omitted (no throw).
+    /// Prefer this over N× `fetchProfile` to avoid N+1 reads.
+    func fetchProfiles(userIds: [String]) async throws -> [String: User]
+
     func updateProfile(_ user: User) async throws
     func confirmAge() async throws
 

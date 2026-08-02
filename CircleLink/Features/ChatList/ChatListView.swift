@@ -135,67 +135,73 @@ struct ChatListView: View {
     private func chatsList(_ chats: [ChatSummary]) -> some View {
         List {
             ForEach(chats) { chat in
-                Button {
-                    openThread(
-                        ChatThreadRoute(
-                            chatId: chat.id,
-                            title: chat.title,
-                            communityId: chat.communityId
-                        )
-                    )
-                } label: {
-                    ChatListRowView(chat: chat)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(ChatListAccessibility.label(for: chat))
-                .listRowBackground(CLColor.canvas)
-                .listRowSeparatorTint(CLColor.hairline)
-                .contextMenu {
-                    Button {
-                        openThread(
-                            ChatThreadRoute(
-                                chatId: chat.id,
-                                title: chat.title,
-                                communityId: chat.communityId
-                            )
-                        )
-                    } label: {
-                        Label("Open Chat", systemImage: "bubble.left")
-                    }
-
-                    Button {
-                        Task {
-                            await viewModel.setMuted(chatId: chat.id, muted: !chat.isMuted)
-                        }
-                    } label: {
-                        Label(
-                            chat.isMuted ? "Unmute" : "Mute",
-                            systemImage: chat.isMuted ? "bell" : "bell.slash"
-                        )
-                    }
-
-                    Button(role: .destructive) {
-                        Task { await viewModel.hideChat(chatId: chat.id) }
-                    } label: {
-                        Label("Hide", systemImage: "eye.slash")
-                    }
-                } preview: {
-                    ConversationPeekPreview(
-                        chatTitle: chat.title,
-                        isGroup: chat.type == .group,
-                        messages: previewCache[chat.id] ?? [],
-                        isLoading: previewLoadingIds.contains(chat.id)
-                    )
-                    .task {
-                        await loadPreviewIfNeeded(for: chat.id)
-                    }
-                }
+                chatRow(chat)
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(CLColor.canvas)
         .clAppear()
+    }
+
+    /// One list row: open chat, mute/hide menu, conversation peek.
+    @ViewBuilder
+    private func chatRow(_ chat: ChatSummary) -> some View {
+        Button {
+            openThread(
+                ChatThreadRoute(
+                    chatId: chat.id,
+                    title: chat.title,
+                    communityId: chat.communityId
+                )
+            )
+        } label: {
+            ChatListRowView(chat: chat)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(ChatListAccessibility.label(for: chat))
+        .listRowBackground(CLColor.canvas)
+        .listRowSeparatorTint(CLColor.hairline)
+        .contextMenu {
+            Button {
+                openThread(
+                    ChatThreadRoute(
+                        chatId: chat.id,
+                        title: chat.title,
+                        communityId: chat.communityId
+                    )
+                )
+            } label: {
+                Label("Open Chat", systemImage: "bubble.left")
+            }
+
+            Button {
+                Task {
+                    await viewModel.setMuted(chatId: chat.id, muted: !chat.isMuted)
+                }
+            } label: {
+                Label(
+                    chat.isMuted ? "Unmute" : "Mute",
+                    systemImage: chat.isMuted ? "bell" : "bell.slash"
+                )
+            }
+
+            Button(role: .destructive) {
+                Task { await viewModel.hideChat(chatId: chat.id) }
+            } label: {
+                Label("Hide", systemImage: "eye.slash")
+            }
+        } preview: {
+            ConversationPeekPreview(
+                chatTitle: chat.title,
+                isGroup: chat.type == .group,
+                messages: previewCache[chat.id] ?? [],
+                isLoading: previewLoadingIds.contains(chat.id)
+            )
+            .task {
+                await loadPreviewIfNeeded(for: chat.id)
+            }
+        }
     }
 
     private func openThread(_ route: ChatThreadRoute) {

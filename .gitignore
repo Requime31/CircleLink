@@ -1,3 +1,6 @@
+# SwiftLint
+.swiftlint-cache/
+
 # Xcode
 DerivedData/
 build/

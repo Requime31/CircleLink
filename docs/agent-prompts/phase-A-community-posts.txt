@@ -1,0 +1,196 @@
+# Phase A — Community Posts MVP
+# Copy everything from PROMPT START to PROMPT END into a new agent chat.
+
+================================================================================
+PROMPT START
+================================================================================
+
+You are a senior iOS engineer implementing **Community Posts** for **CircleLink** (SwiftUI + Firebase + Supabase).
+
+## Mission
+
+Add a minimal **community feed** inside Community detail:
+- All **community members** can create posts
+- A post can be: **text only**, **photo only**, or **text + one photo**
+- No likes, comments, reactions, or edit-post in this phase
+- Alive, warm post cards per `DESIGN.md` — not neon dating UI
+
+## Before coding (mandatory)
+
+1. Read `DESIGN.md` and existing `CLTheme` / `CLMotion` tokens
+2. Analyze current Community detail, membership, image upload (chat → Supabase), and `firestore.rules`
+3. Propose architecture, Firestore shape, Supabase path, module boundaries, and UI placement
+4. Wait for my approval
+5. Only then implement in small increments
+6. Explain simply (junior-friendly). After code: short review (architecture, concurrency, edge cases)
+
+## Product rules (locked)
+
+- Authors: **every member** of the community (not admins-only)
+- Content rules:
+  - text only → OK
+  - photo only (no text) → OK
+  - text + one photo → OK
+  - empty text AND no photo → NOT allowed
+- Max one image per post
+- Author can **delete own** post
+- Admin moderation delete → out of scope
+- Tap author → existing **Peer Profile sheet** (reuse; do not redesign Profile tab)
+- Join / Leave / Open Group Chat / About / Members stay; feed is additive
+- Other tabs (Chats, Connect, owner Profile) → **do not change** unless a tiny shared helper is unavoidable (prefer not)
+
+## Visual / UX (DESIGN.md)
+
+- Canvas `#FAF9F7`, surface cards, peach `#F2A68A` sparingly for primary CTAs
+- Post cards: generous image area when present, author row (avatar + name), calm text, `radiusLg`, soft shadow
+- Signature motion: soft spring appear for cards (`CLMotion`); honor **Reduce Motion** (fade only)
+- Empty feed: warm short copy + one CTA for members (“Be the first to post” / similar)
+- Compose: sheet — text field, optional photo picker, Post button
+- Non-members: can see feed only if rules allow; if member-only read, show join CTA instead of compose
+- No purple, neon glow, or animation spam
+
+### Suggested Community detail order
+
+1. Header (existing)
+2. Membership actions (Join / Leave / Open Group Chat)
+3. **Feed** (new) — primary “alive” section
+4. About (existing)
+5. Members (existing)
+
+Refine if needed, but Feed should feel central for members.
+
+## Data model
+
+Firestore path: `communities/{communityId}/posts/{postId}`
+
+Fields:
+- `authorId: String` (must equal auth uid on create)
+- `text: String?` (trimmed; empty string → store null/omit)
+- `imageURL: String?` (public URL after upload)
+- `createdAt: Timestamp`
+
+Query: newest first, page size ~20 (pagination required).
+
+Domain model: `Post` (or `CommunityPost`) in Domain/Models.
+
+## Images
+
+- Reuse the **Supabase** approach used for chat images (NOT avatar base64 in Firestore)
+- Compress before upload (reuse `ImageCompressor` chat-like limits or equivalent)
+- Suggested storage path: `communities/{communityId}/{postId}.jpg` (or dedicated bucket/prefix `community-images` mirroring chat setup)
+- Preferred create flow: generate `postId` → upload image if any → write Firestore doc with `imageURL`
+- On failure: no orphan misleading posts; surface error; clean up storage if doc write fails after upload when practical
+
+## Architecture
+
+Prefer existing app style (MVVM, repository, DI via AppDependencies).
+
+Suggested pieces:
+- `CommunityPostRepository` protocol + `FirestoreCommunityPostRepository`
+- Image storage protocol/impl for community images (extend or parallel to `ChatImageStorage`)
+- Feed + compose UI under `CircleLink/Features/Communities/`
+- ViewModel: either extend `CommunityDetailViewModel` carefully OR add a focused `CommunityFeedViewModel` owned by detail — propose which and why; avoid overengineering
+
+Do not put Firebase/Supabase calls in Views.
+
+### Data flow — create post
+
+User (member) taps New post
+→ Compose sheet (text and/or photo)
+→ ViewModel validates (at least one of text/photo; user is member)
+→ generate postId
+→ if photo: compress → Supabase upload → imageURL
+→ CommunityPostRepository.create(...)
+→ prepend/reload feed state on MainActor
+→ dismiss sheet → UI shows new card
+
+### Data flow — load feed
+
+Open community detail
+→ load community + membership (existing)
+→ load posts page + resolve authors via UserRepository (batch; avoid N+1)
+→ render cards
+→ pagination on scroll end
+
+### Data flow — delete
+
+Author deletes
+→ repository delete post (+ best-effort storage delete)
+→ remove from local feed state
+→ UI updates
+
+## Security (ship with feature)
+
+Update `firestore.rules` for `communities/{communityId}/posts/{postId}`:
+- Prefer **member-only** read/create
+- create: signed-in, `isCommunityMember`, `authorId == request.auth.uid`, validate field shape/size
+- update: **none** in MVP (no edit)
+- delete: author only (`authorId == uid`)
+
+Also configure Supabase policies for the community image path/bucket (document exact steps if manual).
+
+Show me the rules diff and a short threat note before/with implementation.
+
+## Async / safety checklist
+
+- `@MainActor` for UI state
+- Cancel in-flight feed loads when leaving screen / switching community
+- No retain cycles
+- Race: rapid double-tap Post
+- Left community mid-compose → fail gracefully
+- Pagination: no duplicate posts / wrong cursor
+
+## Implementation increments
+
+1. Contracts: model + repository protocol + rules draft
+2. Data layer: Firestore repo + Supabase upload
+3. Feed UI read-only in Community detail
+4. Compose sheet (text + photo, photo-only allowed)
+5. Delete own + empty/error + motion polish
+6. Deploy rules / storage config + device smoke test
+
+## Done criteria
+
+- [ ] Member can create text-only, photo-only, and text+photo posts
+- [ ] Non-member cannot create posts (rules + UI)
+- [ ] Feed shows newest first with pagination
+- [ ] Author tap opens existing peer profile sheet
+- [ ] Author can delete own post
+- [ ] Alive cards match DESIGN.md; Reduce Motion respected
+- [ ] firestore.rules updated and documented
+- [ ] Build succeeds
+- [ ] Short architecture + data-flow + review writeup in final message
+
+## Out of scope
+
+- Likes, comments, reactions
+- Edit post
+- Admin delete / moderation queue
+- Cross-community global feed
+- Chat retention (path B), Connect growth (path C)
+- Reworking other tabs’ visuals
+- Changing Connect / Chat / owner Profile behavior
+
+## Key files to inspect first
+
+- `CircleLink/Features/Communities/CommunityDetailView.swift`
+- `CircleLink/Features/Communities/CommunityDetailViewModel.swift`
+- `CircleLink/Domain/Repositories/CommunityRepository.swift`
+- `CircleLink/Data/Firebase/FirestoreCommunityRepository.swift`
+- `CircleLink/Domain/Repositories/ChatImageStorage.swift`
+- `CircleLink/Data/Supabase/SupabaseChatImageStorage.swift`
+- `CircleLink/Data/Firebase/ImageCompressor.swift`
+- `CircleLink/App/AppDependencies.swift`
+- `firestore.rules`
+- `DESIGN.md`
+- `CircleLink/Shared/Design/CLTheme.swift`
+
+## Repo
+
+- Project: CircleLink iOS
+- Follow phase PR workflow only if I ask for commit/PR
+- Do not commit secrets; do not read `.env`
+
+================================================================================
+PROMPT END
+================================================================================

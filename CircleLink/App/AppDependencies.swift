@@ -8,6 +8,7 @@ final class AppDependencies {
     let tokenStorage: SecureTokenStorage
     let userRepository: UserRepository
     let communityRepository: CommunityRepository
+    let communityPostRepository: CommunityPostRepository
     let connectionRepository: ConnectionRepository
     let chatRepository: ChatRepository
     let moderationRepository: ModerationRepository
@@ -18,6 +19,7 @@ final class AppDependencies {
         tokenStorage: SecureTokenStorage? = nil,
         userRepository: UserRepository? = nil,
         communityRepository: CommunityRepository? = nil,
+        communityPostRepository: CommunityPostRepository? = nil,
         connectionRepository: ConnectionRepository? = nil,
         chatRepository: ChatRepository? = nil,
         moderationRepository: ModerationRepository? = nil,
@@ -34,6 +36,9 @@ final class AppDependencies {
             appleSignInPresenter: AppleSignInPresenter()
         )
         self.communityRepository = communityRepository ?? FirestoreCommunityRepository()
+        self.communityPostRepository = communityPostRepository ?? FirestoreCommunityPostRepository(
+            imageStorage: SupabaseCommunityImageStorage()
+        )
         self.connectionRepository = connectionRepository ?? FirestoreConnectionRepository()
         let resolvedImageStorage = SupabaseChatImageStorage()
         self.chatRepository = chatRepository ?? FirestoreChatRepository(
@@ -75,6 +80,15 @@ final class AppDependencies {
             communityId: communityId,
             communityRepository: communityRepository,
             chatRepository: chatRepository,
+            authRepository: authRepository
+        )
+    }
+
+    func makeCommunityFeedViewModel(communityId: String) -> CommunityFeedViewModel {
+        CommunityFeedViewModel(
+            communityId: communityId,
+            postRepository: communityPostRepository,
+            userRepository: userRepository,
             authRepository: authRepository
         )
     }

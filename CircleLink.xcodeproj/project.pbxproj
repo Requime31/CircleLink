@@ -90,6 +90,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = F931238330069F9D002688D5 /* Build configuration list for PBXNativeTarget "CircleLink" */;
 			buildPhases = (
+				A1SW1FTL1N700000000001 /* SwiftLint */,
 				F931237430069F9C002688D5 /* Sources */,
 				F931237530069F9C002688D5 /* Frameworks */,
 				F931237630069F9C002688D5 /* Resources */,
@@ -196,6 +197,29 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A1SW1FTL1N700000000001 /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = SwiftLint;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/run-swiftlint.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		F931237430069F9C002688D5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -260,7 +284,7 @@
 				DEVELOPMENT_TEAM = 7ZMD5KP5YT;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -324,7 +348,7 @@
 				DEVELOPMENT_TEAM = 7ZMD5KP5YT;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;

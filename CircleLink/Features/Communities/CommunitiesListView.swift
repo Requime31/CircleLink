@@ -3,6 +3,7 @@ import SwiftUI
 struct CommunitiesListView: View {
     @ObservedObject var viewModel: CommunitiesViewModel
     let makeDetailViewModel: (String) -> CommunityDetailViewModel
+    let makeFeedViewModel: (String) -> CommunityFeedViewModel
     let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
     let onCommunitySelected: (String) -> Void
     let onOpenGroupChat: (String, String) -> Void
@@ -46,6 +47,7 @@ struct CommunitiesListView: View {
             .navigationDestination(for: String.self) { communityId in
                 CommunityDetailView(
                     viewModel: makeDetailViewModel(communityId),
+                    feedViewModel: makeFeedViewModel(communityId),
                     onOpenGroupChat: onOpenGroupChat,
                     makePeerProfileSheet: makePeerProfileSheet
                 )

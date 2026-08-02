@@ -40,6 +40,31 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
         return try FirestoreUserMapper.user(from: created)
     }
 
+    func fetchProfiles(userIds: [String]) async throws -> [String: User] {
+        let unique = Array(Set(userIds.filter { !$0.isEmpty }))
+        guard !unique.isEmpty else { return [:] }
+
+        var result: [String: User] = [:]
+        // Firestore `in` supports at most 30 values.
+        let chunkSize = 30
+        var start = 0
+        while start < unique.count {
+            let end = min(start + chunkSize, unique.count)
+            let chunk = Array(unique[start..<end])
+            let snapshot = try await db.collection(usersCollection)
+                .whereField(FieldPath.documentID(), in: chunk)
+                .getDocuments()
+
+            for document in snapshot.documents where document.exists {
+                if let user = try? FirestoreUserMapper.user(from: document) {
+                    result[user.id] = user
+                }
+            }
+            start = end
+        }
+        return result
+    }
+
     func updateProfile(_ user: User) async throws {
         guard Auth.auth().currentUser?.uid == user.id else {
             throw FirestoreUserError.notAuthenticated

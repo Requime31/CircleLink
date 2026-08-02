@@ -4,22 +4,30 @@ import Testing
 
 @MainActor
 struct CommunityDetailViewModelTests {
+    /// Keeps mocks + VM together without a 3-member tuple (SwiftLint `large_tuple`).
+    private struct Fixture {
+        let viewModel: CommunityDetailViewModel
+        let community: MockCommunityRepository
+        let chat: MockChatRepository
+    }
+
     private func makeViewModel(
         community: MockCommunityRepository = MockCommunityRepository(),
         chat: MockChatRepository = MockChatRepository(),
         auth: MockAuthRepository = MockAuthRepository(currentUser: MockAuthRepository.sampleUser)
-    ) -> (CommunityDetailViewModel, MockCommunityRepository, MockChatRepository) {
+    ) -> Fixture {
         let viewModel = CommunityDetailViewModel(
             communityId: "community-1",
             communityRepository: community,
             chatRepository: chat,
             authRepository: auth
         )
-        return (viewModel, community, chat)
+        return Fixture(viewModel: viewModel, community: community, chat: chat)
     }
 
     @Test func loadSetsCommunityMembersAndMembership() async {
-        let (viewModel, _, _) = makeViewModel()
+        let fixture = makeViewModel()
+        let viewModel = fixture.viewModel
 
         await viewModel.load()
 
@@ -39,7 +47,9 @@ struct CommunityDetailViewModelTests {
     @Test func joinCallsRepositoryAndRefreshesMembership() async {
         let community = MockCommunityRepository()
         community.membersByCommunity["community-1"] = []
-        let (viewModel, repo, _) = makeViewModel(community: community)
+        let fixture = makeViewModel(community: community)
+        let viewModel = fixture.viewModel
+        let repo = fixture.community
 
         await viewModel.load()
         #expect(viewModel.isMember == false)
@@ -57,7 +67,8 @@ struct CommunityDetailViewModelTests {
         community.callLog = callLog
         let chat = MockChatRepository()
         chat.callLog = callLog
-        let (viewModel, _, _) = makeViewModel(community: community, chat: chat)
+        let fixture = makeViewModel(community: community, chat: chat)
+        let viewModel = fixture.viewModel
         await viewModel.load()
         #expect(viewModel.isMember == true)
 
@@ -78,7 +89,9 @@ struct CommunityDetailViewModelTests {
 
         let chat = MockChatRepository()
         chat.leaveGroupChatError = Boom()
-        let (viewModel, community, _) = makeViewModel(chat: chat)
+        let fixture = makeViewModel(chat: chat)
+        let viewModel = fixture.viewModel
+        let community = fixture.community
         await viewModel.load()
 
         await viewModel.leave()
@@ -92,7 +105,9 @@ struct CommunityDetailViewModelTests {
     @Test func openGroupChatRequiresMembership() async {
         let community = MockCommunityRepository()
         community.membersByCommunity["community-1"] = []
-        let (viewModel, _, chat) = makeViewModel(community: community)
+        let fixture = makeViewModel(community: community)
+        let viewModel = fixture.viewModel
+        let chat = fixture.chat
         await viewModel.load()
 
         let result = await viewModel.openGroupChat()
@@ -105,7 +120,8 @@ struct CommunityDetailViewModelTests {
     @Test func openGroupChatCreatesChatForMember() async {
         let chat = MockChatRepository()
         chat.createGroupChatResult = "group_community-1"
-        let (viewModel, _, _) = makeViewModel(chat: chat)
+        let fixture = makeViewModel(chat: chat)
+        let viewModel = fixture.viewModel
         await viewModel.load()
 
         let result = await viewModel.openGroupChat()

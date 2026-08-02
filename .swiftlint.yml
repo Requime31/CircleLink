@@ -1,0 +1,84 @@
+# CircleLink — SwiftLint
+# Soft start: show issues in Xcode during build; build does not fail on warnings.
+
+included:
+  - CircleLink
+  - CircleLinkTests
+
+excluded:
+  - DerivedData
+  - .build
+  - Pods
+  - Carthage
+  - functions
+  - websocket-server
+  - scripts
+
+# Keep most defaults; disable low-value noise for MVP pace.
+disabled_rules:
+  - todo
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - first_where
+  - last_where
+  - sorted_first_last
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - contains_over_first_not_nil
+  - flatmap_over_map_reduce
+  - prefer_self_in_static_references
+  - redundant_nil_coalescing
+  - force_unwrapping
+
+# Analyzer-only (run via `swiftlint analyze`, not the build script).
+analyzer_rules:
+  - unused_declaration
+  - unused_import
+
+force_cast: warning
+force_unwrapping: warning
+force_try: warning
+
+line_length:
+  warning: 140
+  error: 200
+  ignores_comments: true
+  ignores_urls: true
+
+# Soft start: known large chat/Firestore files stay above 500/300 until a split PR.
+file_length:
+  warning: 650
+  error: 800
+
+type_body_length:
+  warning: 480
+  error: 500
+
+function_body_length:
+  warning: 60
+  error: 100
+
+type_name:
+  min_length: 3
+  max_length: 50
+
+identifier_name:
+  min_length: 2
+  max_length: 50
+  excluded:
+    - id
+    - x
+    - y
+    - i
+    - j
+    - to
+    - on
+    - ok
+
+nesting:
+  type_level: 3
+  function_level: 3
+
+reporter: xcode

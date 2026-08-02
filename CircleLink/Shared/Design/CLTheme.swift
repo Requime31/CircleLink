@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// CircleLink design tokens from local `DESIGN.md`.
-/// View chrome only — no Domain / networking.
+// CircleLink design tokens from local `DESIGN.md`.
+// View chrome only — no Domain / networking.
 
 // MARK: - Color
 
