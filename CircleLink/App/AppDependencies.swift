@@ -49,10 +49,7 @@ final class AppDependencies {
     // MARK: - Session
 
     func restoreAuthenticatedProfile() async throws -> User? {
-        if let firebaseAuth = authRepository as? FirebaseAuthRepository {
-            return try await firebaseAuth.restoreSessionProfile()
-        }
-        return authRepository.currentUser
+        try await authRepository.restoreSessionProfile()
     }
 
     // MARK: - ViewModel factories

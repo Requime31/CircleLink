@@ -5,5 +5,7 @@ protocol AuthRepository: Sendable {
     func signInWithEmail(email: String, password: String) async throws -> User
     func signUpWithEmail(email: String, password: String) async throws -> User
     func signOut() throws
+    /// Restores an existing auth session and returns the loaded profile, or `nil` if none.
+    func restoreSessionProfile() async throws -> User?
     var currentUser: User? { get }
 }
