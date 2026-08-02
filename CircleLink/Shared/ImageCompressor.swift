@@ -1,5 +1,10 @@
 import UIKit
 
+/// Shared JPEG size/quality policy for avatars and chat/community uploads.
+///
+/// **Single-compress rule:** UI / ViewControllers pass original (or lightly encoded) bytes.
+/// Upload paths (`FirestoreChatMessagesStore`, `FirestoreCommunityPostRepository`) and
+/// profile avatar save call compression **once**, off the main actor via `*OffMain`.
 enum ImageCompressor {
     private static let avatarMaxDimension: CGFloat = 256
     private static let avatarJpegQuality: CGFloat = 0.55
@@ -9,7 +14,7 @@ enum ImageCompressor {
     private static let chatJpegQuality: CGFloat = 0.7
     private static let chatMaxBytes = 500_000
 
-    /// Downscales and JPEG-compresses image data for Firestore avatar storage.
+    /// Avatar policy: max edge 256px, JPEG ~0.55, ≤120 KB (Firestore `avatarBase64`).
     static func compressForAvatar(_ data: Data) throws -> Data {
         try compress(
             data,
@@ -19,7 +24,7 @@ enum ImageCompressor {
         )
     }
 
-    /// Downscales and JPEG-compresses image data for chat attachments.
+    /// Chat / community attachment policy: max edge 1200px, JPEG ~0.7, ≤500 KB.
     static func compressForChat(_ data: Data) throws -> Data {
         try compress(
             data,
@@ -29,14 +34,18 @@ enum ImageCompressor {
         )
     }
 
-    /// Downscales and JPEG-compresses a picked `UIImage` (handles HDR / HEIC).
-    static func compressForChat(_ image: UIImage) throws -> Data {
-        try encodeJPEG(
-            image: image,
-            maxDimension: chatMaxDimension,
-            jpegQuality: chatJpegQuality,
-            maxBytes: chatMaxBytes
-        )
+    /// Runs `compressForAvatar` off the main actor.
+    static func compressForAvatarOffMain(_ data: Data) async throws -> Data {
+        try await Task.detached(priority: .userInitiated) {
+            try compressForAvatar(data)
+        }.value
+    }
+
+    /// Runs `compressForChat` off the main actor.
+    static func compressForChatOffMain(_ data: Data) async throws -> Data {
+        try await Task.detached(priority: .userInitiated) {
+            try compressForChat(data)
+        }.value
     }
 
     private static func compress(

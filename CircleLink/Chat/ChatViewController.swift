@@ -290,20 +290,34 @@ extension ChatViewController: UIImagePickerControllerDelegate, UINavigationContr
 
         Task {
             do {
-                let compressed: Data
-                if let image = info[.originalImage] as? UIImage {
-                    compressed = try ImageCompressor.compressForChat(image)
-                } else if let url = info[.imageURL] as? URL {
-                    let raw = try Data(contentsOf: url)
-                    compressed = try ImageCompressor.compressForChat(raw)
-                } else {
-                    return
-                }
-
-                await viewModel.send(imageData: compressed)
+                // Pass original/intermediate bytes only — repository compresses once off-main.
+                let raw = try await Self.rawImageData(from: info)
+                await viewModel.send(imageData: raw)
             } catch {
                 presentError(error.localizedDescription)
             }
         }
+    }
+
+    /// Loads picker bytes off the main actor without applying upload size policy.
+    private static func rawImageData(
+        from info: [UIImagePickerController.InfoKey: Any]
+    ) async throws -> Data {
+        if let url = info[.imageURL] as? URL {
+            return try await Task.detached(priority: .userInitiated) {
+                try Data(contentsOf: url)
+            }.value
+        }
+
+        if let image = info[.originalImage] as? UIImage {
+            return try await Task.detached(priority: .userInitiated) {
+                guard let data = image.jpegData(compressionQuality: 1.0) else {
+                    throw ImageCompressorError.invalidImageData
+                }
+                return data
+            }.value
+        }
+
+        throw ImageCompressorError.invalidImageData
     }
 }

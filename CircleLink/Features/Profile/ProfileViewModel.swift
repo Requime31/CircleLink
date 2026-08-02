@@ -108,7 +108,8 @@ final class ProfileViewModel: ObservableObject {
 
         do {
             if let avatarData = pendingAvatarData {
-                let compressed = try ImageCompressor.compressForAvatar(avatarData)
+                // Avatar is stored as base64 on User — compress once, off MainActor.
+                let compressed = try await ImageCompressor.compressForAvatarOffMain(avatarData)
                 user.avatarBase64 = compressed.base64EncodedString()
                 user.avatarURL = nil
                 pendingAvatarData = nil

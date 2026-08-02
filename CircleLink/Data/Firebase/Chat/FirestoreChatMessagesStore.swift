@@ -54,7 +54,8 @@ final class FirestoreChatMessagesStore: @unchecked Sendable {
 
         var imageURL: URL?
         if let image {
-            let compressed = try ImageCompressor.compressForChat(image)
+            // Single-compress: UI passes original bytes; size policy applied here once.
+            let compressed = try await ImageCompressor.compressForChatOffMain(image)
             imageURL = try await imageStorage.uploadChatImage(
                 data: compressed,
                 chatId: chatId,

@@ -81,7 +81,8 @@ final class FirestoreCommunityPostRepository: CommunityPostRepository, @unchecke
         var didUploadImage = false
 
         if let image {
-            let compressed = try ImageCompressor.compressForChat(image)
+            // Single-compress: compose UI passes original bytes; size policy applied here once.
+            let compressed = try await ImageCompressor.compressForChatOffMain(image)
             imageURL = try await imageStorage.uploadCommunityImage(
                 data: compressed,
                 communityId: communityId,

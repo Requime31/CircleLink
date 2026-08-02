@@ -7,6 +7,7 @@ struct AvatarImageView: View {
     let avatarBase64: String?
     let avatarURL: URL?
     let size: CGFloat
+    var imageLoader: any ImageLoading = ImageLoader.shared
 
     @State private var remoteImage: UIImage?
 
@@ -50,7 +51,7 @@ struct AvatarImageView: View {
         }
 
         do {
-            remoteImage = try await ImageLoader.shared.load(from: avatarURL)
+            remoteImage = try await imageLoader.load(from: avatarURL)
         } catch {
             remoteImage = nil
         }

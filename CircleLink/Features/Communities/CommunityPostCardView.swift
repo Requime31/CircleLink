@@ -109,6 +109,7 @@ struct CommunityPostCardView: View {
 
 private struct RemotePostImageView: View {
     let url: URL
+    var imageLoader: any ImageLoading = ImageLoader.shared
 
     @State private var image: UIImage?
 
@@ -126,7 +127,7 @@ private struct RemotePostImageView: View {
             }
         }
         .task(id: url) {
-            image = try? await ImageLoader.shared.load(from: url)
+            image = try? await imageLoader.load(from: url)
         }
     }
 }

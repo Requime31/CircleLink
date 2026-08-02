@@ -1,8 +1,13 @@
 import Foundation
 import UIKit
 
-/// Async image loading with in-memory cache for remote avatar URLs.
-actor ImageLoader {
+/// Remote image loading used by avatar / post views. Prefer injection over reaching for `.shared` in new code.
+protocol ImageLoading: Sendable {
+    func load(from url: URL) async throws -> UIImage?
+}
+
+/// Async image loading with in-memory cache for remote avatar / post URLs.
+actor ImageLoader: ImageLoading {
     static let shared = ImageLoader()
 
     private let cache = NSCache<NSURL, UIImage>()
