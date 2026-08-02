@@ -65,8 +65,10 @@ final class AppDependencies {
 
     func makeAgeGateViewModel(onAgeConfirmed: @escaping (User) -> Void) -> AgeGateViewModel {
         AgeGateViewModel(
-            authRepository: authRepository,
-            userRepository: userRepository,
+            confirmAge: ConfirmAgeUseCase(
+                userRepository: userRepository,
+                authRepository: authRepository
+            ),
             onAgeConfirmed: onAgeConfirmed
         )
     }
@@ -79,8 +81,16 @@ final class AppDependencies {
         CommunityDetailViewModel(
             communityId: communityId,
             communityRepository: communityRepository,
-            chatRepository: chatRepository,
-            authRepository: authRepository
+            authRepository: authRepository,
+            leaveCommunity: LeaveCommunityUseCase(
+                chatRepository: chatRepository,
+                communityRepository: communityRepository
+            ),
+            openCommunityChat: OpenCommunityChatUseCase(
+                communityRepository: communityRepository,
+                chatRepository: chatRepository,
+                authRepository: authRepository
+            )
         )
     }
 

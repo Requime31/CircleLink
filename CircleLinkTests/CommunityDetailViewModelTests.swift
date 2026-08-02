@@ -19,8 +19,16 @@ struct CommunityDetailViewModelTests {
         let viewModel = CommunityDetailViewModel(
             communityId: "community-1",
             communityRepository: community,
-            chatRepository: chat,
-            authRepository: auth
+            authRepository: auth,
+            leaveCommunity: LeaveCommunityUseCase(
+                chatRepository: chat,
+                communityRepository: community
+            ),
+            openCommunityChat: OpenCommunityChatUseCase(
+                communityRepository: community,
+                chatRepository: chat,
+                authRepository: auth
+            )
         )
         return Fixture(viewModel: viewModel, community: community, chat: chat)
     }
@@ -129,5 +137,42 @@ struct CommunityDetailViewModelTests {
         #expect(chat.createGroupChatCallCount == 1)
         #expect(result?.chatId == "group_community-1")
         #expect(result?.title == "Swift Devs")
+    }
+
+    @Test func openGroupChatAppliesRefreshedMembersWhenMembershipRevoked() async {
+        let community = MockCommunityRepository()
+        // Initial load: user is a member (default fixture members).
+        let fixture = makeViewModel(community: community)
+        let viewModel = fixture.viewModel
+        await viewModel.load()
+        #expect(viewModel.isMember == true)
+
+        // Refresh on open shows membership revoked.
+        community.membersByCommunity["community-1"] = [
+            User(
+                id: "peer-1",
+                displayName: "Peer",
+                avatarURL: nil,
+                avatarBase64: nil,
+                interests: [],
+                ageConfirmedAt: Date()
+            )
+        ]
+
+        let result = await viewModel.openGroupChat()
+
+        #expect(result == nil)
+        #expect(viewModel.isMember == false)
+        #expect(viewModel.membershipErrorMessage == "Only community members can open this group chat.")
+        if case let .loaded(members) = viewModel.membersState {
+            #expect(members.map(\.id) == ["peer-1"])
+        } else {
+            Issue.record("Expected refreshed members after revoked membership")
+        }
+        if case let .loaded(community) = viewModel.communityState {
+            #expect(community.memberCount == 1)
+        } else {
+            Issue.record("Expected member count synced from refresh")
+        }
     }
 }

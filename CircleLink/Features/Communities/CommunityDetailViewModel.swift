@@ -16,19 +16,22 @@ final class CommunityDetailViewModel: ObservableObject {
     var currentUserId: String? { authRepository.currentUser?.id }
 
     private let communityRepository: CommunityRepository
-    private let chatRepository: ChatRepository
     private let authRepository: AuthRepository
+    private let leaveCommunity: LeaveCommunityUseCase
+    private let openCommunityChat: OpenCommunityChatUseCase
 
     init(
         communityId: String,
         communityRepository: CommunityRepository,
-        chatRepository: ChatRepository,
-        authRepository: AuthRepository
+        authRepository: AuthRepository,
+        leaveCommunity: LeaveCommunityUseCase,
+        openCommunityChat: OpenCommunityChatUseCase
     ) {
         self.communityId = communityId
         self.communityRepository = communityRepository
-        self.chatRepository = chatRepository
         self.authRepository = authRepository
+        self.leaveCommunity = leaveCommunity
+        self.openCommunityChat = openCommunityChat
     }
 
     func load() async {
@@ -55,9 +58,7 @@ final class CommunityDetailViewModel: ObservableObject {
         membershipErrorMessage = nil
 
         do {
-            // Drop group chat access first — group write rules still require membership.
-            try await chatRepository.leaveGroupChat(communityId: communityId)
-            try await communityRepository.leave(communityId: communityId)
+            try await leaveCommunity.execute(communityId: communityId)
             isMembershipActionInFlight = false
             await load()
         } catch {
@@ -69,16 +70,10 @@ final class CommunityDetailViewModel: ObservableObject {
     /// Creates or opens the community group chat, then returns `(chatId, title)`.
     ///
     /// Flow:
-    /// User tap → View → this method → ChatRepository.createGroupChat
-    /// → Firestore chats/{group_id} → callback opens Chat sheet.
+    /// User tap → View → this method → OpenCommunityChatUseCase → callback opens Chat sheet.
     func openGroupChat() async -> (chatId: String, title: String)? {
         guard isMember else {
             membershipErrorMessage = "Join this community to open group chat."
-            return nil
-        }
-
-        guard let currentUserId = authRepository.currentUser?.id else {
-            membershipErrorMessage = "You must be signed in to open group chat."
             return nil
         }
 
@@ -87,23 +82,8 @@ final class CommunityDetailViewModel: ObservableObject {
         defer { isOpeningGroupChat = false }
 
         do {
-            // Always refresh members so new joiners get chatRefs on open.
-            let members = try await communityRepository.fetchMembers(communityId: communityId)
-            membersState = members.isEmpty ? .empty : .loaded(members)
-            updateMembership(from: members)
-            syncDisplayedMemberCount(members.count)
-
-            guard members.contains(where: { $0.id == currentUserId }) else {
-                membershipErrorMessage = "Only community members can open this group chat."
-                isMember = false
-                return nil
-            }
-
-            let participantIds = members.map(\.id)
-            let chatId = try await chatRepository.createGroupChat(
-                communityId: communityId,
-                participantIds: participantIds
-            )
+            let output = try await openCommunityChat.execute(communityId: communityId)
+            applyMembers(output.members)
 
             let title: String
             if case let .loaded(community) = communityState {
@@ -112,7 +92,13 @@ final class CommunityDetailViewModel: ObservableObject {
                 title = "Group Chat"
             }
 
-            return (chatId, title)
+            return (output.chatId, title)
+        } catch let OpenCommunityChatUseCaseError.notAMember(members) {
+            // Apply refreshed list first (same as pre-UseCase behavior), then clear membership.
+            applyMembers(members)
+            membershipErrorMessage = OpenCommunityChatUseCaseError.notAMember(members: members)
+                .localizedDescription
+            return nil
         } catch {
             membershipErrorMessage = error.localizedDescription
             return nil
@@ -143,12 +129,16 @@ final class CommunityDetailViewModel: ObservableObject {
 
         do {
             let members = try await communityRepository.fetchMembers(communityId: communityId)
-            membersState = members.isEmpty ? .empty : .loaded(members)
-            updateMembership(from: members)
-            syncDisplayedMemberCount(members.count)
+            applyMembers(members)
         } catch {
             membersState = .error(error.localizedDescription)
         }
+    }
+
+    private func applyMembers(_ members: [User]) {
+        membersState = members.isEmpty ? .empty : .loaded(members)
+        updateMembership(from: members)
+        syncDisplayedMemberCount(members.count)
     }
 
     private func updateMembership(from members: [User]) {

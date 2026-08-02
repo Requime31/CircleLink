@@ -4,12 +4,20 @@ import Testing
 
 @MainActor
 struct AgeGateViewModelTests {
-    @Test func canContinueMatchesCheckbox() {
+    private func makeViewModel(
+        auth: MockAuthRepository = MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
+        users: MockUserRepository = MockUserRepository(),
+        onAgeConfirmed: @escaping (User) -> Void = { _ in }
+    ) -> (AgeGateViewModel, MockUserRepository) {
         let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            userRepository: MockUserRepository(),
-            onAgeConfirmed: { _ in }
+            confirmAge: ConfirmAgeUseCase(userRepository: users, authRepository: auth),
+            onAgeConfirmed: onAgeConfirmed
         )
+        return (viewModel, users)
+    }
+
+    @Test func canContinueMatchesCheckbox() {
+        let (viewModel, _) = makeViewModel()
 
         #expect(viewModel.canContinue == false)
         viewModel.isAgeConfirmed = true
@@ -17,12 +25,7 @@ struct AgeGateViewModelTests {
     }
 
     @Test func confirmAgeWithoutCheckboxIsNoOp() async {
-        let users = MockUserRepository()
-        let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            userRepository: users,
-            onAgeConfirmed: { _ in }
-        )
+        let (viewModel, users) = makeViewModel()
 
         await viewModel.confirmAge()
 
@@ -35,13 +38,8 @@ struct AgeGateViewModelTests {
     }
 
     @Test func confirmAgeSuccessFetchesProfileAndCallbacks() async {
-        let users = MockUserRepository()
         var confirmedUser: User?
-        let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            userRepository: users,
-            onAgeConfirmed: { confirmedUser = $0 }
-        )
+        let (viewModel, users) = makeViewModel { confirmedUser = $0 }
         viewModel.isAgeConfirmed = true
 
         await viewModel.confirmAge()
@@ -56,11 +54,8 @@ struct AgeGateViewModelTests {
     }
 
     @Test func confirmAgeWithoutSessionShowsError() async {
-        let users = MockUserRepository()
-        let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: nil),
-            userRepository: users,
-            onAgeConfirmed: { _ in }
+        let (viewModel, users) = makeViewModel(
+            auth: MockAuthRepository(currentUser: nil)
         )
         viewModel.isAgeConfirmed = true
 
@@ -81,11 +76,7 @@ struct AgeGateViewModelTests {
 
         let users = MockUserRepository()
         users.confirmAgeError = Boom()
-        let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            userRepository: users,
-            onAgeConfirmed: { _ in }
-        )
+        let (viewModel, _) = makeViewModel(users: users)
         viewModel.isAgeConfirmed = true
 
         await viewModel.confirmAge()
@@ -98,11 +89,7 @@ struct AgeGateViewModelTests {
     }
 
     @Test func resetFormClearsCheckboxAndState() async {
-        let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            userRepository: MockUserRepository(),
-            onAgeConfirmed: { _ in }
-        )
+        let (viewModel, _) = makeViewModel()
         viewModel.isAgeConfirmed = true
         await viewModel.confirmAge()
 

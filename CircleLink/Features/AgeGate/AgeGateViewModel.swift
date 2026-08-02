@@ -6,17 +6,14 @@ final class AgeGateViewModel: ObservableObject {
     @Published var isAgeConfirmed = false
     @Published private(set) var state: ViewState<Bool> = .idle
 
-    private let authRepository: AuthRepository
-    private let userRepository: UserRepository
+    private let confirmAge: ConfirmAgeUseCase
     let onAgeConfirmed: (User) -> Void
 
     init(
-        authRepository: AuthRepository,
-        userRepository: UserRepository,
+        confirmAge: ConfirmAgeUseCase,
         onAgeConfirmed: @escaping (User) -> Void
     ) {
-        self.authRepository = authRepository
-        self.userRepository = userRepository
+        self.confirmAge = confirmAge
         self.onAgeConfirmed = onAgeConfirmed
     }
 
@@ -29,12 +26,7 @@ final class AgeGateViewModel: ObservableObject {
 
         state = .loading
         do {
-            try await userRepository.confirmAge()
-            guard let userId = authRepository.currentUser?.id else {
-                state = .error("Session expired. Please sign in again.")
-                return
-            }
-            let profile = try await userRepository.fetchProfile(userId: userId)
+            let profile = try await confirmAge.execute()
             state = .loaded(true)
             onAgeConfirmed(profile)
         } catch {

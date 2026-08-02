@@ -8,18 +8,18 @@ Community messenger MVP (iOS 16+, SwiftUI + UIKit Chat).
 |---|---|---|
 | **App** | Lifecycle, DI composition, root navigation, push | `AppDependencies`, `AppCoordinator` |
 | **Presentation** | UI rendering, user input | SwiftUI Views, `ChatViewController` |
-| **Domain** | Business models, repository protocols | `User`, `ChatRepository` |
+| **Domain** | Business models, repository protocols, targeted use cases | `User`, `ChatRepository`, `LeaveCommunityUseCase` |
 | **Data** | Firebase, Supabase, Keychain implementations | `FirestoreChatRepository`, `SupabaseChatImageStorage` |
 | **Shared** | Cross-cutting utilities | `ViewState`, `ImageLoader` |
 
 ## Dependency Direction
 
 ```
-View → ViewModel → Repository protocol ← Data implementation
+View → ViewModel → (UseCase?) → Repository protocol ← Data implementation
 ```
 
 - ViewModels are `@MainActor`
-- No UseCase layer in MVP — ViewModel calls Repository directly
+- UseCases only for multi-repo workflows (confirm age, leave community, open community chat). Everything else stays ViewModel → Repository.
 - Manual DI via `AppDependencies` (composition root)
 
 **Who owns what**
@@ -28,8 +28,9 @@ View → ViewModel → Repository protocol ← Data implementation
 |---|---|---|
 | `AppDependencies` | App | Created at launch; holds concrete repos |
 | ViewModel | Screen / feature | Lives with the screen; cancelled on disappear |
+| UseCase (targeted) | Domain | Stateless; created in factories; orchestrates 2+ repos |
 | Repository protocol | Domain | Stable contract; no Firebase types |
-| Firebase / Supabase impl | Data | Injected once; used by ViewModels |
+| Firebase / Supabase impl | Data | Injected once; used by ViewModels / UseCases |
 
 ## Rules
 
