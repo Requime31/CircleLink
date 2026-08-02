@@ -33,11 +33,23 @@ final class ChatViewModel: ObservableObject {
     private let pageSize = 30
 
     private var liveMessagesTask: Task<Void, Never>?
+    private var mapper: ChatMessageMapper
     private var knownMessageIds = Set<String>()
     private var knownClientMessageIds = Set<String>()
-    private var participantsById: [String: User] = [:]
     /// Prevents overlapping report/block requests.
     private var isModerating = false
+
+    private var reconciler: ChatLiveMessageReconciler {
+        ChatLiveMessageReconciler(mapper: mapper)
+    }
+
+    private var identifierState: ChatLiveMessageReconciler.State {
+        ChatLiveMessageReconciler.State(
+            messages: messages,
+            knownMessageIds: knownMessageIds,
+            knownClientMessageIds: knownClientMessageIds
+        )
+    }
 
     var canModeratePeer: Bool {
         peerUserId != nil && moderationRepository != nil
@@ -59,6 +71,7 @@ final class ChatViewModel: ObservableObject {
         self.peerUserId = peerUserId
         self.moderationRepository = moderationRepository
         self.onPeerBlocked = onPeerBlocked
+        self.mapper = ChatMessageMapper(currentUserId: currentUserId)
     }
 
     deinit {
@@ -141,8 +154,7 @@ final class ChatViewModel: ObservableObject {
         do {
             _ = await participantsLoad
             let fetched = try await fetchedMessages
-            messages = mapToDisplayItems(fetched)
-            rebuildKnownIdentifiers()
+            applyState(ChatLiveMessageReconciler.State.rebuilt(from: mapper.mapHistory(fetched)))
             canLoadMore = fetched.count == pageSize
             loadState = .loaded
             startObservingLiveMessages()
@@ -165,10 +177,8 @@ final class ChatViewModel: ObservableObject {
                 limit: pageSize,
                 before: oldestDate
             )
-            let olderItems = mapToDisplayItems(fetched)
-            let uniqueOlder = olderItems.filter { item in
-                !knownMessageIds.contains(item.id) && !knownClientMessageIds.contains(item.clientMessageId)
-            }
+            let olderItems = mapper.mapHistory(fetched)
+            let uniqueOlder = reconciler.uniqueOlder(olderItems, given: identifierState)
             messages.append(contentsOf: uniqueOlder)
             trackIdentifiers(for: uniqueOlder)
             canLoadMore = fetched.count == pageSize
@@ -208,37 +218,9 @@ final class ChatViewModel: ObservableObject {
                 image: imageData,
                 clientMessageId: clientMessageId
             )
-            updateMessage(clientMessageId: clientMessageId) { item in
-                decoratedItem(
-                    message: Message(
-                        id: clientMessageId,
-                        chatId: item.chatId,
-                        senderId: item.senderId,
-                        text: item.text,
-                        imageURL: item.imageURL,
-                        createdAt: item.createdAt,
-                        clientMessageId: clientMessageId,
-                        status: .sent
-                    ),
-                    localImageData: item.localImageData
-                )
-            }
+            updateMessageStatus(clientMessageId: clientMessageId, status: .sent, useClientIdAsMessageId: true)
         } catch {
-            updateMessage(clientMessageId: clientMessageId) { item in
-                decoratedItem(
-                    message: Message(
-                        id: item.id,
-                        chatId: item.chatId,
-                        senderId: item.senderId,
-                        text: item.text,
-                        imageURL: item.imageURL,
-                        createdAt: item.createdAt,
-                        clientMessageId: clientMessageId,
-                        status: .failed
-                    ),
-                    localImageData: item.localImageData
-                )
-            }
+            updateMessageStatus(clientMessageId: clientMessageId, status: .failed)
         }
     }
 
@@ -246,21 +228,7 @@ final class ChatViewModel: ObservableObject {
         guard let item = messages.first(where: { $0.clientMessageId == clientMessageId }),
               item.status == .failed else { return }
 
-        updateMessage(clientMessageId: clientMessageId) { item in
-            decoratedItem(
-                message: Message(
-                    id: item.id,
-                    chatId: item.chatId,
-                    senderId: item.senderId,
-                    text: item.text,
-                    imageURL: item.imageURL,
-                    createdAt: item.createdAt,
-                    clientMessageId: clientMessageId,
-                    status: .sending
-                ),
-                localImageData: item.localImageData
-            )
-        }
+        updateMessageStatus(clientMessageId: clientMessageId, status: .sending)
 
         do {
             try await chatRepository.sendMessage(
@@ -269,37 +237,9 @@ final class ChatViewModel: ObservableObject {
                 image: item.localImageData,
                 clientMessageId: clientMessageId
             )
-            updateMessage(clientMessageId: clientMessageId) { item in
-                decoratedItem(
-                    message: Message(
-                        id: clientMessageId,
-                        chatId: item.chatId,
-                        senderId: item.senderId,
-                        text: item.text,
-                        imageURL: item.imageURL,
-                        createdAt: item.createdAt,
-                        clientMessageId: clientMessageId,
-                        status: .sent
-                    ),
-                    localImageData: item.localImageData
-                )
-            }
+            updateMessageStatus(clientMessageId: clientMessageId, status: .sent, useClientIdAsMessageId: true)
         } catch {
-            updateMessage(clientMessageId: clientMessageId) { item in
-                decoratedItem(
-                    message: Message(
-                        id: item.id,
-                        chatId: item.chatId,
-                        senderId: item.senderId,
-                        text: item.text,
-                        imageURL: item.imageURL,
-                        createdAt: item.createdAt,
-                        clientMessageId: clientMessageId,
-                        status: .failed
-                    ),
-                    localImageData: item.localImageData
-                )
-            }
+            updateMessageStatus(clientMessageId: clientMessageId, status: .failed)
         }
     }
 
@@ -318,42 +258,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     private func handleLiveMessage(_ message: Message) {
-        let clientMessageId = message.clientMessageId ?? message.id
-
-        if knownMessageIds.contains(message.id) {
-            return
-        }
-
-        if knownClientMessageIds.contains(clientMessageId) {
-            if let index = messages.firstIndex(where: { $0.clientMessageId == clientMessageId }) {
-                let existing = messages[index]
-                messages[index] = decoratedItem(
-                    message: Message(
-                        id: message.id,
-                        chatId: message.chatId,
-                        senderId: message.senderId,
-                        text: message.text ?? existing.text,
-                        imageURL: message.imageURL ?? existing.imageURL,
-                        createdAt: message.createdAt,
-                        clientMessageId: clientMessageId,
-                        status: .sent
-                    ),
-                    localImageData: existing.localImageData
-                )
-                knownMessageIds.insert(message.id)
-            }
-            return
-        }
-
-        // First snapshot can include messages older than the current page.
-        // Those belong to pagination — do not insert them into the live list.
-        if let oldestLoaded = messages.last?.createdAt, message.createdAt < oldestLoaded {
-            return
-        }
-
-        let item = decoratedItem(message: message)
-        messages.insert(item, at: 0)
-        trackIdentifiers(for: [item])
+        applyState(reconciler.apply(live: message, to: identifierState))
     }
 
     // MARK: - Private
@@ -367,75 +272,39 @@ final class ChatViewModel: ObservableObject {
             for user in info.participants {
                 map[user.id] = user
             }
-            participantsById = map
+            mapper.participantsById = map
             // Refresh labels/avatars if messages already loaded.
             if !messages.isEmpty {
-                messages = messages.map { item in
-                    decoratedItem(
-                        message: Message(
-                            id: item.id,
-                            chatId: item.chatId,
-                            senderId: item.senderId,
-                            text: item.text,
-                            imageURL: item.imageURL,
-                            createdAt: item.createdAt,
-                            clientMessageId: item.clientMessageId,
-                            status: item.status
-                        ),
-                        localImageData: item.localImageData
-                    )
-                }
+                messages = mapper.redecorate(messages)
             }
         } catch {
             // Participants are best-effort — chat still works without avatars.
         }
     }
 
-    private func mapToDisplayItems(_ messages: [Message]) -> [ChatMessageItem] {
-        messages
-            .map { decoratedItem(message: $0) }
-            .sorted { $0.createdAt > $1.createdAt }
-    }
-
-    private func decoratedItem(
-        message: Message,
-        localImageData: Data? = nil
-    ) -> ChatMessageItem {
-        let peer = participantsById[message.senderId]
-        let label: String
-        if message.senderId == currentUserId {
-            label = "You"
-        } else if let name = peer?.displayName, !name.isEmpty {
-            label = name
-        } else {
-            label = "Member"
-        }
-        return ChatMessageItem(
-            message: message,
-            currentUserId: currentUserId,
-            senderLabel: label,
-            localImageData: localImageData,
-            senderAvatarURL: peer?.avatarURL,
-            senderAvatarBase64: peer?.avatarBase64
-        )
-    }
-
-    private func updateMessage(
+    private func updateMessageStatus(
         clientMessageId: String,
-        transform: (ChatMessageItem) -> ChatMessageItem
+        status: MessageStatus,
+        useClientIdAsMessageId: Bool = false
     ) {
         guard let index = messages.firstIndex(where: { $0.clientMessageId == clientMessageId }) else {
             return
         }
-        let updated = transform(messages[index])
+        let updated = ChatSendStatusUpdater.applying(
+            status: status,
+            to: messages[index],
+            useClientIdAsMessageId: useClientIdAsMessageId,
+            mapper: mapper
+        )
         messages[index] = updated
         knownMessageIds.insert(updated.id)
         knownClientMessageIds.insert(updated.clientMessageId)
     }
 
-    private func rebuildKnownIdentifiers() {
-        knownMessageIds = Set(messages.map(\.id))
-        knownClientMessageIds = Set(messages.map(\.clientMessageId))
+    private func applyState(_ state: ChatLiveMessageReconciler.State) {
+        messages = state.messages
+        knownMessageIds = state.knownMessageIds
+        knownClientMessageIds = state.knownClientMessageIds
     }
 
     private func trackIdentifiers(for items: [ChatMessageItem]) {
