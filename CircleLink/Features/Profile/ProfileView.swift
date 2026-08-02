@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ProfileView: View {
     @ObservedObject var viewModel: ProfileViewModel
-    let pushHandler: PushNotificationHandler
+    let makeSettingsViewModel: () -> SettingsViewModel
     let onSignOut: () -> Void
 
     @State private var isEditing = false
@@ -42,7 +42,7 @@ struct ProfileView: View {
                 ProfileEditView(viewModel: viewModel)
             }
             .navigationDestination(for: SettingsRoute.self) { _ in
-                SettingsView(pushHandler: pushHandler)
+                SettingsView(viewModel: makeSettingsViewModel())
             }
             .task {
                 await viewModel.loadProfile()

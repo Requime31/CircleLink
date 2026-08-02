@@ -116,7 +116,7 @@ final class AppCoordinator: ObservableObject {
                     },
                     makeChatInfoViewModel: dependencies.makeChatInfoViewModel,
                     makePeerProfileSheet: dependencies.makePeerProfileSheet,
-                    pushHandler: dependencies.pushNotificationHandler,
+                    makeSettingsViewModel: dependencies.makeSettingsViewModel,
                     onCommunitySelected: onCommunitySelected,
                     onOpenGroupChat: onOpenGroupChat,
                     onSignOut: signOut

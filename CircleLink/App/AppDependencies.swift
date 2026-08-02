@@ -146,6 +146,10 @@ final class AppDependencies {
         )
     }
 
+    func makeSettingsViewModel() -> SettingsViewModel {
+        SettingsViewModel(notificationSettings: pushNotificationHandler)
+    }
+
     /// Peer (other user) profile sheet. Pass `communityId` when known so Connect works.
     /// Sheet owns its ViewModel — prefer this over creating the VM in a `.sheet` closure.
     func makePeerProfileSheet(

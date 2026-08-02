@@ -7,8 +7,8 @@ struct SettingsView: View {
 
     @Environment(\.scenePhase) private var scenePhase
 
-    init(pushHandler: PushNotificationHandler) {
-        _viewModel = StateObject(wrappedValue: SettingsViewModel(pushHandler: pushHandler))
+    init(viewModel: @autoclosure @escaping () -> SettingsViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel())
     }
 
     var body: some View {

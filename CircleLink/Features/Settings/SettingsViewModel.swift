@@ -11,16 +11,16 @@ final class SettingsViewModel: ObservableObject {
     @Published private(set) var notificationHint: String?
     @Published private(set) var appVersionLabel = ""
 
-    private let pushHandler: PushNotificationHandler
+    private let notificationSettings: NotificationSettingsServing
 
-    init(pushHandler: PushNotificationHandler) {
-        self.pushHandler = pushHandler
+    init(notificationSettings: NotificationSettingsServing) {
+        self.notificationSettings = notificationSettings
         appVersionLabel = Self.makeVersionLabel()
     }
 
     func refresh() async {
-        let status = await pushHandler.authorizationStatus()
-        let preference = pushHandler.isNotificationsEnabledPreference
+        let status = await notificationSettings.authorizationStatus()
+        let preference = notificationSettings.isNotificationsEnabledPreference
 
         switch status {
         case .authorized, .provisional, .ephemeral:
@@ -42,7 +42,7 @@ final class SettingsViewModel: ObservableObject {
         isUpdatingNotifications = true
         defer { isUpdatingNotifications = false }
 
-        let result = await pushHandler.setNotificationsEnabled(enabled)
+        let result = await notificationSettings.setNotificationsEnabled(enabled)
         if result == .needsSystemSettings {
             notificationsEnabled = false
             showOpenSettingsAlert = true
@@ -51,7 +51,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func openSystemSettings() {
-        pushHandler.openSystemSettings()
+        notificationSettings.openSystemSettings()
     }
 
     private static func makeVersionLabel() -> String {

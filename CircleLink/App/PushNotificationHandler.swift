@@ -8,18 +8,12 @@ import FirebaseMessaging
 
 /// Owns FCM / APNs registration and notification payload parsing.
 /// Navigation is forwarded to `AppCoordinator` via `onDeepLink` — never routes itself.
+/// Conforms to `NotificationSettingsServing` for Settings UI (narrow surface).
 @MainActor
-final class PushNotificationHandler: NSObject {
+final class PushNotificationHandler: NSObject, NotificationSettingsServing {
     private static let didRequestPermissionKey = "circlelink.didRequestPushPermission"
     /// In-app preference: when false, FCM token is cleared and not re-uploaded.
     private static let notificationsEnabledKey = "circlelink.notificationsEnabled"
-
-    enum NotificationsToggleResult: Equatable {
-        case enabled
-        case disabled
-        /// System permission is denied — only iOS Settings can re-enable.
-        case needsSystemSettings
-    }
 
     private let userRepository: UserRepository
     private let authRepository: AuthRepository
