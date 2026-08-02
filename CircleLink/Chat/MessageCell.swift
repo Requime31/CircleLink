@@ -455,12 +455,14 @@ final class MessageCell: UITableViewCell {
         bubbleView.addSubview(messageLabel)
         bubbleView.addSubview(timestampLabel)
 
-        imageHeightConstraint = imageAttachmentView.heightAnchor.constraint(equalToConstant: 0)
+        let imageHeight = imageAttachmentView.heightAnchor.constraint(equalToConstant: 0)
+        imageHeightConstraint = imageHeight
         imageWidthConstraint = imageAttachmentView.widthAnchor.constraint(
             equalToConstant: ChatAppearance.bubbleImageWidth
         )
         imageWidthConstraint?.isActive = false
-        avatarWidthConstraint = avatarImageView.widthAnchor.constraint(equalToConstant: 0)
+        let avatarWidth = avatarImageView.widthAnchor.constraint(equalToConstant: 0)
+        avatarWidthConstraint = avatarWidth
         let padH = ChatAppearance.bubblePaddingH
         let padV = ChatAppearance.bubblePaddingV
         let spacing = ChatAppearance.bubbleSpacingV
@@ -475,7 +477,7 @@ final class MessageCell: UITableViewCell {
                 constant: ChatAppearance.sideGutter
             ),
             avatarImageView.bottomAnchor.constraint(equalTo: bubbleView.bottomAnchor),
-            avatarWidthConstraint!,
+            avatarWidth,
             avatarImageView.heightAnchor.constraint(equalTo: avatarImageView.widthAnchor),
 
             bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: spacing),
@@ -484,7 +486,7 @@ final class MessageCell: UITableViewCell {
             imageAttachmentView.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: padV),
             imageAttachmentView.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: padH),
             imageAttachmentView.trailingAnchor.constraint(equalTo: bubbleView.trailingAnchor, constant: -padH),
-            imageHeightConstraint!,
+            imageHeight,
 
             messageLabel.topAnchor.constraint(equalTo: imageAttachmentView.bottomAnchor, constant: padV),
             messageLabel.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: padH),

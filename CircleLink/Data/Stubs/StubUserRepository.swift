@@ -12,6 +12,14 @@ final class StubUserRepository: UserRepository, @unchecked Sendable {
         )
     }
 
+    func fetchProfiles(userIds: [String]) async throws -> [String: User] {
+        var result: [String: User] = [:]
+        for id in Set(userIds) where !id.isEmpty {
+            result[id] = try await fetchProfile(userId: id)
+        }
+        return result
+    }
+
     func updateProfile(_ user: User) async throws {}
 
     func confirmAge() async throws {}

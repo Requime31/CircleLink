@@ -73,24 +73,56 @@ final class MockAuthRepository: AuthRepository, @unchecked Sendable {
 // MARK: - Chat
 
 final class MockChatRepository: ChatRepository, @unchecked Sendable {
+    var visibleChats: [ChatSummary] = []
+    var hiddenChats: [ChatSummary] = []
+    var chatInfos: [String: ChatInfo] = [:]
     var messages: [Message] = []
     var sendError: Error?
     var createDirectChatResult: String = "direct-chat-1"
     var createDirectChatError: Error?
     var createGroupChatResult: String = "group_community-1"
     var createGroupChatError: Error?
+    var leaveChatError: Error?
     var leaveGroupChatError: Error?
     var createDirectChatCallCount = 0
     var createGroupChatCallCount = 0
+    var leaveChatCallCount = 0
     var leaveGroupChatCallCount = 0
+    var setMutedCallCount = 0
+    var hideChatCallCount = 0
+    var unhideChatCallCount = 0
     var lastCreateDirectPeerId: String?
     var lastCreateGroupCommunityId: String?
+    var lastLeaveChatId: String?
     var lastLeaveGroupCommunityId: String?
+    var lastMutedChatId: String?
+    var lastMutedValue: Bool?
+    var lastHiddenChatId: String?
+    var lastUnhiddenChatId: String?
     var sentClientMessageIds: [String] = []
     var callLog: MockCallLog?
     var liveContinuation: AsyncStream<Message>.Continuation?
 
-    func fetchChats() async throws -> [ChatSummary] { [] }
+    func fetchChats() async throws -> [ChatSummary] { visibleChats }
+
+    func fetchHiddenChats() async throws -> [ChatSummary] { hiddenChats }
+
+    func fetchOrganizedChats() async throws -> OrganizedChats {
+        OrganizedChats(visible: visibleChats, hidden: hiddenChats)
+    }
+
+    func fetchChatInfo(chatId: String) async throws -> ChatInfo {
+        if let info = chatInfos[chatId] {
+            return info
+        }
+        return ChatInfo(
+            id: chatId,
+            type: .direct,
+            title: "Chat",
+            communityId: nil,
+            participants: [MockAuthRepository.sampleUser]
+        )
+    }
 
     func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
         let filtered: [Message]
@@ -147,11 +179,57 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
         return createGroupChatResult
     }
 
+    func leaveChat(chatId: String) async throws {
+        leaveChatCallCount += 1
+        lastLeaveChatId = chatId
+        callLog?.append("leaveChat")
+        if let leaveChatError { throw leaveChatError }
+        visibleChats.removeAll { $0.id == chatId }
+        hiddenChats.removeAll { $0.id == chatId }
+    }
+
     func leaveGroupChat(communityId: String) async throws {
         leaveGroupChatCallCount += 1
         lastLeaveGroupCommunityId = communityId
         callLog?.append("leaveGroupChat")
         if let leaveGroupChatError { throw leaveGroupChatError }
+    }
+
+    func setChatMuted(chatId: String, muted: Bool) async throws {
+        setMutedCallCount += 1
+        lastMutedChatId = chatId
+        lastMutedValue = muted
+        callLog?.append("setChatMuted")
+        if let index = visibleChats.firstIndex(where: { $0.id == chatId }) {
+            visibleChats[index].isMuted = muted
+        }
+        if let index = hiddenChats.firstIndex(where: { $0.id == chatId }) {
+            hiddenChats[index].isMuted = muted
+        }
+    }
+
+    func hideChat(chatId: String) async throws {
+        hideChatCallCount += 1
+        lastHiddenChatId = chatId
+        callLog?.append("hideChat")
+        if let index = visibleChats.firstIndex(where: { $0.id == chatId }) {
+            let chat = visibleChats.remove(at: index)
+            if !hiddenChats.contains(where: { $0.id == chatId }) {
+                hiddenChats.append(chat)
+            }
+        }
+    }
+
+    func unhideChat(chatId: String) async throws {
+        unhideChatCallCount += 1
+        lastUnhiddenChatId = chatId
+        callLog?.append("unhideChat")
+        if let index = hiddenChats.firstIndex(where: { $0.id == chatId }) {
+            let chat = hiddenChats.remove(at: index)
+            if !visibleChats.contains(where: { $0.id == chatId }) {
+                visibleChats.append(chat)
+            }
+        }
     }
 }
 
@@ -161,13 +239,19 @@ final class MockConnectionRepository: ConnectionRepository, @unchecked Sendable 
     var candidates: [User] = []
     var incoming: [ConnectionRequest] = []
     var matched: [ConnectionRequest] = []
+    /// Extra / overridden peer relationships keyed by peer user id.
+    var connectionsByPeerId: [String: ConnectionRequest] = [:]
     var respondError: Error?
     var sendConnectError: Error?
+    var fetchConnectionError: Error?
+    var removeConnectionError: Error?
     var acceptCallCount = 0
     var declineCallCount = 0
     var sendConnectCallCount = 0
+    var removeConnectionCallCount = 0
     var lastSendConnectUserId: String?
     var lastSendConnectCommunityId: String?
+    var lastRemovedPeerId: String?
 
     func fetchCandidates(communityId: String) async throws -> [User] { candidates }
 
@@ -195,6 +279,38 @@ final class MockConnectionRepository: ConnectionRepository, @unchecked Sendable 
             incoming.removeAll { $0.id == requestId }
         }
     }
+
+    func fetchConnection(with peerId: String) async throws -> ConnectionRequest? {
+        if let fetchConnectionError { throw fetchConnectionError }
+        if let override = connectionsByPeerId[peerId] {
+            return override
+        }
+        let currentUserId = MockAuthRepository.sampleUser.id
+        return matched.first {
+            ($0.fromUserId == currentUserId && $0.toUserId == peerId)
+                || ($0.toUserId == currentUserId && $0.fromUserId == peerId)
+        } ?? incoming.first {
+            ($0.fromUserId == currentUserId && $0.toUserId == peerId)
+                || ($0.toUserId == currentUserId && $0.fromUserId == peerId)
+        }
+    }
+
+    func removeConnection(with peerId: String) async throws {
+        removeConnectionCallCount += 1
+        lastRemovedPeerId = peerId
+        if let removeConnectionError { throw removeConnectionError }
+        let currentUserId = MockAuthRepository.sampleUser.id
+        for index in matched.indices {
+            let request = matched[index]
+            let isPair =
+                (request.fromUserId == currentUserId && request.toUserId == peerId)
+                || (request.toUserId == currentUserId && request.fromUserId == peerId)
+            if isPair {
+                matched[index].status = .declined
+            }
+        }
+        connectionsByPeerId[peerId]?.status = .declined
+    }
 }
 
 // MARK: - Community / User
@@ -216,10 +332,13 @@ final class MockCommunityRepository: CommunityRepository, @unchecked Sendable {
     var fetchMembersError: Error?
     var joinError: Error?
     var leaveError: Error?
+    var createCommunityError: Error?
     var joinCallCount = 0
     var leaveCallCount = 0
+    var createCommunityCallCount = 0
     var lastJoinedCommunityId: String?
     var lastLeftCommunityId: String?
+    var lastCreatedCommunity: Community?
     var callLog: MockCallLog?
 
     func fetchCommunities() async throws -> [Community] {
@@ -251,6 +370,27 @@ final class MockCommunityRepository: CommunityRepository, @unchecked Sendable {
         if let leaveError { throw leaveError }
         membersByCommunity[communityId]?.removeAll { $0.id == MockAuthRepository.sampleUser.id }
     }
+
+    func createCommunity(
+        name: String,
+        description: String,
+        interestTag: String
+    ) async throws -> Community {
+        createCommunityCallCount += 1
+        callLog?.append("community.create")
+        if let createCommunityError { throw createCommunityError }
+        let community = Community(
+            id: "community-\(communities.count + 1)",
+            name: name,
+            description: description,
+            interestTag: interestTag,
+            memberCount: 1
+        )
+        communities.append(community)
+        membersByCommunity[community.id] = [MockAuthRepository.sampleUser]
+        lastCreatedCommunity = community
+        return community
+    }
 }
 
 final class MockUserRepository: UserRepository, @unchecked Sendable {
@@ -280,6 +420,17 @@ final class MockUserRepository: UserRepository, @unchecked Sendable {
         throw NSError(domain: "MockUserRepository", code: 404, userInfo: [
             NSLocalizedDescriptionKey: "Profile not found"
         ])
+    }
+
+    func fetchProfiles(userIds: [String]) async throws -> [String: User] {
+        if let fetchProfileError { throw fetchProfileError }
+        var result: [String: User] = [:]
+        for id in Set(userIds) where !id.isEmpty {
+            if let profile = profiles[id] {
+                result[id] = profile
+            }
+        }
+        return result
     }
 
     func updateProfile(_ user: User) async throws {

@@ -5,11 +5,11 @@ import SwiftUI
 struct CLEmptyState: View {
     let systemImage: String
     let title: String
-    var message: String? = nil
-    var actionTitle: String? = nil
-    var actionAccessibilityLabel: String? = nil
-    var titleAccessibilityLabel: String? = nil
-    var action: (() -> Void)? = nil
+    var message: String?
+    var actionTitle: String?
+    var actionAccessibilityLabel: String?
+    var titleAccessibilityLabel: String?
+    var action: (() -> Void)?
 
     var body: some View {
         VStack(spacing: CLSpacing.md) {
