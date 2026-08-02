@@ -13,40 +13,42 @@ Use this workflow until architecture phases **1–33** are finished.
 |------|------|
 | Stable | `main` — do not change for this work |
 | Integration | `develop` |
-| Parent (accumulator) | `feature/architecture-refactoring` (from `develop`) |
-| Working (one at a time) | `step-N` → rename to `step-(N+1)` after each phase |
+| Parent (accumulator) | `dev/architecture-refactoring` (from `develop`) |
+| Working (one at a time) | `dev/step-N` → rename to `dev/step-(N+1)` after each phase |
 
-There is **only one** working step branch at a time. Do not create `step-01`…`step-33` in parallel.
+There is **only one** working step branch at a time. Do not create `dev/step-01`…`dev/step-33` in parallel.
+
+Work branches live under the `dev/` namespace (Git cannot use `develop/...` while `develop` exists).
 
 ## Cycle (every phase)
 
-1. Implement **only** the current phase on `step-N` (prompt in `docs/architecture-phase-prompts/`).
+1. Implement **only** the current phase on `dev/step-N` (prompt in `docs/architecture-phase-prompts/`).
 2. Verify build for the touched area.
-3. Commit on `step-N` when the user asks (message: `Phase N: <short description>`).
+3. Commit on `dev/step-N` when the user asks (message: `Phase N: <short description>`).
 4. **Squash-merge** into parent:
    ```bash
-   git checkout feature/architecture-refactoring
-   git merge --squash step-N
+   git checkout dev/architecture-refactoring
+   git merge --squash dev/step-N
    git commit -m "Phase N: <short description>"
    ```
 5. Rename working branch and align to parent tip (required after squash):
    ```bash
-   git branch -m step-N step-(N+1)
-   git checkout step-(N+1)
-   git reset --hard feature/architecture-refactoring
+   git branch -m dev/step-N dev/step-(N+1)
+   git checkout dev/step-(N+1)
+   git reset --hard dev/architecture-refactoring
    ```
 6. Update remotes:
    ```bash
-   git push -u origin feature/architecture-refactoring
-   git push -u origin step-(N+1)
-   git push origin --delete step-N
+   git push -u origin dev/architecture-refactoring
+   git push -u origin dev/step-(N+1)
+   git push origin --delete dev/step-N
    ```
-7. Continue the next phase on `step-(N+1)`.
+7. Continue the next phase on `dev/step-(N+1)`.
 
 ## PR policy
 
 - **No PR per phase.**
-- **One PR only after phase 33:** `feature/architecture-refactoring` → `develop`.
+- **One PR only after phase 33:** `dev/architecture-refactoring` → `develop`.
 - Do not open PRs into `main` for this refactor.
 
 ## Hard rules
@@ -55,6 +57,7 @@ There is **only one** working step branch at a time. Do not create `step-01`…`
 - Do not push architecture work to `main`.
 - After every squash, **reset** the renamed step branch to the parent tip before new work (avoids duplicate diffs on the next squash).
 - Parent is created from `develop`; final merge target is `develop` when all phases are stable.
+- Keep integration work under `dev/...` (not `feature/...`).
 
 ## Repo
 
