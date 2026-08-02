@@ -21,9 +21,11 @@ final class MockAuthRepository: AuthRepository, @unchecked Sendable {
     var signInWithAppleResult: Result<User, Error> = .success(MockAuthRepository.sampleUser)
     var signInWithEmailResult: Result<User, Error> = .success(MockAuthRepository.sampleUser)
     var signUpWithEmailResult: Result<User, Error> = .success(MockAuthRepository.sampleUser)
+    var restoreSessionProfileResult: Result<User?, Error>?
     var signInWithAppleCallCount = 0
     var signInWithEmailCallCount = 0
     var signUpWithEmailCallCount = 0
+    var restoreSessionProfileCallCount = 0
     var lastEmail: String?
     var lastPassword: String?
 
@@ -58,6 +60,16 @@ final class MockAuthRepository: AuthRepository, @unchecked Sendable {
 
     func signOut() throws {
         currentUser = nil
+    }
+
+    func restoreSessionProfile() async throws -> User? {
+        restoreSessionProfileCallCount += 1
+        if let restoreSessionProfileResult {
+            let user = try restoreSessionProfileResult.get()
+            currentUser = user
+            return user
+        }
+        return currentUser
     }
 
     static let sampleUser = User(

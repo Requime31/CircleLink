@@ -28,6 +28,10 @@ final class StubAuthRepository: AuthRepository, @unchecked Sendable {
         storedUser = nil
     }
 
+    func restoreSessionProfile() async throws -> User? {
+        storedUser
+    }
+
     static let previewUser = User(
         id: "stub-user",
         displayName: "CircleLink User",
