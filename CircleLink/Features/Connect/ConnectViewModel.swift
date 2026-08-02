@@ -314,19 +314,22 @@ final class ConnectViewModel: ObservableObject {
         do {
             let requests = try await connectionRepository.fetchMatchedConnections()
             let currentUserId = authRepository.currentUser?.id
-            var items: [MatchedConnectionItem] = []
-            items.reserveCapacity(requests.count)
-
-            for request in requests {
+            let unresolved: [(request: ConnectionRequest, peerId: String)] = requests.compactMap { request in
                 let peerId = request.fromUserId == currentUserId ? request.toUserId : request.fromUserId
-                guard !blockedUserIds.contains(peerId) else { continue }
-                do {
-                    let peer = try await userRepository.fetchProfile(userId: peerId)
-                    items.append(MatchedConnectionItem(request: request, peer: peer))
-                } catch {
-                    // Skip broken peer profiles so one missing user doesn't fail the section.
-                    continue
-                }
+                guard !blockedUserIds.contains(peerId) else { return nil }
+                return (request, peerId)
+            }
+
+            guard !unresolved.isEmpty else {
+                matchedState = .empty
+                return
+            }
+
+            // Missing profiles are omitted by fetchProfiles — same skip behavior as before.
+            let profiles = try await userRepository.fetchProfiles(userIds: unresolved.map(\.peerId))
+            let items = unresolved.compactMap { pair -> MatchedConnectionItem? in
+                guard let peer = profiles[pair.peerId] else { return nil }
+                return MatchedConnectionItem(request: pair.request, peer: peer)
             }
 
             matchedState = items.isEmpty ? .empty : .loaded(items)
@@ -339,14 +342,18 @@ final class ConnectViewModel: ObservableObject {
         _ requests: [ConnectionRequest],
         peerId: KeyPath<ConnectionRequest, String>
     ) async throws -> [ConnectRequestItem] {
-        var items: [ConnectRequestItem] = []
-        items.reserveCapacity(requests.count)
+        guard !requests.isEmpty else { return [] }
 
-        for request in requests {
-            let peer = try await userRepository.fetchProfile(userId: request[keyPath: peerId])
-            items.append(ConnectRequestItem(request: request, peer: peer))
+        let profiles = try await userRepository.fetchProfiles(
+            userIds: requests.map { $0[keyPath: peerId] }
+        )
+
+        // Missing docs are omitted (batch contract). Previously a single fetchProfile
+        // failure failed the whole incoming section — skipping is safer for lists.
+        return requests.compactMap { request in
+            let id = request[keyPath: peerId]
+            guard let peer = profiles[id] else { return nil }
+            return ConnectRequestItem(request: request, peer: peer)
         }
-
-        return items
     }
 }

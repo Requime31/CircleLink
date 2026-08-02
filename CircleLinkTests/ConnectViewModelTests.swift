@@ -7,16 +7,29 @@ struct ConnectViewModelTests {
     private func makeViewModel(
         connection: MockConnectionRepository = MockConnectionRepository(),
         chat: MockChatRepository = MockChatRepository(),
+        user: MockUserRepository = MockUserRepository(),
+        moderation: StubModerationRepository = StubModerationRepository(),
         onOpenChat: @escaping (String) -> Void = { _ in }
     ) -> ConnectViewModel {
         ConnectViewModel(
             connectionRepository: connection,
             chatRepository: chat,
             communityRepository: MockCommunityRepository(),
-            userRepository: MockUserRepository(),
+            userRepository: user,
             authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            moderationRepository: StubModerationRepository(),
+            moderationRepository: moderation,
             onOpenChat: onOpenChat
+        )
+    }
+
+    private func samplePeer(id: String, name: String) -> User {
+        User(
+            id: id,
+            displayName: name,
+            avatarURL: nil,
+            avatarBase64: nil,
+            interests: ["Design"],
+            ageConfirmedAt: Date()
         )
     }
 
@@ -125,5 +138,81 @@ struct ConnectViewModelTests {
         viewModel.passCandidate(userId: "peer-1")
 
         #expect(!viewModel.deckCandidates.contains { $0.id == "peer-1" })
+    }
+
+    @Test func loadIncomingBatchesPeerProfiles() async {
+        let connection = MockConnectionRepository()
+        connection.incoming = [
+            pendingRequest(id: "req-1", fromUserId: "peer-1"),
+            pendingRequest(id: "req-2", fromUserId: "peer-2")
+        ]
+
+        let user = MockUserRepository()
+        user.profiles["peer-2"] = samplePeer(id: "peer-2", name: "Peer Two")
+
+        let viewModel = makeViewModel(connection: connection, user: user)
+        await viewModel.load()
+
+        #expect(user.fetchProfilesCallCount == 1)
+        #expect(user.fetchProfileCallCount == 0)
+        #expect(Set(user.lastFetchProfilesUserIds) == Set(["peer-1", "peer-2"]))
+
+        if case let .loaded(items) = viewModel.incomingState {
+            #expect(items.map(\.peer.id).sorted() == ["peer-1", "peer-2"])
+        } else {
+            Issue.record("Expected loaded incoming with both peers")
+        }
+    }
+
+    @Test func loadMatchedBatchesPeerProfilesAndSkipsBlocked() async {
+        let connection = MockConnectionRepository()
+        connection.matched = [
+            ConnectionRequest(
+                id: "m-1",
+                fromUserId: "peer-1",
+                toUserId: "user-1",
+                communityId: "community-1",
+                status: .accepted,
+                createdAt: Date()
+            ),
+            ConnectionRequest(
+                id: "m-2",
+                fromUserId: "user-1",
+                toUserId: "peer-2",
+                communityId: "community-1",
+                status: .accepted,
+                createdAt: Date()
+            ),
+            ConnectionRequest(
+                id: "m-3",
+                fromUserId: "blocked-peer",
+                toUserId: "user-1",
+                communityId: "community-1",
+                status: .accepted,
+                createdAt: Date()
+            )
+        ]
+
+        let user = MockUserRepository()
+        user.profiles["peer-2"] = samplePeer(id: "peer-2", name: "Peer Two")
+        user.profiles["blocked-peer"] = samplePeer(id: "blocked-peer", name: "Blocked")
+
+        let viewModel = makeViewModel(
+            connection: connection,
+            user: user,
+            moderation: StubModerationRepository(blockedUserIds: ["blocked-peer"])
+        )
+        await viewModel.load()
+
+        #expect(user.fetchProfilesCallCount == 1)
+        #expect(user.fetchProfileCallCount == 0)
+        #expect(Set(user.lastFetchProfilesUserIds) == Set(["peer-1", "peer-2"]))
+        #expect(!user.lastFetchProfilesUserIds.contains("blocked-peer"))
+
+        if case let .loaded(items) = viewModel.matchedState {
+            #expect(items.map(\.request.id).sorted() == ["m-1", "m-2"])
+        } else {
+            Issue.record("Expected matched list without blocked peer")
+        }
     }
 }

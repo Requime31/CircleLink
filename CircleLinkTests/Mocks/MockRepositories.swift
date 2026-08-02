@@ -422,9 +422,13 @@ final class MockUserRepository: UserRepository, @unchecked Sendable {
     var fetchProfileError: Error?
     var confirmAgeCallCount = 0
     var updateProfileCallCount = 0
+    var fetchProfileCallCount = 0
+    var fetchProfilesCallCount = 0
+    var lastFetchProfilesUserIds: [String] = []
     var lastUpdatedUser: User?
 
     func fetchProfile(userId: String) async throws -> User {
+        fetchProfileCallCount += 1
         if let fetchProfileError { throw fetchProfileError }
         if let profile = profiles[userId] {
             return profile
@@ -435,6 +439,8 @@ final class MockUserRepository: UserRepository, @unchecked Sendable {
     }
 
     func fetchProfiles(userIds: [String]) async throws -> [String: User] {
+        fetchProfilesCallCount += 1
+        lastFetchProfilesUserIds = userIds
         if let fetchProfileError { throw fetchProfileError }
         var result: [String: User] = [:]
         for id in Set(userIds) where !id.isEmpty {

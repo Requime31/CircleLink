@@ -1,7 +1,11 @@
 import Foundation
 
 final class StubModerationRepository: ModerationRepository, @unchecked Sendable {
-    private var blockedIds = Set<String>()
+    private var blockedIds: Set<String>
+
+    init(blockedUserIds: Set<String> = []) {
+        self.blockedIds = blockedUserIds
+    }
 
     func reportUser(
         userId: String,
