@@ -9,6 +9,10 @@ final class StubChatRepository: ChatRepository, @unchecked Sendable {
         OrganizedChats(visible: [], hidden: [])
     }
 
+    func fetchChatThreadMetadata(chatId: String) async throws -> ChatThreadMetadata {
+        ChatThreadMetadata(title: "Stub Chat", communityId: nil)
+    }
+
     func fetchChatInfo(chatId: String) async throws -> ChatInfo {
         ChatInfo(
             id: chatId,

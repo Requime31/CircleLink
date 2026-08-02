@@ -1,6 +1,6 @@
 import Foundation
 
-struct ConnectionRequest: Codable, Equatable, Sendable, Identifiable {
+nonisolated struct ConnectionRequest: Codable, Equatable, Sendable, Identifiable {
     let id: String
     let fromUserId: String
     let toUserId: String

@@ -1,6 +1,6 @@
 import Foundation
 
-struct Message: Codable, Equatable, Sendable, Identifiable {
+nonisolated struct Message: Codable, Equatable, Sendable, Identifiable {
     let id: String
     let chatId: String
     let senderId: String

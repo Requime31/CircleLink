@@ -88,6 +88,10 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     var visibleChats: [ChatSummary] = []
     var hiddenChats: [ChatSummary] = []
     var chatInfos: [String: ChatInfo] = [:]
+    var chatThreadMetadata: [String: ChatThreadMetadata] = [:]
+    var fetchChatThreadMetadataError: Error?
+    var fetchChatThreadMetadataCallCount = 0
+    var lastFetchChatThreadMetadataId: String?
     var messages: [Message] = []
     var sendError: Error?
     var createDirectChatResult: String = "direct-chat-1"
@@ -121,6 +125,21 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
 
     func fetchOrganizedChats() async throws -> OrganizedChats {
         OrganizedChats(visible: visibleChats, hidden: hiddenChats)
+    }
+
+    func fetchChatThreadMetadata(chatId: String) async throws -> ChatThreadMetadata {
+        fetchChatThreadMetadataCallCount += 1
+        lastFetchChatThreadMetadataId = chatId
+        if let fetchChatThreadMetadataError {
+            throw fetchChatThreadMetadataError
+        }
+        if let metadata = chatThreadMetadata[chatId] {
+            return metadata
+        }
+        if let info = chatInfos[chatId] {
+            return ChatThreadMetadata(title: info.title, communityId: info.communityId)
+        }
+        return ChatThreadMetadata(title: "Chat", communityId: nil)
     }
 
     func fetchChatInfo(chatId: String) async throws -> ChatInfo {

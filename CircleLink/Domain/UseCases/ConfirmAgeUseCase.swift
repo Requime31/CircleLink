@@ -1,6 +1,6 @@
 import Foundation
 
-enum ConfirmAgeUseCaseError: LocalizedError, Equatable {
+nonisolated enum ConfirmAgeUseCaseError: LocalizedError, Equatable {
     case sessionExpired
 
     var errorDescription: String? {

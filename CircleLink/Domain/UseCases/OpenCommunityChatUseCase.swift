@@ -1,6 +1,6 @@
 import Foundation
 
-enum OpenCommunityChatUseCaseError: LocalizedError, Equatable {
+nonisolated enum OpenCommunityChatUseCaseError: LocalizedError, Equatable {
     case notSignedIn
     /// Refreshed member list is included so the UI can update before showing the error.
     case notAMember(members: [User])
@@ -18,7 +18,7 @@ enum OpenCommunityChatUseCaseError: LocalizedError, Equatable {
 /// Refreshes members, verifies membership, and creates/opens the community group chat.
 /// Multi-repo: `CommunityRepository` + `ChatRepository` (+ session from `AuthRepository`).
 struct OpenCommunityChatUseCase: Sendable {
-    struct Output: Sendable, Equatable {
+    nonisolated struct Output: Sendable, Equatable {
         let chatId: String
         let members: [User]
     }

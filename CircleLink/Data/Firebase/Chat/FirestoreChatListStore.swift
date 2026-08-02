@@ -81,28 +81,17 @@ final class FirestoreChatListStore: @unchecked Sendable {
         )
     }
 
+    /// Chat doc only — used by deep links / open-chat when the list VM is not loaded.
+    func fetchChatThreadMetadata(chatId: String) async throws -> ChatThreadMetadata {
+        let data = try await fetchChatDocumentData(chatId: chatId)
+        return Self.threadMetadata(from: data)
+    }
+
     func fetchChatInfo(chatId: String) async throws -> ChatInfo {
-        _ = try support.requireCurrentUserId()
-
-        let chatDoc = try await support.db.collection(support.chatsCollection).document(chatId).getDocument()
-        guard chatDoc.exists else {
-            throw FirestoreChatError.chatNotFound
-        }
-
-        let data = chatDoc.data() ?? [:]
+        let data = try await fetchChatDocumentData(chatId: chatId)
+        let metadata = Self.threadMetadata(from: data)
         let typeRaw = data["type"] as? String ?? ChatType.direct.rawValue
         let type = ChatType(rawValue: typeRaw) ?? .direct
-        let communityId = (data["communityId"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedCommunityId = (communityId?.isEmpty == false) ? communityId : nil
-        let title = (data["title"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedTitle: String
-        if let title, !title.isEmpty {
-            resolvedTitle = title
-        } else {
-            resolvedTitle = "Chat"
-        }
         let participantIds = FirestoreChatMapper.participantIds(from: data)
 
         var participants: [User] = []
@@ -116,10 +105,35 @@ final class FirestoreChatListStore: @unchecked Sendable {
         return ChatInfo(
             id: chatId,
             type: type,
-            title: resolvedTitle,
-            communityId: resolvedCommunityId,
+            title: metadata.title,
+            communityId: metadata.communityId,
             participants: participants
         )
+    }
+
+    private func fetchChatDocumentData(chatId: String) async throws -> [String: Any] {
+        _ = try support.requireCurrentUserId()
+
+        let chatDoc = try await support.db.collection(support.chatsCollection).document(chatId).getDocument()
+        guard chatDoc.exists else {
+            throw FirestoreChatError.chatNotFound
+        }
+        return chatDoc.data() ?? [:]
+    }
+
+    private static func threadMetadata(from data: [String: Any]) -> ChatThreadMetadata {
+        let communityId = (data["communityId"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedCommunityId = (communityId?.isEmpty == false) ? communityId : nil
+        let title = (data["title"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedTitle: String
+        if let title, !title.isEmpty {
+            resolvedTitle = title
+        } else {
+            resolvedTitle = "Chat"
+        }
+        return ChatThreadMetadata(title: resolvedTitle, communityId: resolvedCommunityId)
     }
 
     // MARK: - Private

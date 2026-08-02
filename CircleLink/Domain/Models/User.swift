@@ -1,6 +1,8 @@
 import Foundation
 
-struct User: Codable, Equatable, Sendable, Identifiable {
+/// Domain entity — must stay off the default `@MainActor` isolation so
+/// `Equatable` / `Sendable` work in repositories and background tasks.
+nonisolated struct User: Codable, Equatable, Sendable, Identifiable {
     let id: String
     var displayName: String
     var avatarURL: URL?

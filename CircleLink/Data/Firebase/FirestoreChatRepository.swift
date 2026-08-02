@@ -41,6 +41,10 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         try await listStore.unhideChat(chatId: chatId)
     }
 
+    func fetchChatThreadMetadata(chatId: String) async throws -> ChatThreadMetadata {
+        try await listStore.fetchChatThreadMetadata(chatId: chatId)
+    }
+
     func fetchChatInfo(chatId: String) async throws -> ChatInfo {
         try await listStore.fetchChatInfo(chatId: chatId)
     }

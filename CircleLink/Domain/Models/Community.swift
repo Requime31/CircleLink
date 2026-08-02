@@ -1,6 +1,6 @@
 import Foundation
 
-struct Community: Codable, Equatable, Sendable, Identifiable {
+nonisolated struct Community: Codable, Equatable, Sendable, Identifiable {
     let id: String
     let name: String
     let description: String

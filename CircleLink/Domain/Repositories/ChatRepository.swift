@@ -1,7 +1,7 @@
 import Foundation
 
 /// Visible + hidden buckets from one chatRefs pass (avoids a second round-trip).
-struct OrganizedChats: Sendable {
+nonisolated struct OrganizedChats: Sendable {
     let visible: [ChatSummary]
     let hidden: [ChatSummary]
 }
@@ -13,6 +13,8 @@ protocol ChatRepository: Sendable {
     func fetchHiddenChats() async throws -> [ChatSummary]
     /// One Firestore pass → both lists (preferred for the Chats tab).
     func fetchOrganizedChats() async throws -> OrganizedChats
+    /// Lightweight title + communityId for open-chat / deep links (no participant profiles).
+    func fetchChatThreadMetadata(chatId: String) async throws -> ChatThreadMetadata
     /// Loads chat metadata + participant profiles for Chat Info / Members.
     func fetchChatInfo(chatId: String) async throws -> ChatInfo
     func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message]

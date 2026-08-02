@@ -5,7 +5,8 @@ import UIKit
 /// **Single-compress rule:** UI / ViewControllers pass original (or lightly encoded) bytes.
 /// Upload paths (`FirestoreChatMessagesStore`, `FirestoreCommunityPostRepository`) and
 /// profile avatar save call compression **once**, off the main actor via `*OffMain`.
-enum ImageCompressor {
+/// Opt out of default `@MainActor` so `*OffMain` can call compress from `Task.detached`.
+nonisolated enum ImageCompressor {
     private static let avatarMaxDimension: CGFloat = 256
     private static let avatarJpegQuality: CGFloat = 0.55
     private static let avatarMaxBytes = 120_000
@@ -105,7 +106,7 @@ enum ImageCompressor {
     }
 }
 
-enum ImageCompressorError: LocalizedError {
+nonisolated enum ImageCompressorError: LocalizedError {
     case invalidImageData
     case compressionFailed
     case tooLarge

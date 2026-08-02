@@ -1,7 +1,7 @@
 import Foundation
 
 /// Full chat metadata for the Chat Info / Members screen.
-struct ChatInfo: Equatable, Sendable, Identifiable {
+nonisolated struct ChatInfo: Equatable, Sendable, Identifiable {
     let id: String
     let type: ChatType
     let title: String

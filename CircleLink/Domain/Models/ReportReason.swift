@@ -1,6 +1,6 @@
 import Foundation
 
-enum ReportReason: String, Codable, CaseIterable, Sendable {
+nonisolated enum ReportReason: String, Codable, CaseIterable, Sendable {
     case spam
     case harassment
     case inappropriate

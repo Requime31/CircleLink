@@ -2,7 +2,7 @@ import Foundation
 import UserNotifications
 
 /// Result of toggling the in-app notifications preference from Settings.
-enum NotificationsToggleResult: Equatable {
+nonisolated enum NotificationsToggleResult: Equatable {
     case enabled
     case disabled
     /// System permission is denied — only iOS Settings can re-enable.

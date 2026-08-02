@@ -27,6 +27,9 @@ final class AppCoordinator: ObservableObject {
 
     private let dependencies: AppDependencies
     private var pendingDeepLink: PushDeepLink?
+    private var openChatTask: Task<Void, Never>?
+    /// Bumped to ignore stale metadata fetches after a newer open-chat / non-chat route.
+    private var openChatGeneration = 0
 
     private let communitiesViewModel: CommunitiesViewModel
     private let chatsViewModel: ChatsViewModel
@@ -174,6 +177,7 @@ final class AppCoordinator: ObservableObject {
     }
 
     func handleSignedOut() {
+        cancelOpenChatWork()
         currentProfile = nil
         pendingDeepLink = nil
         pendingChatRoute = nil
@@ -248,18 +252,23 @@ final class AppCoordinator: ObservableObject {
         switch deepLink.kind {
         case .newMessage:
             if let chatId = deepLink.chatId {
-                selectedTab = .chats
-                openChat(chatId: chatId, title: chatTitle(for: chatId))
+                openChat(chatId: chatId)
             } else {
+                cancelOpenChatWork()
+                pendingChatRoute = nil
                 selectedTab = .chats
             }
 
         case .connectionRequest:
+            cancelOpenChatWork()
+            pendingChatRoute = nil
             selectedTab = .connect
 
         case .connectionAccepted:
             // Open Connect (not Chat) so we never create/mutate a chat as a side effect
             // of a tap before `createDirectChat` has finished on the acceptor device.
+            cancelOpenChatWork()
+            pendingChatRoute = nil
             selectedTab = .connect
         }
     }
@@ -267,7 +276,7 @@ final class AppCoordinator: ObservableObject {
     // MARK: - Navigation callbacks
 
     func onChatSelected(chatId: String) {
-        openChat(chatId: chatId, title: chatTitle(for: chatId))
+        openChat(chatId: chatId)
     }
 
     func onCommunitySelected(communityId: String) {
@@ -277,30 +286,63 @@ final class AppCoordinator: ObservableObject {
 
     /// Group chat entry — `chatId` is a real Firestore id from `createGroupChat`.
     func onOpenGroupChat(chatId: String, title: String) {
-        openChat(chatId: chatId, title: title)
+        openChat(chatId: chatId, knownTitle: title)
     }
 
-    private func openChat(chatId: String, title: String) {
+    /// Opens a chat without reading `ChatsViewModel` list state.
+    /// Sets `pendingChatRoute` immediately, then refines title/`communityId` from the repository
+    /// only while that pending route is still unconsumed (avoids clobbering later navigation).
+    private func openChat(chatId: String, knownTitle: String? = nil) {
         selectedTab = .chats
-        let communityId: String?
-        if case let .loaded(chats) = chatsViewModel.state,
-           let match = chats.first(where: { $0.id == chatId }) {
-            communityId = match.communityId
-        } else {
-            communityId = nil
-        }
-        pendingChatRoute = ChatThreadRoute(
+        openChatTask?.cancel()
+        openChatGeneration += 1
+        let generation = openChatGeneration
+
+        pendingChatRoute = ChatThreadRouteBuilder.make(
             chatId: chatId,
-            title: title,
-            communityId: communityId
+            title: knownTitle,
+            communityId: nil
         )
+
+        openChatTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if generation == self.openChatGeneration {
+                    self.openChatTask = nil
+                }
+            }
+
+            do {
+                let metadata = try await self.dependencies.chatRepository
+                    .fetchChatThreadMetadata(chatId: chatId)
+                guard !Task.isCancelled, generation == self.openChatGeneration else { return }
+                // ChatList clears pending once consumed — do not re-push a stale route.
+                guard self.pendingChatRoute?.chatId == chatId else { return }
+
+                let title: String?
+                if let knownTitle, !knownTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    title = knownTitle
+                } else {
+                    title = metadata.title
+                }
+
+                self.pendingChatRoute = ChatThreadRouteBuilder.make(
+                    chatId: chatId,
+                    title: title,
+                    communityId: metadata.communityId
+                )
+            } catch is CancellationError {
+                return
+            } catch {
+                // Already opened with known/default title; communityId stays nil.
+                return
+            }
+        }
     }
 
-    private func chatTitle(for chatId: String) -> String {
-        if case let .loaded(chats) = chatsViewModel.state,
-           let match = chats.first(where: { $0.id == chatId }) {
-            return match.title
-        }
-        return "Chat"
+    private func cancelOpenChatWork() {
+        openChatTask?.cancel()
+        openChatTask = nil
+        openChatGeneration += 1
     }
 }

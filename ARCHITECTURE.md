@@ -38,7 +38,7 @@ View → ViewModel → (UseCase?) → Repository protocol ← Data implementatio
 2. **No Keychain in UI** — token access only through `SecureTokenStorage`
 3. **Chat realtime via repository** — screens call `ChatRepository.observeLiveMessages`; they never attach Firestore listeners themselves
 4. **Inject dependencies** — no `Firestore.firestore()` inside screens
-5. **Domain stays pure** — Domain imports only `Foundation` (no Firebase, UIKit, SwiftUI). Feed-row / view-data composition (e.g. `CommunityPostItem`) lives in Features, not Domain.
+5. **Domain stays pure** — Domain imports only `Foundation` (no Firebase, UIKit, SwiftUI). Feed-row / view-data composition (e.g. `CommunityPostItem`) lives in Features, not Domain. Domain models / `ImageCompressor` are marked `nonisolated` because the target defaults to MainActor isolation (`SWIFT_DEFAULT_ACTOR_ISOLATION`).
 6. **Single source of truth for messages** — Firestore documents only (no hybrid WebSocket + Firestore delivery for the same messages)
 7. **Every listener has a matching remove** — `addSnapshotListener` registration is removed when the `AsyncStream` terminates
 8. **Single image compress** — UI passes original/picked bytes. Chat/community upload paths compress once in Data (`ImageCompressor` in `Shared/`, off MainActor). Profile avatar compresses once in `ProfileViewModel` (base64 on `User`, also off MainActor). Policy: avatar ≤256px / ~0.55 JPEG / 120 KB; chat & community ≤1200px / ~0.7 JPEG / 500 KB.
@@ -60,7 +60,8 @@ FCM tap
   → AppDelegate (UNUserNotificationCenter)
   → PushNotificationHandler.parse → PushDeepLink
   → AppCoordinator.handleDeepLink
-  → Chat sheet / Connect tab
+  → ChatRepository.fetchChatThreadMetadata (not ChatsViewModel list state)
+  → pendingChatRoute → ChatList / Connect tab
 ```
 
 - Permission is requested when the user reaches the main tabs after auth / onboarding — not on cold launch.
