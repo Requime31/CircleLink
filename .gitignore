@@ -50,8 +50,10 @@ functions/lib/
 .AppleDouble
 .LSOverride
 
-# Cursor / IDE
-.cursor/
+# Cursor / IDE (keep shared project rules in git)
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 
 # Fastlane
 fastlane/report.xml

@@ -1,0 +1,21 @@
+---
+description: Legacy MVP phase→main PR workflow (paused during architecture refactor)
+alwaysApply: false
+---
+
+# CircleLink — Phase PR Workflow (paused)
+
+**Paused** while architecture phases 1–33 run under
+`.cursor/rules/architecture-refactor-branching.mdc`.
+
+Do not use this rule until that refactor is finished and the architecture rule is retired.
+
+## Legacy (for reference)
+
+After an MVP phase was done:
+
+1. Branch `phase-<N>-<short-name>` from `main`
+2. Commit `Phase N: <short description>`
+3. Push + `gh pr create` → `main`
+
+One phase = one PR. Never push phase work straight to `main`.
