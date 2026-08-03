@@ -161,16 +161,16 @@ final class AppDependencies {
     }
 
     /// Peer (other user) profile sheet. Pass `communityId` when known so Connect works.
-    /// Sheet owns its ViewModel — prefer this over creating the VM in a `.sheet` closure.
+    /// Composition root builds the ViewModel; the sheet owns it via `@StateObject`.
     func makePeerProfileSheet(
         userId: String,
         communityId: String? = nil
     ) -> PeerProfileSheet {
         PeerProfileSheet(
-            userId: userId,
-            communityId: communityId,
-            userRepository: userRepository,
-            connectionRepository: connectionRepository
+            viewModel: makePeerProfileViewModel(
+                userId: userId,
+                communityId: communityId
+            )
         )
     }
 
