@@ -136,25 +136,16 @@ final class AppCoordinator: ObservableObject {
     func bootstrapIfNeeded() async {
         guard route == .bootstrapping else { return }
 
-        do {
-            if let profile = try await dependencies.restoreAuthenticatedProfile() {
-                applyRoute(for: profile)
-                return
-            }
-        } catch {
-            route = .auth
-            return
-        }
+        let bootstrapper = SessionBootstrapper(
+            authRepository: dependencies.authRepository,
+            userRepository: dependencies.userRepository,
+            restoreAuthenticatedProfile: dependencies.restoreAuthenticatedProfile
+        )
 
-        guard let user = dependencies.authRepository.currentUser else {
-            route = .auth
-            return
-        }
-
-        do {
-            let profile = try await dependencies.userRepository.fetchProfile(userId: user.id)
+        switch await bootstrapper.bootstrap() {
+        case let .authenticated(profile):
             applyRoute(for: profile)
-        } catch {
+        case .signedOut:
             route = .auth
         }
     }
@@ -208,17 +199,13 @@ final class AppCoordinator: ObservableObject {
 
     private func applyRoute(for user: User) {
         currentProfile = user
+        let next = OnboardingRouteResolver.route(for: user)
+        route = next
 
-        if user.ageConfirmedAt == nil {
-            route = .ageGate
-        } else if !user.isProfileComplete {
-            route = .profileSetup
-        } else {
-            route = .mainTab
-            applyPendingDeepLinkIfNeeded()
-            // Permission after auth + onboarding — not on cold launch, not buried in Send/Connect.
-            Task { await dependencies.pushNotificationHandler.requestPermissionIfNeeded() }
-        }
+        guard next == .mainTab else { return }
+        applyPendingDeepLinkIfNeeded()
+        // Permission after auth + onboarding — not on cold launch, not buried in Send/Connect.
+        Task { await dependencies.pushNotificationHandler.requestPermissionIfNeeded() }
     }
 
     // MARK: - Deep links (push only — routed here)
