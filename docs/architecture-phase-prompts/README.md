@@ -59,9 +59,9 @@ Prefer **22 before 24–29** so empty/error extraction isn’t redone twice. Pre
 
 | Phase | File | Focus |
 |------:|------|--------|
-| 19 | `phase-19-split-message-cell.md` | Split MessageCell |
-| 20 | `phase-20-peer-profile-assembly.md` | PeerProfile DI |
-| 21 | `phase-21-misplaced-types.md` | AppleSignInPresenter + DirectChatPeer |
+| 19 | ~~`phase-19-split-message-cell.md`~~ **done** | Split MessageCell |
+| 20 | ~~`phase-20-peer-profile-assembly.md`~~ **done** | PeerProfile DI |
+| 21 | ~~`phase-21-misplaced-types.md`~~ **done** | AppleSignInPresenter + DirectChatPeer |
 
 ## App navigation / push / Data perf (30–33)
 
