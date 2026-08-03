@@ -86,7 +86,7 @@ CircleLink/
   Domain/        — Models, Repository protocols, DirectChatPeer
   Data/
     Auth/        — Apple Sign In presenter (UIKit AuthenticationServices)
-    Firebase/    — Auth + Firestore repos/mappers
+    Firebase/    — Auth + Firestore repos/mappers (`FirestoreUserDocument` for storage-shaped user fields)
     Supabase/    — chat image upload only
     Keychain/    — token storage
     Stubs/       — stub repos

@@ -37,8 +37,8 @@ Suggested: **12 → 14 → 13 → 15 → 16 → 17 → 18**
 
 | Phase | File | Focus |
 |------:|------|--------|
-| 22 | `phase-22-cl-empty-state-consistency.md` | `CLEmptyState` reuse (do now) |
-| 23 | `phase-23-domain-storage-leakage.md` | Option **A** only — DTO/mapper clarity, no schema change |
+| 22 | ~~`phase-22-cl-empty-state-consistency.md`~~ **done** | `CLEmptyState` reuse |
+| 23 | ~~`phase-23-domain-storage-leakage.md`~~ **done** | Option **A** only — DTO/mapper clarity, no schema change |
 
 ## Fat SwiftUI Views — one screen each (24–29)
 

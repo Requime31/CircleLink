@@ -70,23 +70,7 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
             throw FirestoreUserError.notAuthenticated
         }
 
-        var data: [String: Any] = [
-            "displayName": user.displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-            "interests": user.interests
-        ]
-
-        if let avatarURL = user.avatarURL?.absoluteString {
-            data["avatarURL"] = avatarURL
-        } else {
-            data["avatarURL"] = NSNull()
-        }
-
-        if let avatarBase64 = user.avatarBase64 {
-            data["avatarBase64"] = avatarBase64
-        } else {
-            data["avatarBase64"] = NSNull()
-        }
-
+        let data = FirestoreUserMapper.profileWriteData(from: user)
         let document = db.collection(usersCollection).document(user.id)
         let snapshot = try await document.getDocument()
 

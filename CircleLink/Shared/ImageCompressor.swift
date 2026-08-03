@@ -15,7 +15,7 @@ nonisolated enum ImageCompressor {
     private static let chatJpegQuality: CGFloat = 0.7
     private static let chatMaxBytes = 500_000
 
-    /// Avatar policy: max edge 256px, JPEG ~0.55, ≤120 KB (Firestore `avatarBase64`).
+    /// Avatar policy: max edge 256px, JPEG ~0.55, ≤120 KB (Firestore storage field `avatarBase64`).
     static func compressForAvatar(_ data: Data) throws -> Data {
         try compress(
             data,
