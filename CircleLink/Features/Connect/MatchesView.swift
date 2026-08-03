@@ -29,37 +29,24 @@ struct MatchesView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: CLSpacing.md) {
-            Image(systemName: "link")
-                .font(.system(size: 40, weight: .regular))
-                .foregroundStyle(CLColor.inkMuted)
-                .accessibilityHidden(true)
-            Text("No matches yet")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            Text("Accept someone from Liked you, or connect from Discover.")
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkMuted)
-                .multilineTextAlignment(.center)
-        }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        CLEmptyState(
+            systemImage: "link",
+            title: "No matches yet",
+            message: "Accept someone from Liked you, or connect from Discover."
+        )
     }
 
     private func errorState(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: CLSpacing.xs) {
-            Text(message)
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkSecondary)
-            Button("Retry") {
-                Task { await viewModel.load() }
-            }
-            .font(CLTypography.subheadline.weight(.medium))
-            .foregroundStyle(CLColor.primaryPressed)
-            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+        CLEmptyState(
+            systemImage: "exclamationmark.triangle",
+            title: message,
+            systemImageColor: CLColor.error,
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading matches",
+            titleAccessibilityLabel: "Error: \(message)"
+        ) {
+            Task { await viewModel.load() }
         }
-        .padding(CLSpacing.md)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func list(_ items: [MatchedConnectionItem]) -> some View {

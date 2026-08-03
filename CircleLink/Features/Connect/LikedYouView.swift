@@ -29,37 +29,24 @@ struct LikedYouView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: CLSpacing.md) {
-            Image(systemName: "heart")
-                .font(.system(size: 40, weight: .regular))
-                .foregroundStyle(CLColor.inkMuted)
-                .accessibilityHidden(true)
-            Text("No pending requests")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            Text("When someone wants to connect, they’ll show up here.")
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkMuted)
-                .multilineTextAlignment(.center)
-        }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        CLEmptyState(
+            systemImage: "heart",
+            title: "No pending requests",
+            message: "When someone wants to connect, they’ll show up here."
+        )
     }
 
     private func errorState(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: CLSpacing.xs) {
-            Text(message)
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkSecondary)
-            Button("Retry") {
-                Task { await viewModel.load() }
-            }
-            .font(CLTypography.subheadline.weight(.medium))
-            .foregroundStyle(CLColor.primaryPressed)
-            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+        CLEmptyState(
+            systemImage: "exclamationmark.triangle",
+            title: message,
+            systemImageColor: CLColor.error,
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading requests",
+            titleAccessibilityLabel: "Error: \(message)"
+        ) {
+            Task { await viewModel.load() }
         }
-        .padding(CLSpacing.md)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func list(_ items: [ConnectRequestItem]) -> some View {

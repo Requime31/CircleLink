@@ -6,6 +6,8 @@ struct CLEmptyState: View {
     let systemImage: String
     let title: String
     var message: String?
+    /// Defaults to muted ink; pass `CLColor.error` for soft-error screens.
+    var systemImageColor: Color = CLColor.inkMuted
     var actionTitle: String?
     var actionAccessibilityLabel: String?
     var titleAccessibilityLabel: String?
@@ -15,7 +17,7 @@ struct CLEmptyState: View {
         VStack(spacing: CLSpacing.md) {
             Image(systemName: systemImage)
                 .font(.system(size: 48, weight: .regular))
-                .foregroundStyle(CLColor.inkMuted)
+                .foregroundStyle(systemImageColor)
                 .accessibilityHidden(true)
 
             Text(title)

@@ -224,72 +224,35 @@ struct ChatListView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "bubble.left.and.bubble.right")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.inkMuted)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.primarySoft))
-                .accessibilityHidden(true)
-            Text("No chats yet")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            Text("Accept a Connect request to start a conversation.")
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkSecondary)
-                .multilineTextAlignment(.center)
-            Button("Refresh") {
-                Task { await viewModel.loadChats() }
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .padding(.top, CLSpacing.xs)
-            .accessibilityLabel("Refresh chats list")
+        CLEmptyState(
+            systemImage: "bubble.left.and.bubble.right",
+            title: "No chats yet",
+            message: "Accept a Connect request to start a conversation.",
+            actionTitle: "Refresh",
+            actionAccessibilityLabel: "Refresh chats list"
+        ) {
+            Task { await viewModel.loadChats() }
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var searchEmptyState: some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.inkMuted)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.surfaceSoft))
-                .accessibilityHidden(true)
-            Text("No chats found")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            Text("Try a different name or message.")
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkSecondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        CLEmptyState(
+            systemImage: "magnifyingglass",
+            title: "No chats found",
+            message: "Try a different name or message."
+        )
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.error)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.errorSoft))
-                .accessibilityHidden(true)
-            Text(message)
-                .font(CLTypography.body)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(CLColor.inkSecondary)
-                .accessibilityLabel("Error: \(message)")
-            Button("Retry") {
-                Task { await viewModel.loadChats() }
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .padding(.top, CLSpacing.xs)
-            .accessibilityLabel("Retry loading chats")
+        CLEmptyState(
+            systemImage: "exclamationmark.triangle",
+            title: message,
+            systemImageColor: CLColor.error,
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading chats",
+            titleAccessibilityLabel: "Error: \(message)"
+        ) {
+            Task { await viewModel.loadChats() }
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

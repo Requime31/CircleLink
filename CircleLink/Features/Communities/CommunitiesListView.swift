@@ -142,79 +142,40 @@ struct CommunitiesListView: View {
     }
 
     private var filterEmptyState: some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.inkMuted)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.tintCream))
-                .accessibilityHidden(true)
-            Text("No communities match")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            Text("Try a different search or clear the interest filter.")
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkSecondary)
-                .multilineTextAlignment(.center)
-            Button("Clear filters") {
-                viewModel.clearFilters()
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .padding(.top, CLSpacing.xs)
-            .accessibilityLabel("Clear search and interest filters")
+        CLEmptyState(
+            systemImage: "magnifyingglass",
+            title: "No communities match",
+            message: "Try a different search or clear the interest filter.",
+            actionTitle: "Clear filters",
+            actionAccessibilityLabel: "Clear search and interest filters"
+        ) {
+            viewModel.clearFilters()
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var emptyState: some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "person.3")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.inkMuted)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.primarySoft))
-                .accessibilityHidden(true)
-            Text("No communities yet")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            Text("Interest-based groups will appear here.")
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkSecondary)
-                .multilineTextAlignment(.center)
-            Button("Refresh") {
-                Task { await viewModel.loadCommunities() }
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .padding(.top, CLSpacing.xs)
-            .accessibilityLabel("Refresh communities list")
+        CLEmptyState(
+            systemImage: "person.3",
+            title: "No communities yet",
+            message: "Interest-based groups will appear here.",
+            actionTitle: "Refresh",
+            actionAccessibilityLabel: "Refresh communities list"
+        ) {
+            Task { await viewModel.loadCommunities() }
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.error)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.errorSoft))
-                .accessibilityHidden(true)
-            Text(message)
-                .font(CLTypography.body)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(CLColor.inkSecondary)
-                .accessibilityLabel("Error: \(message)")
-            Button("Retry") {
-                Task { await viewModel.loadCommunities() }
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .padding(.top, CLSpacing.xs)
-            .accessibilityLabel("Retry loading communities")
+        CLEmptyState(
+            systemImage: "exclamationmark.triangle",
+            title: message,
+            systemImageColor: CLColor.error,
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading communities",
+            titleAccessibilityLabel: "Error: \(message)"
+        ) {
+            Task { await viewModel.loadCommunities() }
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func memberCountLabel(for community: Community) -> String {

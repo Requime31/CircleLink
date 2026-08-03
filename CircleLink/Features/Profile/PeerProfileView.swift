@@ -159,46 +159,26 @@ struct PeerProfileView: View {
     // MARK: - Empty / error
 
     private var emptyState: some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "person.crop.circle.badge.exclamationmark")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.inkMuted)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.primarySoft))
-                .accessibilityHidden(true)
-            Text("Profile not found")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            Button("Retry") {
-                Task { await viewModel.load() }
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .padding(.top, CLSpacing.xs)
+        CLEmptyState(
+            systemImage: "person.crop.circle.badge.exclamationmark",
+            title: "Profile not found",
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading profile"
+        ) {
+            Task { await viewModel.load() }
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.error)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.errorSoft))
-                .accessibilityHidden(true)
-            Text(message)
-                .font(CLTypography.body)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(CLColor.inkSecondary)
-            Button("Retry") {
-                Task { await viewModel.load() }
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .padding(.top, CLSpacing.xs)
-            .accessibilityLabel("Retry loading profile")
+        CLEmptyState(
+            systemImage: "exclamationmark.triangle",
+            title: message,
+            systemImageColor: CLColor.error,
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading profile",
+            titleAccessibilityLabel: "Error: \(message)"
+        ) {
+            Task { await viewModel.load() }
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
