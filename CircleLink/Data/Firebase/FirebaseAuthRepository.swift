@@ -161,8 +161,8 @@ final class FirebaseAuthRepository: AuthRepository {
         try Auth.auth().signOut()
         invalidateCache()
         // Firebase is already signed out; Keychain cleanup must not keep authenticated UI visible.
-        // A stale token is unusable and restore retries cleanup when no Firebase session exists.
-        try? tokenStorage.delete(for: .firebaseIDToken)
+        // Restore retries cleanup when no Firebase session exists.
+        deleteStoredTokenBestEffort()
     }
 
     func restoreSessionProfile() async throws -> User? {
@@ -177,7 +177,7 @@ final class FirebaseAuthRepository: AuthRepository {
 
         guard let userId = Auth.auth().currentUser?.uid else {
             updateCachedUser(nil, generation: cacheGeneration)
-            try? tokenStorage.delete(for: .firebaseIDToken)
+            deleteStoredTokenBestEffort()
             return nil
         }
 
@@ -224,6 +224,16 @@ final class FirebaseAuthRepository: AuthRepository {
         cache.withLock {
             $0.generation &+= 1
             $0.user = nil
+        }
+    }
+
+    private func deleteStoredTokenBestEffort() {
+        do {
+            try tokenStorage.delete(for: .firebaseIDToken)
+        } catch {
+            #if DEBUG
+            print("[FirebaseAuthRepository] token cleanup failed: \(error.localizedDescription)")
+            #endif
         }
     }
 
