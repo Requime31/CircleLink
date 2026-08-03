@@ -4,7 +4,7 @@ import SwiftUI
 struct ConversationPeekPreview: View {
     let chatTitle: String
     let isGroup: Bool
-    let messages: [ChatMessageItem]
+    let preview: ChatsViewModel.ConversationPreview?
     let isLoading: Bool
 
     var body: some View {
@@ -23,11 +23,24 @@ struct ConversationPeekPreview: View {
             Divider()
                 .background(CLColor.hairline)
 
-            if isLoading && messages.isEmpty {
+            if isLoading && preview == nil {
                 ProgressView()
                     .tint(CLColor.primary)
                     .frame(maxWidth: .infinity, minHeight: 120)
-            } else if messages.isEmpty {
+            } else {
+                previewContent
+            }
+        }
+        .padding(CLSpacing.md)
+        .frame(width: 280)
+        .background(CLColor.canvas)
+    }
+
+    @ViewBuilder
+    private var previewContent: some View {
+        switch preview {
+        case let .loaded(messages):
+            if messages.isEmpty {
                 Text("No messages yet")
                     .font(CLTypography.subheadline)
                     .foregroundStyle(CLColor.inkSecondary)
@@ -40,10 +53,29 @@ struct ConversationPeekPreview: View {
                     }
                 }
             }
+        case let .failed(message):
+            VStack(spacing: CLSpacing.xs) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(CLColor.error)
+                    .accessibilityHidden(true)
+                Text("Couldn’t load preview")
+                    .font(CLTypography.subheadline.weight(.semibold))
+                    .foregroundStyle(CLColor.ink)
+                Text(message)
+                    .font(CLTypography.caption)
+                    .foregroundStyle(CLColor.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+            }
+            .frame(maxWidth: .infinity, minHeight: 80, alignment: .center)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Preview error: \(message)")
+        case nil:
+            Text("No messages yet")
+                .font(CLTypography.subheadline)
+                .foregroundStyle(CLColor.inkSecondary)
+                .frame(maxWidth: .infinity, minHeight: 80, alignment: .center)
         }
-        .padding(CLSpacing.md)
-        .frame(width: 280)
-        .background(CLColor.canvas)
     }
 
     @ViewBuilder

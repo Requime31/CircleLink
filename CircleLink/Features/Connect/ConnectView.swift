@@ -124,6 +124,33 @@ struct ConnectView: View {
     private var discoverContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CLSpacing.lg) {
+                if let blockedUsersErrorMessage = tab.blockedUsersErrorMessage {
+                    HStack(alignment: .top, spacing: CLSpacing.sm) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(CLColor.inkSecondary)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: CLSpacing.xxs) {
+                            Text("Blocked profiles may be out of date.")
+                                .font(CLTypography.footnote.weight(.semibold))
+                                .foregroundStyle(CLColor.ink)
+                            Text(blockedUsersErrorMessage)
+                                .font(CLTypography.caption)
+                                .foregroundStyle(CLColor.inkSecondary)
+                                .lineLimit(2)
+                            Button("Retry") {
+                                Task { await tab.load() }
+                            }
+                            .font(CLTypography.footnote.weight(.medium))
+                            .foregroundStyle(CLColor.primaryPressed)
+                            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                        }
+                    }
+                    .padding(CLSpacing.sm)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(CLColor.tintCream)
+                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+                }
+
                 if let actionErrorMessage = tab.actionErrorMessage {
                     Text(actionErrorMessage)
                         .font(CLTypography.footnote)

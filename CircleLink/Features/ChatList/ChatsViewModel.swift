@@ -3,6 +3,11 @@ import Foundation
 
 @MainActor
 final class ChatsViewModel: ObservableObject {
+    enum ConversationPreview: Equatable {
+        case loaded([ChatMessageItem])
+        case failed(String)
+    }
+
     @Published private(set) var state: ViewState<[ChatSummary]> = .idle
     @Published private(set) var hiddenChats: [ChatSummary] = []
     @Published private(set) var leaveErrorMessage: String?
@@ -53,18 +58,22 @@ final class ChatsViewModel: ObservableObject {
     }
 
     /// Last messages for context-menu peek (chronological, oldest → newest).
-    func fetchConversationPreview(chatId: String) async -> [ChatMessageItem] {
+    func fetchConversationPreview(chatId: String) async -> ConversationPreview? {
         do {
             let fetched = try await chatRepository.fetchMessages(
                 chatId: chatId,
                 limit: Self.previewMessageLimit,
                 before: nil
             )
-            return fetched.map {
-                ChatMessageItem(message: $0, currentUserId: currentUserId)
-            }
+            return .loaded(
+                fetched.map {
+                    ChatMessageItem(message: $0, currentUserId: currentUserId)
+                }
+            )
+        } catch is CancellationError {
+            return nil
         } catch {
-            return []
+            return .failed(error.localizedDescription)
         }
     }
 

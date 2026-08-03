@@ -19,6 +19,8 @@ protocol ChatRepository: Sendable {
     func fetchChatInfo(chatId: String) async throws -> ChatInfo
     func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message]
     func sendMessage(chatId: String, text: String?, image: Data?, clientMessageId: String) async throws
+    /// Follow-up: migrate to AsyncThrowingStream so listener failures can reach UI state.
+    /// AsyncStream currently carries messages and cancellation only.
     func observeLiveMessages(chatId: String) -> AsyncStream<Message>
     func createDirectChat(with userId: String) async throws -> String
     func createGroupChat(communityId: String, participantIds: [String]) async throws -> String

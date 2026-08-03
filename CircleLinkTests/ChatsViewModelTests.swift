@@ -43,6 +43,30 @@ struct ChatsViewModelTests {
         #expect(viewModel.hiddenCount == 1)
     }
 
+    @Test func conversationPreviewDistinguishesFailureFromEmptyChat() async {
+        struct PreviewError: LocalizedError {
+            var errorDescription: String? { "Preview unavailable" }
+        }
+
+        let repo = MockChatRepository()
+        let viewModel = ChatsViewModel(chatRepository: repo, currentUserId: "user-1")
+
+        let emptyResult = await viewModel.fetchConversationPreview(chatId: "chat-1")
+        if case let .loaded(messages)? = emptyResult {
+            #expect(messages.isEmpty)
+        } else {
+            Issue.record("Expected an explicitly loaded empty preview")
+        }
+
+        repo.fetchMessagesError = PreviewError()
+        let failedResult = await viewModel.fetchConversationPreview(chatId: "chat-1")
+        if case let .failed(message)? = failedResult {
+            #expect(message == "Preview unavailable")
+        } else {
+            Issue.record("Expected preview failure, not an empty conversation")
+        }
+    }
+
     @Test func staleLoadDoesNotOverwriteNewerOptimisticMute() async {
         let repo = MockChatRepository()
         let unmuted = makeSummary(id: "c1", title: "Alice", isMuted: false)

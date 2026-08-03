@@ -8,7 +8,7 @@ struct HiddenChatsView: View {
 
     /// Separate from the main list search so typing there doesn’t filter this screen.
     @State private var searchText = ""
-    @State private var previewCache: [String: [ChatMessageItem]] = [:]
+    @State private var previewCache: [String: ChatsViewModel.ConversationPreview] = [:]
     @State private var previewLoadingIds: Set<String> = []
 
     private var chats: [ChatSummary] {
@@ -75,7 +75,7 @@ struct HiddenChatsView: View {
                 ConversationPeekPreview(
                     chatTitle: chat.title,
                     isGroup: chat.type == .group,
-                    messages: previewCache[chat.id] ?? [],
+                    preview: previewCache[chat.id],
                     isLoading: previewLoadingIds.contains(chat.id)
                 )
                 .task {
@@ -135,8 +135,10 @@ struct HiddenChatsView: View {
             return
         }
         previewLoadingIds.insert(chatId)
-        let messages = await viewModel.fetchConversationPreview(chatId: chatId)
-        previewCache[chatId] = messages
+        let preview = await viewModel.fetchConversationPreview(chatId: chatId)
+        if let preview {
+            previewCache[chatId] = preview
+        }
         previewLoadingIds.remove(chatId)
     }
 }

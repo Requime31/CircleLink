@@ -88,6 +88,7 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     var visibleChats: [ChatSummary] = []
     var hiddenChats: [ChatSummary] = []
     var chatInfos: [String: ChatInfo] = [:]
+    var fetchChatInfoError: Error?
     var chatThreadMetadata: [String: ChatThreadMetadata] = [:]
     var fetchChatThreadMetadataError: Error?
     var fetchChatThreadMetadataCallCount = 0
@@ -198,6 +199,9 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     }
 
     func fetchChatInfo(chatId: String) async throws -> ChatInfo {
+        if let fetchChatInfoError {
+            throw fetchChatInfoError
+        }
         if let info = chatInfos[chatId] {
             return info
         }

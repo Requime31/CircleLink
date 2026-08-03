@@ -24,12 +24,16 @@ final class ConnectBlockFilter {
         blockedUserIds = []
     }
 
-    /// Fail closed: keep the last known set if refresh fails.
-    func refresh() async {
+    /// Keeps the last known set on failure and returns a degraded-state message.
+    func refresh() async -> String? {
         do {
             blockedUserIds = try await moderationRepository.fetchBlockedUserIds()
+            return nil
+        } catch is CancellationError {
+            return nil
         } catch {
-            // Keep last known block set so a refresh blip cannot re-surface blocked people.
+            // A previous successful set remains safer than replacing it with an empty set.
+            return error.localizedDescription
         }
     }
 }

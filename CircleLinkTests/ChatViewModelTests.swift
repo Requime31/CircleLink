@@ -49,6 +49,28 @@ struct ChatViewModelTests {
         }
     }
 
+    @Test func participantFailureKeepsMessagesUsableAndSurfacesWarning() async {
+        struct ParticipantError: LocalizedError {
+            var errorDescription: String? { "Participant details unavailable" }
+        }
+
+        let repo = MockChatRepository()
+        repo.fetchChatInfoError = ParticipantError()
+        let viewModel = ChatViewModel(
+            chatId: "chat-1",
+            currentUserId: "user-1",
+            chatRepository: repo
+        )
+
+        await viewModel.loadInitialMessages()
+
+        if case .loaded = viewModel.loadState {
+            #expect(viewModel.participantLoadErrorMessage == "Participant details unavailable")
+        } else {
+            Issue.record("Participant decoration failure must not fail message history")
+        }
+    }
+
     @Test func sendInsertsOptimisticMessageThenMarksSent() async {
         let repo = MockChatRepository()
         let viewModel = ChatViewModel(

@@ -268,6 +268,27 @@ struct ConnectViewModelTests {
         }
     }
 
+    @Test func blockedUsersFailureSurfacesDegradedStateWithoutFailingDashboard() async {
+        struct BlockedUsersError: LocalizedError {
+            var errorDescription: String? { "Block list unavailable" }
+        }
+
+        let connection = MockConnectionRepository()
+        let moderation = StubModerationRepository()
+        moderation.fetchBlockedUserIdsError = BlockedUsersError()
+        let tab = makeTab(connection: connection, moderation: moderation)
+
+        await tab.load()
+
+        #expect(tab.blockedUsersErrorMessage == "Block list unavailable")
+        #expect(connection.fetchIncomingCallCount == 1)
+
+        moderation.fetchBlockedUserIdsError = nil
+        await tab.load()
+
+        #expect(tab.blockedUsersErrorMessage == nil)
+    }
+
     @Test func overlappingDashboardLoadKeepsLatestState() async {
         let connection = MockConnectionRepository()
         connection.incoming = [pendingRequest(id: "req-old")]

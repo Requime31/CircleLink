@@ -167,15 +167,33 @@ final class ChatViewController: UIViewController {
             .sink { [weak self] state in
                 guard let self else { return }
                 if case let .error(message) = state {
-                    self.presentError(message)
+                    self.presentError(message, title: "Chat Error")
+                }
+            }
+            .store(in: &cancellables)
+
+        viewModel.$participantLoadErrorMessage
+            .compactMap { $0 }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] message in
+                self?.presentError(message, title: "Some chat details are unavailable") {
+                    self?.viewModel.clearParticipantLoadError()
                 }
             }
             .store(in: &cancellables)
     }
 
-    private func presentError(_ message: String) {
-        let alert = UIAlertController(title: "Chat Error", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+    private func presentError(
+        _ message: String,
+        title: String = "Chat Error",
+        onDismiss: (() -> Void)? = nil
+    ) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(
+            UIAlertAction(title: "OK", style: .default) { _ in
+                onDismiss?()
+            }
+        )
         present(alert, animated: true)
     }
 

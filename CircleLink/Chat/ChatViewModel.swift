@@ -20,6 +20,8 @@ final class ChatViewModel: ObservableObject {
     /// Success / error copy for report & block alerts in `ChatSheetView`.
     @Published private(set) var moderationMessage: String?
     @Published private(set) var moderationErrorMessage: String?
+    /// Message history can still work when participant decoration fails.
+    @Published private(set) var participantLoadErrorMessage: String?
 
     let chatId: String
     /// Navigation title — peer name for direct, community name for group.
@@ -172,6 +174,10 @@ final class ChatViewModel: ObservableObject {
         moderationErrorMessage = nil
     }
 
+    func clearParticipantLoadError() {
+        participantLoadErrorMessage = nil
+    }
+
     // MARK: - Load
 
     func loadInitialMessages() async {
@@ -181,6 +187,7 @@ final class ChatViewModel: ObservableObject {
 
         // Only show loading when this generation still owns the screen.
         loadState = .loading
+        participantLoadErrorMessage = nil
 
         let task = Task { @MainActor [weak self] in
             await self?.performLoadInitial(generation: generation)
@@ -399,8 +406,12 @@ final class ChatViewModel: ObservableObject {
             if !messages.isEmpty {
                 messages = mapper.redecorate(messages)
             }
+        } catch is CancellationError {
+            return
         } catch {
-            // Participants are best-effort — chat still works without avatars.
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+            // Keep message history usable, but do not disguise missing names/avatars as healthy.
+            participantLoadErrorMessage = error.localizedDescription
         }
     }
 
