@@ -108,21 +108,7 @@ final class AppCoordinator: ObservableObject {
                         get: { self.pendingChatRoute },
                         set: { self.pendingChatRoute = $0 }
                     ),
-                    communitiesViewModel: communitiesViewModel,
-                    chatsViewModel: chatsViewModel,
-                    connectTabModel: connectTabModel,
-                    profileViewModel: profileViewModel,
-                    makeCommunityDetailViewModel: dependencies.makeCommunityDetailViewModel,
-                    makeCommunityFeedViewModel: dependencies.makeCommunityFeedViewModel,
-                    makeChatViewModel: { chatId, title in
-                        self.dependencies.makeChatViewModel(chatId: chatId, title: title)
-                    },
-                    makeChatInfoViewModel: dependencies.makeChatInfoViewModel,
-                    makePeerProfileSheet: dependencies.makePeerProfileSheet,
-                    makeSettingsViewModel: dependencies.makeSettingsViewModel,
-                    onCommunitySelected: onCommunitySelected,
-                    onOpenGroupChat: onOpenGroupChat,
-                    onSignOut: signOut
+                    tabs: makeMainTabAssembly()
                 )
             }
         }
@@ -331,5 +317,37 @@ final class AppCoordinator: ObservableObject {
         openChatTask?.cancel()
         openChatTask = nil
         openChatGeneration += 1
+    }
+
+    // MARK: - Tab assembly
+
+    private func makeMainTabAssembly() -> MainTabAssembly {
+        MainTabAssembly(
+            communities: CommunitiesTabRouter(
+                viewModel: communitiesViewModel,
+                makeDetailViewModel: dependencies.makeCommunityDetailViewModel,
+                makeFeedViewModel: dependencies.makeCommunityFeedViewModel,
+                makePeerProfileSheet: dependencies.makePeerProfileSheet,
+                onCommunitySelected: onCommunitySelected,
+                onOpenGroupChat: onOpenGroupChat
+            ),
+            chats: ChatsTabRouter(
+                viewModel: chatsViewModel,
+                makeChatViewModel: { chatId, title in
+                    self.dependencies.makeChatViewModel(chatId: chatId, title: title)
+                },
+                makeChatInfoViewModel: dependencies.makeChatInfoViewModel,
+                makePeerProfileSheet: dependencies.makePeerProfileSheet
+            ),
+            connect: ConnectTabRouter(
+                tabModel: connectTabModel,
+                makePeerProfileSheet: dependencies.makePeerProfileSheet
+            ),
+            profile: ProfileTabRouter(
+                viewModel: profileViewModel,
+                makeSettingsViewModel: dependencies.makeSettingsViewModel,
+                onSignOut: signOut
+            )
+        )
     }
 }
