@@ -13,6 +13,7 @@ final class ConnectTabModel: ObservableObject {
     @Published private(set) var moderationMessage: String?
     @Published private(set) var moderatingUserId: String?
     @Published private(set) var blockedUsersErrorMessage: String?
+    @Published private(set) var isBlockFilterReady = false
 
     private let moderationRepository: ModerationRepository
     private let blockFilter: ConnectBlockFilter
@@ -181,14 +182,26 @@ final class ConnectTabModel: ObservableObject {
         moderationMessage = nil
         moderatingUserId = nil
         blockedUsersErrorMessage = nil
+        isBlockFilterReady = false
     }
 
     // MARK: - Private
 
     private func performLoad(generation: Int) async {
-        let blockedUsersErrorMessage = await blockFilter.refresh()
+        let blockRefreshResult = await blockFilter.refresh()
         guard !Task.isCancelled, generation == sessionGeneration else { return }
-        self.blockedUsersErrorMessage = blockedUsersErrorMessage
+
+        switch blockRefreshResult {
+        case .success:
+            blockedUsersErrorMessage = nil
+            isBlockFilterReady = true
+        case let .failed(message):
+            blockedUsersErrorMessage = message
+            isBlockFilterReady = blockFilter.hasSuccessfulSnapshot
+            guard isBlockFilterReady else { return }
+        case .cancelled:
+            return
+        }
 
         async let discoveryLoad: Void = discovery.load()
         async let inboxLoad: Void = inbox.load()

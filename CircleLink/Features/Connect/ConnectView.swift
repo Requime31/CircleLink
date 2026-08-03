@@ -27,6 +27,7 @@ struct ConnectView: View {
                             )
                         }
                         .accessibilityLabel(likedYouAccessibilityLabel)
+                        .disabled(!tab.isBlockFilterReady)
 
                         NavigationLink(value: ConnectDestination.matches) {
                             toolbarLabel(
@@ -36,6 +37,7 @@ struct ConnectView: View {
                             )
                         }
                         .accessibilityLabel(matchesAccessibilityLabel)
+                        .disabled(!tab.isBlockFilterReady)
                     }
                 }
                 .navigationDestination(for: ConnectDestination.self) { destination in
@@ -130,7 +132,7 @@ struct ConnectView: View {
                             .foregroundStyle(CLColor.inkSecondary)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: CLSpacing.xxs) {
-                            Text("Blocked profiles may be out of date.")
+                            Text(blockFilterWarningTitle)
                                 .font(CLTypography.footnote.weight(.semibold))
                                 .foregroundStyle(CLColor.ink)
                             Text(blockedUsersErrorMessage)
@@ -173,8 +175,23 @@ struct ConnectView: View {
                         .onTapGesture { tab.clearModerationFeedback() }
                 }
 
-                communityPickerSection
-                deckSection
+                if !tab.isBlockFilterReady && tab.blockedUsersErrorMessage == nil {
+                    HStack(spacing: CLSpacing.sm) {
+                        ProgressView()
+                            .tint(CLColor.primary)
+                        Text("Checking blocked profiles…")
+                            .font(CLTypography.subheadline)
+                            .foregroundStyle(CLColor.inkSecondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 80)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Checking blocked profiles")
+                }
+
+                if tab.isBlockFilterReady {
+                    communityPickerSection
+                    deckSection
+                }
             }
             .padding(.horizontal, CLSpacing.md)
             .padding(.vertical, CLSpacing.md)
@@ -356,6 +373,13 @@ struct ConnectView: View {
             return "Block \(name)? They won’t appear in Connect for you."
         }
         return "Block this user? They won’t appear in Connect for you."
+    }
+
+    private var blockFilterWarningTitle: String {
+        if tab.isBlockFilterReady {
+            return "Blocked profiles may be out of date."
+        }
+        return "Connect is unavailable until blocked profiles can be checked."
     }
 
     private func presentPeer(_ user: User) {

@@ -16,16 +16,56 @@ enum FirebaseAuthError: LocalizedError {
     }
 }
 
+/// Serializes auth side effects across suspension points (Firebase user, token, cache).
+private actor AuthOperationGate {
+    private var isLocked = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func run<T: Sendable>(
+        _ operation: @Sendable () async throws -> T
+    ) async throws -> T {
+        await acquire()
+        defer { release() }
+        try Task.checkCancellation()
+        return try await operation()
+    }
+
+    private func acquire() async {
+        if !isLocked {
+            isLocked = true
+            return
+        }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    private func release() {
+        guard !waiters.isEmpty else {
+            isLocked = false
+            return
+        }
+        waiters.removeFirst().resume()
+    }
+}
+
 final class FirebaseAuthRepository: AuthRepository {
+    private struct CacheState: Sendable {
+        var user: User?
+        var generation: UInt64 = 0
+    }
+
     private let tokenStorage: SecureTokenStorage
     private let userRepository: UserRepository
     private let appleSignInPresenter: AppleSignInPresenter
+    private let operationGate = AuthOperationGate()
 
     /// AuthRepository is Sendable, so every cache access must be safe from any executor.
-    private let cachedUser = OSAllocatedUnfairLock<User?>(initialState: nil)
+    /// The generation also prevents an older async restore/sign-in from winning after sign-out.
+    private let cache = OSAllocatedUnfairLock(initialState: CacheState())
 
     var currentUser: User? {
-        if let cachedUser = cachedUser.withLock({ $0 }) {
+        if let cachedUser = cache.withLock({ $0.user }) {
             return cachedUser
         }
         guard FirebaseBootstrap.isConfigured,
@@ -53,7 +93,14 @@ final class FirebaseAuthRepository: AuthRepository {
     }
 
     func signInWithApple() async throws -> User {
+        try await operationGate.run { [self] in
+            try await performSignInWithApple()
+        }
+    }
+
+    private func performSignInWithApple() async throws -> User {
         try ensureConfigured()
+        let cacheGeneration = beginCacheOperation()
 
         let appleResult = try await appleSignInPresenter.signIn()
 
@@ -64,43 +111,70 @@ final class FirebaseAuthRepository: AuthRepository {
         )
 
         let authResult = try await Auth.auth().signIn(with: credential)
-        return try await completeSignIn(for: authResult.user)
+        return try await completeSignIn(for: authResult.user, cacheGeneration: cacheGeneration)
     }
 
     func signInWithEmail(email: String, password: String) async throws -> User {
+        try await operationGate.run { [self] in
+            try await performSignInWithEmail(email: email, password: password)
+        }
+    }
+
+    private func performSignInWithEmail(email: String, password: String) async throws -> User {
         try ensureConfigured()
+        let cacheGeneration = beginCacheOperation()
 
         do {
             let authResult = try await Auth.auth().signIn(withEmail: email, password: password)
-            return try await completeSignIn(for: authResult.user)
+            return try await completeSignIn(for: authResult.user, cacheGeneration: cacheGeneration)
         } catch {
             throw mapAuthError(error)
         }
     }
 
     func signUpWithEmail(email: String, password: String) async throws -> User {
+        try await operationGate.run { [self] in
+            try await performSignUpWithEmail(email: email, password: password)
+        }
+    }
+
+    private func performSignUpWithEmail(email: String, password: String) async throws -> User {
         try ensureConfigured()
+        let cacheGeneration = beginCacheOperation()
 
         do {
             let authResult = try await Auth.auth().createUser(withEmail: email, password: password)
-            return try await completeSignIn(for: authResult.user)
+            return try await completeSignIn(for: authResult.user, cacheGeneration: cacheGeneration)
         } catch {
             throw mapAuthError(error)
         }
     }
 
-    func signOut() throws {
+    func signOut() async throws {
+        try await operationGate.run { [self] in
+            try performSignOut()
+        }
+    }
+
+    private func performSignOut() throws {
         guard FirebaseBootstrap.isConfigured else { return }
         try Auth.auth().signOut()
+        invalidateCache()
         try tokenStorage.delete(for: .firebaseIDToken)
-        cachedUser.withLock { $0 = nil }
     }
 
     func restoreSessionProfile() async throws -> User? {
+        try await operationGate.run { [self] in
+            try await performRestoreSessionProfile()
+        }
+    }
+
+    private func performRestoreSessionProfile() async throws -> User? {
         try ensureConfigured()
+        let cacheGeneration = beginCacheOperation()
 
         guard let userId = Auth.auth().currentUser?.uid else {
-            cachedUser.withLock { $0 = nil }
+            updateCachedUser(nil, generation: cacheGeneration)
             return nil
         }
 
@@ -109,15 +183,45 @@ final class FirebaseAuthRepository: AuthRepository {
         }
 
         let profile = try await userRepository.fetchProfile(userId: userId)
-        cachedUser.withLock { $0 = profile }
+        guard Auth.auth().currentUser?.uid == userId else { return nil }
+        guard updateCachedUser(profile, generation: cacheGeneration) else { return nil }
         return profile
     }
 
-    private func completeSignIn(for user: FirebaseAuth.User) async throws -> User {
+    private func completeSignIn(
+        for user: FirebaseAuth.User,
+        cacheGeneration: UInt64
+    ) async throws -> User {
         try await persistToken(for: user)
         let profile = try await userRepository.fetchProfile(userId: user.uid)
-        cachedUser.withLock { $0 = profile }
+        guard Auth.auth().currentUser?.uid == user.uid,
+              updateCachedUser(profile, generation: cacheGeneration) else {
+            throw CancellationError()
+        }
         return profile
+    }
+
+    private func beginCacheOperation() -> UInt64 {
+        cache.withLock {
+            $0.generation &+= 1
+            return $0.generation
+        }
+    }
+
+    @discardableResult
+    private func updateCachedUser(_ user: User?, generation: UInt64) -> Bool {
+        cache.withLock {
+            guard $0.generation == generation else { return false }
+            $0.user = user
+            return true
+        }
+    }
+
+    private func invalidateCache() {
+        cache.withLock {
+            $0.generation &+= 1
+            $0.user = nil
+        }
     }
 
     private func persistToken(for user: FirebaseAuth.User) async throws {

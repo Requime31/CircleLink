@@ -131,7 +131,10 @@ struct HiddenChatsView: View {
     }
 
     private func loadPreviewIfNeeded(for chatId: String) async {
-        if previewCache[chatId] != nil || previewLoadingIds.contains(chatId) {
+        if case .loaded? = previewCache[chatId] {
+            return
+        }
+        if previewLoadingIds.contains(chatId) {
             return
         }
         previewLoadingIds.insert(chatId)

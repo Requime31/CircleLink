@@ -24,7 +24,7 @@ final class StubAuthRepository: AuthRepository, @unchecked Sendable {
         return Self.previewUser
     }
 
-    func signOut() throws {
+    func signOut() async throws {
         storedUser = nil
     }
 

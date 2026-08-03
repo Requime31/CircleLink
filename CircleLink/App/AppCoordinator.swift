@@ -196,7 +196,7 @@ final class AppCoordinator: ObservableObject {
         Task { @MainActor in
             await dependencies.pushNotificationHandler.clearTokenOnSignOut()
             do {
-                try dependencies.authRepository.signOut()
+                try await dependencies.authRepository.signOut()
                 handleSignedOut()
             } catch {
                 #if DEBUG

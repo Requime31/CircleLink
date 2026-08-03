@@ -2,6 +2,41 @@ import Foundation
 import Testing
 @testable import CircleLink
 
+private actor OutOfOrderModerationRepository: ModerationRepository {
+    private var fetchCount = 0
+    private var firstFetchContinuation: CheckedContinuation<Set<String>, Never>?
+
+    var isHoldingFirstFetch: Bool {
+        firstFetchContinuation != nil
+    }
+
+    func reportUser(
+        userId: String,
+        reason: ReportReason,
+        chatId: String?,
+        communityId: String?
+    ) async throws {}
+
+    func blockUser(_ userId: String) async throws {}
+
+    func unblockUser(_ userId: String) async throws {}
+
+    func fetchBlockedUserIds() async throws -> Set<String> {
+        fetchCount += 1
+        if fetchCount == 1 {
+            return await withCheckedContinuation { continuation in
+                firstFetchContinuation = continuation
+            }
+        }
+        return ["new-block"]
+    }
+
+    func releaseFirstFetch() {
+        firstFetchContinuation?.resume(returning: ["stale-block"])
+        firstFetchContinuation = nil
+    }
+}
+
 @MainActor
 struct ConnectViewModelTests {
     private func makeBlockFilter(
@@ -33,7 +68,7 @@ struct ConnectViewModelTests {
         moderation: StubModerationRepository = StubModerationRepository()
     ) async -> ConnectDiscoveryViewModel {
         let filter = makeBlockFilter(moderation: moderation)
-        await filter.refresh()
+        _ = await filter.refresh()
         return ConnectDiscoveryViewModel(
             connectionRepository: connection,
             communityRepository: MockCommunityRepository(),
@@ -47,7 +82,7 @@ struct ConnectViewModelTests {
         moderation: StubModerationRepository = StubModerationRepository()
     ) async -> ConnectionInboxViewModel {
         let filter = makeBlockFilter(moderation: moderation)
-        await filter.refresh()
+        _ = await filter.refresh()
         return ConnectionInboxViewModel(
             connectionRepository: connection,
             userRepository: user,
@@ -63,7 +98,7 @@ struct ConnectViewModelTests {
         onOpenChat: @escaping (String) -> Void = { _ in }
     ) async -> MatchesViewModel {
         let filter = makeBlockFilter(moderation: moderation)
-        await filter.refresh()
+        _ = await filter.refresh()
         return MatchesViewModel(
             connectionRepository: connection,
             chatRepository: chat,
@@ -268,7 +303,7 @@ struct ConnectViewModelTests {
         }
     }
 
-    @Test func blockedUsersFailureSurfacesDegradedStateWithoutFailingDashboard() async {
+    @Test func blockedUsersFailureRequiresSafeSnapshotThenUsesLastKnownSet() async {
         struct BlockedUsersError: LocalizedError {
             var errorDescription: String? { "Block list unavailable" }
         }
@@ -281,12 +316,42 @@ struct ConnectViewModelTests {
         await tab.load()
 
         #expect(tab.blockedUsersErrorMessage == "Block list unavailable")
-        #expect(connection.fetchIncomingCallCount == 1)
+        #expect(!tab.isBlockFilterReady)
+        #expect(connection.fetchIncomingCallCount == 0)
 
         moderation.fetchBlockedUserIdsError = nil
         await tab.load()
 
         #expect(tab.blockedUsersErrorMessage == nil)
+        #expect(tab.isBlockFilterReady)
+        #expect(connection.fetchIncomingCallCount == 1)
+
+        moderation.fetchBlockedUserIdsError = BlockedUsersError()
+        await tab.load()
+
+        #expect(tab.blockedUsersErrorMessage == "Block list unavailable")
+        #expect(tab.isBlockFilterReady)
+        #expect(connection.fetchIncomingCallCount == 2)
+    }
+
+    @Test func olderBlockedUsersRefreshCannotOverwriteNewerSnapshot() async {
+        let moderation = OutOfOrderModerationRepository()
+        let filter = ConnectBlockFilter(moderationRepository: moderation)
+
+        let firstRefresh = Task { await filter.refresh() }
+        for _ in 0..<200 {
+            if await moderation.isHoldingFirstFetch { break }
+            await Task.yield()
+        }
+
+        let secondResult = await filter.refresh()
+        await moderation.releaseFirstFetch()
+        let firstResult = await firstRefresh.value
+
+        #expect(secondResult == .success)
+        #expect(firstResult == .cancelled)
+        #expect(filter.contains("new-block"))
+        #expect(!filter.contains("stale-block"))
     }
 
     @Test func overlappingDashboardLoadKeepsLatestState() async {

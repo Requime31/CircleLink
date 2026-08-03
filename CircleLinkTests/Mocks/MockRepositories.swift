@@ -58,7 +58,7 @@ final class MockAuthRepository: AuthRepository, @unchecked Sendable {
         return user
     }
 
-    func signOut() throws {
+    func signOut() async throws {
         currentUser = nil
     }
 

@@ -289,7 +289,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     private func performLoadInitial(generation: Int) async {
-        async let participantsLoad: Void = loadParticipants(generation: generation)
+        async let participantsLoad: String? = loadParticipants(generation: generation)
         async let fetchedMessages = chatRepository.fetchMessages(
             chatId: chatId,
             limit: pageSize,
@@ -297,12 +297,13 @@ final class ChatViewModel: ObservableObject {
         )
 
         do {
-            _ = await participantsLoad
+            let participantsError = await participantsLoad
             let fetched = try await fetchedMessages
             guard !Task.isCancelled, generation == loadGeneration else { return }
             applyState(ChatLiveMessageReconciler.State.rebuilt(from: mapper.mapHistory(fetched)))
             canLoadMore = fetched.count == pageSize
             loadState = .loaded
+            participantLoadErrorMessage = participantsError
             startObservingLiveMessages()
         } catch is CancellationError {
             return
@@ -391,10 +392,10 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
-    private func loadParticipants(generation: Int) async {
+    private func loadParticipants(generation: Int) async -> String? {
         do {
             let info = try await chatRepository.fetchChatInfo(chatId: chatId)
-            guard !Task.isCancelled, generation == loadGeneration else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return nil }
             communityId = info.communityId
             isGroupChat = info.type == .group
             var map: [String: User] = [:]
@@ -406,12 +407,12 @@ final class ChatViewModel: ObservableObject {
             if !messages.isEmpty {
                 messages = mapper.redecorate(messages)
             }
+            return nil
         } catch is CancellationError {
-            return
+            return nil
         } catch {
-            guard !Task.isCancelled, generation == loadGeneration else { return }
-            // Keep message history usable, but do not disguise missing names/avatars as healthy.
-            participantLoadErrorMessage = error.localizedDescription
+            guard !Task.isCancelled, generation == loadGeneration else { return nil }
+            return error.localizedDescription
         }
     }
 

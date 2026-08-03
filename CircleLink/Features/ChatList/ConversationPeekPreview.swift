@@ -39,7 +39,7 @@ struct ConversationPeekPreview: View {
     @ViewBuilder
     private var previewContent: some View {
         switch preview {
-        case let .loaded(messages):
+        case let .loaded(messages)?:
             if messages.isEmpty {
                 Text("No messages yet")
                     .font(CLTypography.subheadline)
@@ -53,7 +53,7 @@ struct ConversationPeekPreview: View {
                     }
                 }
             }
-        case let .failed(message):
+        case let .failed(message)?:
             VStack(spacing: CLSpacing.xs) {
                 Image(systemName: "exclamationmark.triangle")
                     .foregroundStyle(CLColor.error)
