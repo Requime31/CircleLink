@@ -118,13 +118,58 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     var sentClientMessageIds: [String] = []
     var callLog: MockCallLog?
     var liveContinuation: AsyncStream<Message>.Continuation?
+    var fetchMessagesCallCount = 0
+    var fetchOrganizedChatsError: Error?
+    var setMutedError: Error?
+    var hideChatError: Error?
+    var unhideChatError: Error?
+    /// Snapshot returned after a hold (avoids reading mutated `visibleChats`).
+    var fetchOrganizedResultOverride: OrganizedChats?
+    /// When true, `fetchOrganizedChats` waits until `releaseFetchOrganizedHold()`.
+    var shouldHoldFetchOrganized = false
+    private var fetchOrganizedHold: CheckedContinuation<Void, Never>?
+    /// When true, `fetchMessages` waits until `releaseFetchMessagesHold()`.
+    var shouldHoldFetchMessages = false
+    private var fetchMessagesHold: CheckedContinuation<Void, Never>?
+    /// When true, `sendMessage` waits until `releaseSendHold()`.
+    var shouldHoldSend = false
+    private var sendHold: CheckedContinuation<Void, Never>?
+    var fetchMessagesError: Error?
+
+    func releaseFetchOrganizedHold() {
+        fetchOrganizedHold?.resume()
+        fetchOrganizedHold = nil
+    }
+
+    var isHoldingFetchOrganized: Bool { fetchOrganizedHold != nil }
+
+    func releaseFetchMessagesHold() {
+        fetchMessagesHold?.resume()
+        fetchMessagesHold = nil
+    }
+
+    var isHoldingFetchMessages: Bool { fetchMessagesHold != nil }
+
+    func releaseSendHold() {
+        sendHold?.resume()
+        sendHold = nil
+    }
+
+    var isHoldingSend: Bool { sendHold != nil }
 
     func fetchChats() async throws -> [ChatSummary] { visibleChats }
 
     func fetchHiddenChats() async throws -> [ChatSummary] { hiddenChats }
 
     func fetchOrganizedChats() async throws -> OrganizedChats {
-        OrganizedChats(visible: visibleChats, hidden: hiddenChats)
+        if shouldHoldFetchOrganized {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                fetchOrganizedHold = continuation
+            }
+        }
+        if let fetchOrganizedChatsError { throw fetchOrganizedChatsError }
+        if let fetchOrganizedResultOverride { return fetchOrganizedResultOverride }
+        return OrganizedChats(visible: visibleChats, hidden: hiddenChats)
     }
 
     func fetchChatThreadMetadata(chatId: String) async throws -> ChatThreadMetadata {
@@ -156,6 +201,13 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     }
 
     func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
+        fetchMessagesCallCount += 1
+        if shouldHoldFetchMessages {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                fetchMessagesHold = continuation
+            }
+        }
+        if let fetchMessagesError { throw fetchMessagesError }
         let filtered: [Message]
         if let before {
             filtered = messages.filter { $0.createdAt < before && $0.chatId == chatId }
@@ -168,6 +220,11 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
 
     func sendMessage(chatId: String, text: String?, image: Data?, clientMessageId: String) async throws {
         sentClientMessageIds.append(clientMessageId)
+        if shouldHoldSend {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                sendHold = continuation
+            }
+        }
         if let sendError {
             throw sendError
         }
@@ -231,6 +288,7 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
         lastMutedChatId = chatId
         lastMutedValue = muted
         callLog?.append("setChatMuted")
+        if let setMutedError { throw setMutedError }
         if let index = visibleChats.firstIndex(where: { $0.id == chatId }) {
             visibleChats[index].isMuted = muted
         }
@@ -243,6 +301,7 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
         hideChatCallCount += 1
         lastHiddenChatId = chatId
         callLog?.append("hideChat")
+        if let hideChatError { throw hideChatError }
         if let index = visibleChats.firstIndex(where: { $0.id == chatId }) {
             let chat = visibleChats.remove(at: index)
             if !hiddenChats.contains(where: { $0.id == chatId }) {
@@ -255,6 +314,7 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
         unhideChatCallCount += 1
         lastUnhiddenChatId = chatId
         callLog?.append("unhideChat")
+        if let unhideChatError { throw unhideChatError }
         if let index = hiddenChats.firstIndex(where: { $0.id == chatId }) {
             let chat = hiddenChats.remove(at: index)
             if !visibleChats.contains(where: { $0.id == chatId }) {

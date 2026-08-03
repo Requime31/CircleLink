@@ -165,4 +165,79 @@ struct ChatViewModelTests {
 
         viewModel.onDisappear()
     }
+
+    @Test func cancelledInitialLoadDoesNotApplyStaleMessages() async {
+        let repo = MockChatRepository()
+        repo.messages = [
+            Message(
+                id: "stale",
+                chatId: "chat-1",
+                senderId: "peer-1",
+                text: "Stale",
+                imageURL: nil,
+                createdAt: Date(),
+                clientMessageId: "stale",
+                status: .sent
+            )
+        ]
+        repo.shouldHoldFetchMessages = true
+        let viewModel = ChatViewModel(
+            chatId: "chat-1",
+            currentUserId: "user-1",
+            chatRepository: repo
+        )
+
+        let loadTask = Task { await viewModel.loadInitialMessages() }
+        await waitUntil { repo.isHoldingFetchMessages }
+
+        viewModel.onDisappear()
+        repo.releaseFetchMessagesHold()
+        await loadTask.value
+
+        #expect(viewModel.messages.isEmpty)
+        if case .idle = viewModel.loadState {
+            // Cancelled mid-load clears the spinner and does not apply stale rows.
+        } else if case .error = viewModel.loadState {
+            Issue.record("Cancellation should not surface as error")
+        } else if case .loading = viewModel.loadState {
+            Issue.record("Cancelled load should not leave stuck loading")
+        } else {
+            Issue.record("Unexpected loaded state after cancel")
+        }
+    }
+
+    @Test func retryIgnoresDuplicateWhileInFlight() async throws {
+        struct Boom: Error {}
+        let repo = MockChatRepository()
+        repo.sendError = Boom()
+        let viewModel = ChatViewModel(
+            chatId: "chat-1",
+            currentUserId: "user-1",
+            chatRepository: repo
+        )
+        await viewModel.loadInitialMessages()
+        await viewModel.send(text: "Retry me")
+        let clientId = try #require(viewModel.messages.first?.clientMessageId)
+        #expect(viewModel.messages.first?.status == .failed)
+
+        repo.sendError = nil
+        repo.shouldHoldSend = true
+        let firstRetry = Task { await viewModel.retry(clientMessageId: clientId) }
+        await waitUntil { repo.isHoldingSend }
+
+        await viewModel.retry(clientMessageId: clientId)
+        #expect(repo.sentClientMessageIds.count == 2)
+
+        repo.releaseSendHold()
+        await firstRetry.value
+        #expect(repo.sentClientMessageIds.count == 2)
+        #expect(viewModel.messages.first?.status == .sent)
+    }
+
+    private func waitUntil(_ condition: @MainActor () -> Bool) async {
+        for _ in 0..<200 {
+            if condition() { return }
+            await Task.yield()
+        }
+    }
 }

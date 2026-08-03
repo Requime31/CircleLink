@@ -9,12 +9,15 @@ final class ChatsViewModel: ObservableObject {
     @Published private(set) var actionErrorMessage: String?
     /// Bound to `.searchable` — filters the main (visible) list locally.
     @Published var searchText: String = ""
+    @Published private(set) var isLeaving = false
 
     private let chatRepository: ChatRepository
     private let currentUserId: String
     private static let previewMessageLimit = 12
     /// Bumps on every load start so stale fetches cannot overwrite newer optimistic state.
     private var loadGeneration = 0
+    private var loadTask: Task<Void, Never>?
+    private var leaveTask: Task<Bool, Never>?
 
     init(chatRepository: ChatRepository, currentUserId: String) {
         self.chatRepository = chatRepository
@@ -36,25 +39,17 @@ final class ChatsViewModel: ObservableObject {
     func loadChats(showLoading: Bool = true) async {
         loadGeneration += 1
         let generation = loadGeneration
+        loadTask?.cancel()
 
         if showLoading {
             state = .loading
         }
 
-        do {
-            let organized = try await chatRepository.fetchOrganizedChats()
-            guard generation == loadGeneration else { return }
-            hiddenChats = organized.hidden
-            // Empty visible + some hidden → still `.loaded` so the footer can show.
-            if organized.visible.isEmpty && organized.hidden.isEmpty {
-                state = .empty
-            } else {
-                state = .loaded(organized.visible)
-            }
-        } catch {
-            guard generation == loadGeneration else { return }
-            state = .error(error.localizedDescription)
+        let task = Task { @MainActor [weak self] in
+            await self?.performLoadChats(generation: generation)
         }
+        loadTask = task
+        await task.value
     }
 
     /// Last messages for context-menu peek (chronological, oldest → newest).
@@ -134,15 +129,31 @@ final class ChatsViewModel: ObservableObject {
     /// Group leave from Chat Info. Does not leave the community.
     @discardableResult
     func leaveChat(chatId: String) async -> Bool {
+        guard !isLeaving else { return false }
+
+        leaveTask?.cancel()
+        isLeaving = true
         leaveErrorMessage = nil
-        do {
-            try await chatRepository.leaveChat(chatId: chatId)
-            await loadChats()
-            return true
-        } catch {
-            leaveErrorMessage = error.localizedDescription
-            return false
+
+        let task = Task { @MainActor [weak self] -> Bool in
+            guard let self else { return false }
+            defer { self.isLeaving = false }
+
+            do {
+                try await self.chatRepository.leaveChat(chatId: chatId)
+                guard !Task.isCancelled else { return false }
+                await self.loadChats()
+                return true
+            } catch is CancellationError {
+                return false
+            } catch {
+                guard !Task.isCancelled else { return false }
+                self.leaveErrorMessage = error.localizedDescription
+                return false
+            }
         }
+        leaveTask = task
+        return await task.value
     }
 
     func clearLeaveError() {
@@ -154,12 +165,39 @@ final class ChatsViewModel: ObservableObject {
     }
 
     func resetForm() {
+        loadTask?.cancel()
+        loadTask = nil
+        leaveTask?.cancel()
+        leaveTask = nil
+        loadGeneration += 1
+        isLeaving = false
         state = .idle
         hiddenChats = []
         searchText = ""
+        leaveErrorMessage = nil
+        actionErrorMessage = nil
     }
 
     // MARK: - Private
+
+    private func performLoadChats(generation: Int) async {
+        do {
+            let organized = try await chatRepository.fetchOrganizedChats()
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+            hiddenChats = organized.hidden
+            // Empty visible + some hidden → still `.loaded` so the footer can show.
+            if organized.visible.isEmpty && organized.hidden.isEmpty {
+                state = .empty
+            } else {
+                state = .loaded(organized.visible)
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+            state = .error(error.localizedDescription)
+        }
+    }
 
     private func applyLocalMute(chatId: String, muted: Bool) {
         if case var .loaded(chats) = state,

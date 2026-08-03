@@ -26,7 +26,7 @@ Give **one file** to one agent. Do not mix phases in a single chat.
 | 12 | `phase-12-async-auth-profile.md` | Tasks: Auth / AgeGate / Profile |
 | 13 | `phase-13-dedupe-chat-list-flows.md` | leaveChat + preview dedupe |
 | 14 | `phase-14-async-communities.md` | Tasks: Communities |
-| 15 | `phase-15-async-chat.md` | Tasks: Chat / ChatList / ChatInfo |
+| 15 | ~~`phase-15-async-chat.md`~~ **done** | Tasks: Chat / ChatList / ChatInfo |
 | 16 | `phase-16-async-connect.md` | Tasks: Connect |
 | 17 | `phase-17-auth-cache-thread-safety.md` | Auth cache / Sendable |
 | 18 | `phase-18-surface-silent-errors.md` | Silent errors → visible state |

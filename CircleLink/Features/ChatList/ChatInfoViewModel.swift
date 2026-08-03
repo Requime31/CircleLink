@@ -13,6 +13,7 @@ final class ChatInfoViewModel: ObservableObject {
 
     private let chatRepository: ChatRepository
     private var loadTask: Task<Void, Never>?
+    private var leaveTask: Task<Bool, Never>?
 
     init(
         chatId: String,
@@ -59,17 +60,29 @@ final class ChatInfoViewModel: ObservableObject {
     @discardableResult
     func leaveChat() async -> Bool {
         guard !isLeaving else { return false }
+
+        leaveTask?.cancel()
         isLeaving = true
         leaveErrorMessage = nil
-        defer { isLeaving = false }
 
-        do {
-            try await chatRepository.leaveChat(chatId: chatId)
-            return true
-        } catch {
-            leaveErrorMessage = error.localizedDescription
-            return false
+        let task = Task { @MainActor [weak self] -> Bool in
+            guard let self else { return false }
+            defer { self.isLeaving = false }
+
+            do {
+                try await self.chatRepository.leaveChat(chatId: self.chatId)
+                guard !Task.isCancelled else { return false }
+                return true
+            } catch is CancellationError {
+                return false
+            } catch {
+                guard !Task.isCancelled else { return false }
+                self.leaveErrorMessage = error.localizedDescription
+                return false
+            }
         }
+        leaveTask = task
+        return await task.value
     }
 
     func clearLeaveError() {
