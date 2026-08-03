@@ -24,7 +24,7 @@ struct CommunitiesListView: View {
                 case let .error(message):
                     errorState(message: message)
                 case .loaded:
-                    discoveryContent
+                    CommunitiesDiscoveryContent(viewModel: viewModel)
                 }
             }
             .clCanvasBackground()
@@ -62,97 +62,6 @@ struct CommunitiesListView: View {
         }
     }
 
-    /// Search + chips stay visible even when filter matches nothing.
-    private var discoveryContent: some View {
-        let filtered = viewModel.filteredCommunities
-        return VStack(spacing: 0) {
-            discoveryControls
-                .padding(.horizontal, CLSpacing.md)
-                .padding(.top, CLSpacing.sm)
-                .padding(.bottom, CLSpacing.xs)
-
-            if filtered.isEmpty {
-                filterEmptyState
-            } else {
-                communitiesList(filtered)
-            }
-        }
-    }
-
-    private var discoveryControls: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            HStack(spacing: CLSpacing.xs) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(CLColor.inkMuted)
-                    .accessibilityHidden(true)
-                TextField("Search communities", text: $viewModel.searchQuery)
-                    .font(CLTypography.body)
-                    .foregroundStyle(CLColor.ink)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .accessibilityLabel("Search communities")
-            }
-            .clTextFieldChrome()
-
-            if !viewModel.availableInterestTags.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: CLSpacing.xs) {
-                        InterestFilterChip(
-                            title: "All",
-                            isSelected: viewModel.selectedInterestTag == nil
-                        ) {
-                            viewModel.selectedInterestTag = nil
-                        }
-
-                        ForEach(viewModel.availableInterestTags, id: \.self) { tag in
-                            InterestFilterChip(
-                                title: tag,
-                                isSelected: viewModel.selectedInterestTag == tag
-                            ) {
-                                viewModel.selectedInterestTag = tag
-                            }
-                        }
-                    }
-                }
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("Filter by interest")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func communitiesList(_ communities: [Community]) -> some View {
-        ScrollView {
-            LazyVStack(spacing: CLSpacing.md) {
-                ForEach(communities) { community in
-                    NavigationLink(value: community.id) {
-                        CommunityCardView(community: community)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(
-                        "\(community.name), \(community.interestTag), \(memberCountLabel(for: community))"
-                    )
-                    .accessibilityHint("Opens community details")
-                }
-            }
-            .padding(.horizontal, CLSpacing.md)
-            .padding(.vertical, CLSpacing.md)
-            .clAppear()
-        }
-    }
-
-    private var filterEmptyState: some View {
-        CLEmptyState(
-            systemImage: "magnifyingglass",
-            title: "No communities match",
-            message: "Try a different search or clear the interest filter.",
-            actionTitle: "Clear filters",
-            actionAccessibilityLabel: "Clear search and interest filters"
-        ) {
-            viewModel.clearFilters()
-        }
-    }
-
     private var emptyState: some View {
         CLEmptyState(
             systemImage: "person.3",
@@ -176,95 +85,5 @@ struct CommunitiesListView: View {
         ) {
             Task { await viewModel.loadCommunities() }
         }
-    }
-
-    private func memberCountLabel(for community: Community) -> String {
-        community.memberCount == 1 ? "1 member" : "\(community.memberCount) members"
-    }
-}
-
-// MARK: - Card
-
-private struct CommunityCardView: View {
-    let community: Community
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            HStack(alignment: .top, spacing: CLSpacing.xs) {
-                Text(community.name)
-                    .font(CLTypography.title2)
-                    .foregroundStyle(CLColor.ink)
-                    .multilineTextAlignment(.leading)
-
-                Spacer(minLength: CLSpacing.xs)
-
-                Text(community.interestTag)
-                    .font(CLTypography.caption)
-                    .foregroundStyle(CLColor.ink)
-                    .padding(.horizontal, CLSpacing.sm)
-                    .padding(.vertical, CLSpacing.xxs)
-                    .background(CLColor.primarySoft)
-                    .clipShape(Capsule())
-            }
-
-            Text(community.description)
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkSecondary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-
-            HStack(spacing: CLSpacing.xs) {
-                Image(systemName: "person.2.fill")
-                    .font(.caption)
-                    .foregroundStyle(CLColor.inkMuted)
-                    .accessibilityHidden(true)
-                Text(memberCountLabel)
-                    .font(CLTypography.footnote)
-                    .foregroundStyle(CLColor.inkMuted)
-
-                Spacer(minLength: CLSpacing.xs)
-
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(CLColor.inkDisabled)
-                    .accessibilityHidden(true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        .clCardStyle()
-    }
-
-    private var memberCountLabel: String {
-        community.memberCount == 1 ? "1 member" : "\(community.memberCount) members"
-    }
-}
-
-// MARK: - Filter chip
-
-private struct InterestFilterChip: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(CLTypography.subheadline)
-                .foregroundStyle(isSelected ? CLColor.ink : CLColor.inkSecondary)
-                .padding(.horizontal, CLSpacing.sm)
-                .padding(.vertical, CLSpacing.xs)
-                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-                .background(isSelected ? CLColor.primarySoft : CLColor.surfaceSoft)
-                .clipShape(Capsule(style: .continuous))
-                .scaleEffect(isSelected && !reduceMotion ? 1.02 : 1)
-        }
-        .buttonStyle(.plain)
-        .clSoftSpring(value: isSelected)
-        .accessibilityLabel(title == "All" ? "All interests" : "\(title) interest")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityHint("Double tap to filter communities")
     }
 }
