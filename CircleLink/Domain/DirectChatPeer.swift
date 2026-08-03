@@ -1,7 +1,7 @@
 import Foundation
 
 /// Resolves the other participant from a deterministic direct-chat id (`uidA_uidB`).
-enum DirectChatPeer {
+nonisolated enum DirectChatPeer {
     static func peerUserId(chatId: String, currentUserId: String) -> String? {
         guard !chatId.hasPrefix("group_") else { return nil }
 

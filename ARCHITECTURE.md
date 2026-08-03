@@ -83,8 +83,9 @@ CircleLink/
   App/           — AppDelegate, AppDependencies, AppCoordinator, push
   Features/      — Auth, AgeGate, Profile, Communities, Connect, ChatList (SwiftUI)
   Chat/          — UIKit chat module (isolated)
-  Domain/        — Models, Repository protocols
+  Domain/        — Models, Repository protocols, DirectChatPeer
   Data/
+    Auth/        — Apple Sign In presenter (UIKit AuthenticationServices)
     Firebase/    — Auth + Firestore repos/mappers
     Supabase/    — chat image upload only
     Keychain/    — token storage
