@@ -67,10 +67,10 @@ Prefer **22 before 24–29** so empty/error extraction isn’t redone twice. Pre
 
 | Phase | File | Focus |
 |------:|------|--------|
-| 30 | `phase-30-split-push-notification-handler.md` | Split PushNotificationHandler |
-| 31 | `phase-31-coordinator-bootstrap-unload.md` | Session/bootstrap out of Coordinator |
-| 32 | `phase-32-tab-routers-main-tab.md` | Shrink MainTabView relay |
-| 33 | `phase-33-chat-list-batch-reads.md` | Batch chat-list Firestore reads |
+| 30 | ~~`phase-30-split-push-notification-handler.md`~~ **done** | Split PushNotificationHandler |
+| 31 | ~~`phase-31-coordinator-bootstrap-unload.md`~~ **done** | Session/bootstrap out of Coordinator |
+| 32 | ~~`phase-32-tab-routers-main-tab.md`~~ **done** | Shrink MainTabView relay |
+| 33 | ~~`phase-33-chat-list-batch-reads.md`~~ **done** | Batch chat-list Firestore reads |
 
 Suggested: **3 → 30**, **10 → 31 → 32**, **4 → 33**.
 

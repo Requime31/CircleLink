@@ -80,7 +80,7 @@ Historical baseline: branch `websocketlocal` still has the old WebSocket chat pa
 
 ```
 CircleLink/
-  App/           — AppDelegate, AppDependencies, AppCoordinator, push
+  App/           — AppDelegate, AppDependencies, AppCoordinator, MainTabAssembly, push facade + App/Push collaborators
   Features/      — Auth, AgeGate, Profile, Communities, Connect, ChatList (SwiftUI)
   Chat/          — UIKit chat module (isolated)
   Domain/        — Models, Repository protocols, DirectChatPeer
