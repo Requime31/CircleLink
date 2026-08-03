@@ -1,5 +1,6 @@
 import FirebaseAuth
 import Foundation
+import os
 
 enum FirebaseAuthError: LocalizedError {
     case notConfigured
@@ -15,15 +16,16 @@ enum FirebaseAuthError: LocalizedError {
     }
 }
 
-final class FirebaseAuthRepository: AuthRepository, @unchecked Sendable {
+final class FirebaseAuthRepository: AuthRepository {
     private let tokenStorage: SecureTokenStorage
     private let userRepository: UserRepository
     private let appleSignInPresenter: AppleSignInPresenter
 
-    private var cachedUser: User?
+    /// AuthRepository is Sendable, so every cache access must be safe from any executor.
+    private let cachedUser = OSAllocatedUnfairLock<User?>(initialState: nil)
 
     var currentUser: User? {
-        if let cachedUser {
+        if let cachedUser = cachedUser.withLock({ $0 }) {
             return cachedUser
         }
         guard FirebaseBootstrap.isConfigured,
@@ -91,14 +93,14 @@ final class FirebaseAuthRepository: AuthRepository, @unchecked Sendable {
         guard FirebaseBootstrap.isConfigured else { return }
         try Auth.auth().signOut()
         try tokenStorage.delete(for: .firebaseIDToken)
-        cachedUser = nil
+        cachedUser.withLock { $0 = nil }
     }
 
     func restoreSessionProfile() async throws -> User? {
         try ensureConfigured()
 
         guard let userId = Auth.auth().currentUser?.uid else {
-            cachedUser = nil
+            cachedUser.withLock { $0 = nil }
             return nil
         }
 
@@ -107,14 +109,14 @@ final class FirebaseAuthRepository: AuthRepository, @unchecked Sendable {
         }
 
         let profile = try await userRepository.fetchProfile(userId: userId)
-        cachedUser = profile
+        cachedUser.withLock { $0 = profile }
         return profile
     }
 
     private func completeSignIn(for user: FirebaseAuth.User) async throws -> User {
         try await persistToken(for: user)
         let profile = try await userRepository.fetchProfile(userId: user.uid)
-        cachedUser = profile
+        cachedUser.withLock { $0 = profile }
         return profile
     }
 
