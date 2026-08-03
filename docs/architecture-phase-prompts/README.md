@@ -103,7 +103,7 @@ Suggested: **3 → 30**, **10 → 31 → 32**, **4 → 33**.
 | God repos / VMs | 4, 5, 6 |
 | DI leaks | 1, 3, 20 |
 | Logic duplication | 2, 6, 7, 13 |
-| Tasks / cancellation | 12, 14, 15, 16 |
+| Tasks / cancellation | 12, 14, **15 done**, **16 done** |
 | Thread safety | 17 |
 | Silent errors | 18 |
 | Domain purity | 8, 23 (A) |
