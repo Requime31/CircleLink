@@ -25,6 +25,8 @@ final class MessageSendStatusView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         translatesAutoresizingMaskIntoConstraints = false
+        isHidden = true
+        isUserInteractionEnabled = false
         addSubview(statusIndicator)
         addSubview(retryButton)
         retryButton.addTarget(self, action: #selector(retryTapped), for: .touchUpInside)
@@ -51,6 +53,8 @@ final class MessageSendStatusView: UIView {
     func prepareForReuse() {
         statusIndicator.stopAnimating()
         retryButton.isHidden = true
+        isHidden = true
+        isUserInteractionEnabled = false
         onRetry = nil
     }
 
@@ -58,6 +62,8 @@ final class MessageSendStatusView: UIView {
         guard isOutgoing else {
             statusIndicator.stopAnimating()
             retryButton.isHidden = true
+            isHidden = true
+            isUserInteractionEnabled = false
             return
         }
 
@@ -65,12 +71,18 @@ final class MessageSendStatusView: UIView {
         case .sending:
             statusIndicator.startAnimating()
             retryButton.isHidden = true
+            isHidden = false
+            isUserInteractionEnabled = false
         case .sent:
             statusIndicator.stopAnimating()
             retryButton.isHidden = true
+            isHidden = true
+            isUserInteractionEnabled = false
         case .failed:
             statusIndicator.stopAnimating()
             retryButton.isHidden = false
+            isHidden = false
+            isUserInteractionEnabled = true
         }
     }
 
