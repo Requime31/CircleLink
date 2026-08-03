@@ -2,15 +2,17 @@
 
 Community messenger MVP (iOS 16+, SwiftUI + UIKit Chat).
 
+Junior feature flows (tap → UI update): [docs/FEATURES.md](docs/FEATURES.md).
+
 ## Layers
 
 | Layer | Responsibility | Examples |
 |---|---|---|
-| **App** | Lifecycle, DI composition, root navigation, push | `AppDependencies`, `AppCoordinator` |
+| **App** | Lifecycle, DI composition, root navigation, push | `AppDependencies`, `AppCoordinator`, `PushNotificationHandler` |
 | **Presentation** | UI rendering, user input | SwiftUI Views, `ChatViewController` |
 | **Domain** | Business models, repository protocols | `User`, `ChatRepository` |
 | **Data** | Firebase, Supabase, Keychain implementations | `FirestoreChatRepository`, `SupabaseChatImageStorage` |
-| **Shared** | Cross-cutting utilities | `ViewState`, `ImageLoader` |
+| **Shared** | Cross-cutting utilities | `ViewState`, `ImageLoader`, `CLTheme` |
 
 ## Dependency Direction
 
@@ -18,7 +20,7 @@ Community messenger MVP (iOS 16+, SwiftUI + UIKit Chat).
 View → ViewModel → Repository protocol ← Data implementation
 ```
 
-- ViewModels are `@MainActor`
+- ViewModels are `@MainActor` and use `ObservableObject` + `@Published`
 - No UseCase layer in MVP — ViewModel calls Repository directly
 - Manual DI via `AppDependencies` (composition root)
 
@@ -27,9 +29,23 @@ View → ViewModel → Repository protocol ← Data implementation
 | Piece | Owner | Lifecycle |
 |---|---|---|
 | `AppDependencies` | App | Created at launch; holds concrete repos |
-| ViewModel | Screen / feature | Lives with the screen; cancelled on disappear |
+| `AppCoordinator` | App | Owns root route, tabs, deep links |
+| ViewModel | Screen / feature | Lives with the screen; cancel work on disappear |
 | Repository protocol | Domain | Stable contract; no Firebase types |
 | Firebase / Supabase impl | Data | Injected once; used by ViewModels |
+
+### Repository map
+
+| Protocol | Typical impl | Used for |
+|---|---|---|
+| `AuthRepository` | `FirebaseAuthRepository` | Sign in / out, current user |
+| `UserRepository` | `FirestoreUserRepository` | Profile, age, FCM token fields |
+| `CommunityRepository` | `FirestoreCommunityRepository` | List / create / join / leave |
+| `ConnectionRepository` | `FirestoreConnectionRepository` | Connect requests + matches |
+| `ChatRepository` | `FirestoreChatRepository` | Chats, messages, mute/hide/leave |
+| `ChatImageStorage` | `SupabaseChatImageStorage` | Chat image upload only |
+| `ModerationRepository` | `FirestoreModerationRepository` | Report / block |
+| `SecureTokenStorage` | `KeychainTokenStorage` | Firebase ID token |
 
 ## Rules
 
@@ -58,7 +74,7 @@ FCM tap
   → AppDelegate (UNUserNotificationCenter)
   → PushNotificationHandler.parse → PushDeepLink
   → AppCoordinator.handleDeepLink
-  → Chat sheet / Connect tab
+  → Chats tab + pendingChatRoute  OR  Connect tab
 ```
 
 - Permission is requested when the user reaches the main tabs after auth / onboarding — not on cold launch.
@@ -77,29 +93,33 @@ Historical baseline: branch `websocketlocal` still has the old WebSocket chat pa
 
 ```
 CircleLink/
-  App/           — AppDelegate, AppDependencies, AppCoordinator, push
-  Features/      — Auth, AgeGate, Profile, Communities, Connect, ChatList (SwiftUI)
+  App/           — AppDelegate, AppDependencies, AppCoordinator, push, setup docs
+  Features/      — Auth, AgeGate, Profile, Communities, Connect, ChatList, Settings (SwiftUI)
   Chat/          — UIKit chat module (isolated)
   Domain/        — Models, Repository protocols
   Data/
-    Firebase/    — Auth + Firestore repos/mappers
+    Firebase/    — Auth + Firestore repos/mappers, ImageCompressor
     Supabase/    — chat image upload only
     Keychain/    — token storage
-    Stubs/       — stub repos
-  Shared/        — ViewState, helpers
+    Network/     — small concurrency helpers
+    Stubs/       — stub repos (previews / local stand-ins)
+  Shared/        — ViewState, ImageLoader, design tokens, helpers
 CircleLinkTests/ — ViewModel unit tests + mocks (Phase 11)
 websocket-server/ — Node FCM push worker (Spark)
+functions/       — UNUSED Blaze-era reference (do not deploy)
 ```
 
 ## State Management
 
-ViewModels expose `@Published` / `@Observable` state using `ViewState<T>`:
+ViewModels expose `@Published` state. List/detail screens usually use `ViewState<T>`:
 
 - `idle` → initial
 - `loading` → fetch in progress
 - `loaded(T)` → success with data
 - `empty` → no data
 - `error(String)` → failure message
+
+Chat thread uses its own `ChatViewModel.LoadState` plus a `messages` array (optimistic send).
 
 All UI updates happen on `@MainActor`.
 
@@ -116,11 +136,13 @@ User action
   → UI re-renders
 ```
 
+Per-feature short flows: [docs/FEATURES.md](docs/FEATURES.md).
+
 ## Data Flow Example (Send Message)
 
 ```
 User taps Send
-  → ChatViewController / ChatView
+  → ChatViewController / ChatThreadView
   → ChatViewModel.send(text:)
   → optimistic UI (MessageStatus.sending)
   → ChatRepository.sendMessage()
@@ -140,10 +162,11 @@ Peer writes to Firestore
   → UI update
 ```
 
-Observation starts in `ChatViewModel.onAppear` and stops in `onDisappear` / `deinit` (cancels Task → stream termination → `ListenerRegistration.remove()`).
+Observation starts in `ChatViewModel` after history load / `onAppear` and stops in `onDisappear` / `deinit` (cancels Task → stream termination → `ListenerRegistration.remove()`).
 
 ## Testing
 
 - Phase 11: ViewModel unit tests in `CircleLinkTests/` (Swift Testing + mock repositories)
 - Mock repository protocols — no Firebase needed for ViewModel tests
 - Protocol-based design keeps UI and network out of unit tests
+- In Xcode: select the **CircleLink** scheme → **Product → Test** (⌘U)

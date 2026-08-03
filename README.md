@@ -62,6 +62,19 @@ On launch, console should show: `[CircleLink] Firebase configured.`
 
 ---
 
+## How to verify
+
+| Check | Expected |
+|---|---|
+| Launch console | `[CircleLink] Firebase configured.` |
+| Sign in (Email or Apple) | Leaves Auth screen |
+| New account path | Age gate → Profile setup → Main tabs |
+| Communities | List loads; create / join works if rules are published |
+| Chats | Text send works without Supabase; images need Supabase |
+| Unit tests | **Product → Test** (⌘U) — `CircleLinkTests` |
+
+---
+
 ## Backend setup (where to look)
 
 | Topic | Doc |
@@ -88,7 +101,17 @@ User action
 
 There is **no UseCase layer** in this MVP. Dependencies are wired in `AppDependencies`.
 
-More detail: [ARCHITECTURE.md](ARCHITECTURE.md).
+More detail: [ARCHITECTURE.md](ARCHITECTURE.md) · feature taps: [docs/FEATURES.md](docs/FEATURES.md).
+
+---
+
+## Run unit tests
+
+1. Open `CircleLink.xcodeproj` in Xcode.
+2. Select the **CircleLink** scheme and a Simulator.
+3. **Product → Test** (⌘U).
+
+Tests live in `CircleLinkTests/` and use mock repositories (no Firebase required).
 
 ---
 
@@ -99,13 +122,13 @@ More detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 | 0–2 | App shell, Firebase auth, age gate | Done |
 | 3 | Profile setup / edit, avatars | Done |
 | 4 | WebSocket server foundation (iOS client later removed) | Done |
-| 5 | Communities (join / leave) | Done |
+| 5 | Communities (join / leave / create) | Done |
 | 6 | UIKit chat + Supabase image upload | Done |
 | 7–8 | Live messaging → chat list + Connect | Done |
 | 9 | FCM push + deep links | Done |
 | 10 | Stabilize MVP, a11y, remove iOS WebSocket | Done |
 | 11 | ViewModel unit tests (Swift Testing) | Done |
-| **12** | **Junior docs (this)** | **In progress** |
+| 12 | Junior docs | Done |
 | 13 | UI polish | Next |
 | 14+ | Product features | Later |
 
@@ -116,6 +139,8 @@ More detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 | Doc | For |
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, realtime, push, rules |
+| [docs/FEATURES.md](docs/FEATURES.md) | Short feature flows for juniors |
+| [DESIGN.md](DESIGN.md) | Visual system — **read before any UI work** |
 | [websocket-server/README.md](websocket-server/README.md) | FCM push worker |
 | [CircleLink/App/FIREBASE_SETUP.md](CircleLink/App/FIREBASE_SETUP.md) | Firebase Auth / Firestore / FCM |
 | [CircleLink/App/SUPABASE_SETUP.md](CircleLink/App/SUPABASE_SETUP.md) | Chat image storage |

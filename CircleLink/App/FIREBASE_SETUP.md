@@ -52,45 +52,61 @@ If packages are missing locally: **File → Packages → Resolve Package Version
 
 ## 5. Firestore
 
-Create Firestore database (test mode OK for development).
+Create Firestore database (test mode OK for early development; publish repo rules before real multi-user testing).
 
-User documents path: `users/{userId}`
+### Users
 
-Fields used in Phase 2–3:
+Path: `users/{userId}`
+
+Common fields:
 
 - `displayName`, `avatarURL`, `avatarBase64`, `interests`, `ageConfirmedAt`, `createdAt`
+- `fcmToken` (device field for push — not part of the `User` domain model)
 
-### Avatars (Phase 3, no Storage required)
+### Avatars (no Storage required)
 
 Avatars are stored as **compressed JPEG base64** in Firestore field `avatarBase64`.
 This works on the free Spark plan — Firebase Storage is **not** required.
 
-### Chat images (Phase 6 — Supabase Storage)
+### Chat images (Supabase Storage)
 
 Chat image attachments are stored in **Supabase Storage** (free tier).
 Firestore message documents store only `imageURL`.
 
 See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for bucket and API key setup.
 
-### Communities (Phase 5)
+### Communities
 
-Community documents path: `communities/{communityId}`
+Path: `communities/{communityId}`
 
 Fields:
 
-- `name`, `description`, `interestTag`, `memberCount`
+- `name`, `description`, `interestTag`, `memberCount`, `createdBy`
 
-Member documents path: `communities/{communityId}/members/{userId}`
+Member path: `communities/{communityId}/members/{userId}`
 
 Fields:
 
 - `joinedAt`, `role` (`member` | `admin`)
 
-`join` / `leave` update the member subcollection and increment/decrement `memberCount` atomically via batch write.
+**Create:** the app can create communities (`CreateCommunitySheet` → `CommunityRepository.createCommunity`). Creator is written as admin with `memberCount == 1`.
 
-### Firestore Security Rules (required for Phase 5)
+**Join / leave:** update the member subcollection and increment/decrement `memberCount` atomically via batch write. Leave also drops group-chat participation first (`ChatRepository.leaveGroupChat`).
 
-If the app shows **"Missing or insufficient permissions"**, Firestore rules do not allow reads on `communities` yet.
+### Other collections (used by the app)
+
+| Path | Role |
+|---|---|
+| `chats/{chatId}` | Direct + group chat metadata |
+| `chats/{chatId}/messages/{messageId}` | Message documents |
+| `users/{uid}/chatRefs/{chatId}` | Per-user chat list row (mute / hide / preview) |
+| `connectionRequests/{pairKey}` | Connect requests + matches |
+| `reports/{reportId}` | User reports |
+| `users/{uid}/blocked/{blockedUid}` | Block list |
+
+### Firestore Security Rules (required)
+
+If the app shows **"Missing or insufficient permissions"**, publish the rules from the repo.
 
 **Option A — Firebase Console (fastest)**
 
@@ -104,15 +120,18 @@ If the app shows **"Missing or insufficient permissions"**, Firestore rules do n
 firebase deploy --only firestore:rules
 ```
 
-Rules summary:
+Rules summary (see `firestore.rules` for exact checks):
 
 | Path | Who | Action |
 |------|-----|--------|
 | `users/{userId}` | signed-in user | read any profile; write own profile |
-| `communities/{id}` | signed-in user | read list/detail; update `memberCount` only |
+| `users/{uid}/chatRefs/{chatId}` | owner / peer (limited) | list row + mute/hide; peer preview-only fields |
+| `users/{uid}/blocked/{blockedUid}` | owner | read/write own blocks |
+| `reports/{id}` | signed-in reporter | create own report; no client read/update/delete |
+| `communities/{id}` | signed-in user | read; create with `createdBy` + `memberCount == 1`; update `memberCount` only |
 | `communities/{id}/members/{userId}` | signed-in user | read members; create/delete **own** membership |
-
-Communities are seeded manually in Console (no client-side create in MVP).
+| `chats/{id}` + `messages` | participants / community members | read/write per chat access helpers |
+| `connectionRequests/{id}` | from/to user | create pending; accept/decline/unmatch updates |
 
 ## 6. Verify
 
@@ -120,6 +139,14 @@ On launch, check Xcode console:
 
 - `[CircleLink] Firebase configured.` — OK
 - `GoogleService-Info.plist not found` — add the plist
+
+Smoke checks after rules are published:
+
+1. Sign in with a test user
+2. Complete age gate + profile setup
+3. Create a community (Communities → create sheet)
+4. Join / leave another community
+5. Send a text message in chat
 
 ## 7. Test Email/Password
 
@@ -143,7 +170,8 @@ Create a test user in Firebase Console → Authentication → Users → Add user
 
 - Permission is requested when the user reaches **main tabs** after sign-in / age gate / profile setup (not on cold launch)
 - On grant: APNs device token → FCM → `users/{userId}.fcmToken`
-- Notification tap is routed only through `AppCoordinator` (Chat / Connect)
+- Notification tap is routed only through `AppCoordinator` (Chats tab + thread route, or Connect tab)
+- Settings (Profile → Settings) can pause / re-request notification preference via `PushNotificationHandler`
 
 ### Cloud Functions
 
@@ -151,7 +179,7 @@ Create a test user in Firebase Console → Authentication → Users → Add user
 
 The `functions/` folder is kept only as an unused Blaze-era reference — do not deploy it.
 
-## Security notes (Phase 2)
+## Security notes
 
 - Firebase ID tokens stored in **Keychain** via `KeychainTokenStorage`
 - **No tokens in UserDefaults**
