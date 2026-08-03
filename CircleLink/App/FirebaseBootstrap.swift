@@ -7,21 +7,23 @@ import FirebaseFirestore
 #endif
 
 import Foundation
+import os
 
 enum FirebaseBootstrap {
+    /// Tracks our own `configure` call. Probing `FirebaseApp.app()` while unconfigured
+    /// logs a misleading "default Firebase app has not yet been configured" warning,
+    /// and repositories read this from any executor, so it needs lock-protected state.
+    private static let didConfigure = OSAllocatedUnfairLock(initialState: false)
+
     static var isConfigured: Bool {
-        #if canImport(FirebaseCore)
-        FirebaseApp.app() != nil
-        #else
-        false
-        #endif
+        didConfigure.withLock { $0 }
     }
 
     /// Configures Firebase once at app launch.
     /// Requires `GoogleService-Info.plist` in the app bundle (exact filename).
     static func configureIfNeeded() {
         #if canImport(FirebaseCore)
-        guard FirebaseApp.app() == nil else { return }
+        guard !isConfigured else { return }
 
         guard let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") else {
             #if DEBUG
@@ -45,6 +47,7 @@ enum FirebaseBootstrap {
         }
 
         FirebaseApp.configure(options: options)
+        didConfigure.withLock { $0 = true }
         configureFirestorePersistence()
         #if DEBUG
         print("[CircleLink] Firebase configured (project: \(options.projectID ?? "unknown")).")

@@ -97,9 +97,15 @@ service cloud.firestore {
         allow delete: if isSignedIn() && request.auth.uid == userId;
       }
 
-      // Phase 14: owner-only block list
+      // Phase 14: owner-only block list.
+      // `read` must not depend on {blockedUid}: it is unbound for collection
+      // queries, which made the Connect block-list query fail with
+      // "Missing or insufficient permissions". Ownership alone gates reads;
+      // the self-block guard belongs on writes.
       match /blocked/{blockedUid} {
-        allow read, write: if isSignedIn()
+        allow read: if isSignedIn() && request.auth.uid == userId;
+
+        allow write: if isSignedIn()
           && request.auth.uid == userId
           && userId != blockedUid;
       }

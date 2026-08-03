@@ -212,9 +212,26 @@ final class PushNotificationHandler: NSObject, NotificationSettingsServing {
         }
     }
 
+    /// FCM refuses to mint a token before APNs registration completes.
+    /// Registration is async, so a cold-launch fetch would always fail.
+    private var hasAPNSToken: Bool {
+        #if canImport(FirebaseMessaging)
+        return Messaging.messaging().apnsToken != nil
+        #else
+        return false
+        #endif
+    }
+
     private func uploadCurrentFCMToken() async {
         guard isNotificationsEnabledPreference else { return }
         #if canImport(FirebaseMessaging)
+        // `didRegisterForRemoteNotifications` retries this once APNs responds.
+        guard hasAPNSToken else {
+            #if DEBUG
+            print("[Push] waiting for APNs token before requesting FCM token")
+            #endif
+            return
+        }
         guard !isRegistering else { return }
         isRegistering = true
         defer { isRegistering = false }
