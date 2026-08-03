@@ -28,8 +28,8 @@ Give **one file** to one agent. Do not mix phases in a single chat.
 | 14 | `phase-14-async-communities.md` | Tasks: Communities |
 | 15 | ~~done~~ | Tasks: Chat / ChatList / ChatInfo |
 | 16 | ~~`phase-16-async-connect.md`~~ **done** | Tasks: Connect |
-| 17 | `phase-17-auth-cache-thread-safety.md` | Auth cache / Sendable |
-| 18 | `phase-18-surface-silent-errors.md` | Silent errors → visible state |
+| 17 | ~~`phase-17-auth-cache-thread-safety.md`~~ **done** | Auth cache / Sendable |
+| 18 | ~~`phase-18-surface-silent-errors.md`~~ **done** | Silent errors → visible state |
 
 Suggested: **12 → 14 → 13 → 15 → 16 → 17 → 18**
 
