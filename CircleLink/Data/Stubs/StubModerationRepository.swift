@@ -1,6 +1,8 @@
 import Foundation
 
-final class StubModerationRepository: ModerationRepository, @unchecked Sendable {
+/// Data-layer stub — must stay off the app's default `@MainActor` isolation so
+/// tests can construct it from default arguments / nonisolated contexts.
+nonisolated final class StubModerationRepository: ModerationRepository, @unchecked Sendable {
     private var blockedIds: Set<String>
     var fetchBlockedUserIdsError: Error?
 
@@ -27,6 +29,6 @@ final class StubModerationRepository: ModerationRepository, @unchecked Sendable 
         if let fetchBlockedUserIdsError {
             throw fetchBlockedUserIdsError
         }
-        blockedIds
+        return blockedIds
     }
 }
