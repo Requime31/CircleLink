@@ -160,7 +160,9 @@ final class FirebaseAuthRepository: AuthRepository {
         guard FirebaseBootstrap.isConfigured else { return }
         try Auth.auth().signOut()
         invalidateCache()
-        try tokenStorage.delete(for: .firebaseIDToken)
+        // Firebase is already signed out; Keychain cleanup must not keep authenticated UI visible.
+        // A stale token is unusable and restore retries cleanup when no Firebase session exists.
+        try? tokenStorage.delete(for: .firebaseIDToken)
     }
 
     func restoreSessionProfile() async throws -> User? {
@@ -175,6 +177,7 @@ final class FirebaseAuthRepository: AuthRepository {
 
         guard let userId = Auth.auth().currentUser?.uid else {
             updateCachedUser(nil, generation: cacheGeneration)
+            try? tokenStorage.delete(for: .firebaseIDToken)
             return nil
         }
 
