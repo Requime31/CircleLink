@@ -8,8 +8,6 @@ struct ChatListView: View {
     let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
 
     @State private var path = NavigationPath()
-    @State private var previewCache: [String: ChatsViewModel.ConversationPreview] = [:]
-    @State private var previewLoadingIds: Set<String> = []
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -25,7 +23,9 @@ struct ChatListView: View {
                 case let .error(message):
                     errorState(message: message)
                 case .loaded:
-                    mainListContent
+                    ChatListLoadedContent(viewModel: viewModel) { route in
+                        path.append(route)
+                    }
                 }
             }
             .clCanvasBackground()
@@ -94,17 +94,6 @@ struct ChatListView: View {
         }
     }
 
-    @ViewBuilder
-    private var mainListContent: some View {
-        let chats = viewModel.filteredVisibleChats
-
-        if chats.isEmpty {
-            searchEmptyState
-        } else {
-            chatsList(chats)
-        }
-    }
-
     private func consumePendingChatRoute() {
         guard let route = pendingChatRoute else { return }
         path = NavigationPath()
@@ -131,98 +120,6 @@ struct ChatListView: View {
         }
     }
 
-    @ViewBuilder
-    private func chatsList(_ chats: [ChatSummary]) -> some View {
-        List {
-            ForEach(chats) { chat in
-                chatRow(chat)
-            }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(CLColor.canvas)
-        .clAppear()
-    }
-
-    /// One list row: open chat, mute/hide menu, conversation peek.
-    @ViewBuilder
-    private func chatRow(_ chat: ChatSummary) -> some View {
-        Button {
-            openThread(
-                ChatThreadRoute(
-                    chatId: chat.id,
-                    title: chat.title,
-                    communityId: chat.communityId
-                )
-            )
-        } label: {
-            ChatListRowView(chat: chat)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(ChatListAccessibility.label(for: chat))
-        .listRowBackground(CLColor.canvas)
-        .listRowSeparatorTint(CLColor.hairline)
-        .contextMenu {
-            Button {
-                openThread(
-                    ChatThreadRoute(
-                        chatId: chat.id,
-                        title: chat.title,
-                        communityId: chat.communityId
-                    )
-                )
-            } label: {
-                Label("Open Chat", systemImage: "bubble.left")
-            }
-
-            Button {
-                Task {
-                    await viewModel.setMuted(chatId: chat.id, muted: !chat.isMuted)
-                }
-            } label: {
-                Label(
-                    chat.isMuted ? "Unmute" : "Mute",
-                    systemImage: chat.isMuted ? "bell" : "bell.slash"
-                )
-            }
-
-            Button(role: .destructive) {
-                Task { await viewModel.hideChat(chatId: chat.id) }
-            } label: {
-                Label("Hide", systemImage: "eye.slash")
-            }
-        } preview: {
-            ConversationPeekPreview(
-                chatTitle: chat.title,
-                isGroup: chat.type == .group,
-                preview: previewCache[chat.id],
-                isLoading: previewLoadingIds.contains(chat.id)
-            )
-            .task {
-                await loadPreviewIfNeeded(for: chat.id)
-            }
-        }
-    }
-
-    private func openThread(_ route: ChatThreadRoute) {
-        path.append(route)
-    }
-
-    private func loadPreviewIfNeeded(for chatId: String) async {
-        if case .loaded? = previewCache[chatId] {
-            return
-        }
-        if previewLoadingIds.contains(chatId) {
-            return
-        }
-        previewLoadingIds.insert(chatId)
-        let preview = await viewModel.fetchConversationPreview(chatId: chatId)
-        if let preview {
-            previewCache[chatId] = preview
-        }
-        previewLoadingIds.remove(chatId)
-    }
-
     private var emptyState: some View {
         CLEmptyState(
             systemImage: "bubble.left.and.bubble.right",
@@ -233,14 +130,6 @@ struct ChatListView: View {
         ) {
             Task { await viewModel.loadChats() }
         }
-    }
-
-    private var searchEmptyState: some View {
-        CLEmptyState(
-            systemImage: "magnifyingglass",
-            title: "No chats found",
-            message: "Try a different name or message."
-        )
     }
 
     private func errorState(message: String) -> some View {
