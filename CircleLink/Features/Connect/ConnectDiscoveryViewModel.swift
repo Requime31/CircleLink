@@ -20,6 +20,7 @@ final class ConnectDiscoveryViewModel: ObservableObject {
     /// Bumped on reset so in-flight community loads cannot repopulate after sign-out.
     private var sessionGeneration = 0
     private var candidatesLoadTask: Task<Void, Never>?
+    private var communitiesLoadTask: Task<Void, Never>?
 
     /// Ranked candidates minus people Pass'd this session.
     var deckCandidates: [User] {
@@ -71,6 +72,8 @@ final class ConnectDiscoveryViewModel: ObservableObject {
     }
 
     func resetForm() {
+        communitiesLoadTask?.cancel()
+        communitiesLoadTask = nil
         candidatesLoadTask?.cancel()
         candidatesLoadTask = nil
         sessionGeneration += 1
@@ -88,21 +91,29 @@ final class ConnectDiscoveryViewModel: ObservableObject {
     }
 
     private func loadCommunities() async {
+        communitiesLoadTask?.cancel()
         let generation = sessionGeneration
         communitiesState = .loading
 
-        do {
-            let communities = try await communityRepository.fetchCommunities()
-            guard generation == sessionGeneration else { return }
-            communitiesState = communities.isEmpty ? .empty : .loaded(communities)
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let communities = try await self.communityRepository.fetchCommunities()
+                guard !Task.isCancelled, generation == self.sessionGeneration else { return }
+                self.communitiesState = communities.isEmpty ? .empty : .loaded(communities)
 
-            if selectedCommunityId == nil, let first = communities.first {
-                selectedCommunityId = first.id
+                if self.selectedCommunityId == nil, let first = communities.first {
+                    self.selectedCommunityId = first.id
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled, generation == self.sessionGeneration else { return }
+                self.communitiesState = .error(error.localizedDescription)
             }
-        } catch {
-            guard generation == sessionGeneration else { return }
-            communitiesState = .error(error.localizedDescription)
         }
+        communitiesLoadTask = task
+        await task.value
     }
 
     private func loadCandidates(communityId: String) async {
@@ -112,7 +123,8 @@ final class ConnectDiscoveryViewModel: ObservableObject {
 
         candidatesState = .loading
 
-        let task = Task { @MainActor in
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
                 let candidates = try await self.connectionRepository.fetchCandidates(communityId: communityId)
                     .filter { !self.blockFilter.contains($0.id) }
@@ -124,6 +136,8 @@ final class ConnectDiscoveryViewModel: ObservableObject {
                 // Drop session Pass ids that are no longer in the fresh list.
                 self.passedCandidateIds = self.passedCandidateIds.intersection(Set(candidates.map(\.id)))
                 self.candidatesState = candidates.isEmpty ? .empty : .loaded(candidates)
+            } catch is CancellationError {
+                return
             } catch {
                 guard !Task.isCancelled,
                       generation == self.candidatesLoadGeneration,

@@ -19,6 +19,7 @@ final class ConnectionInboxViewModel: ObservableObject {
     private var loadGeneration = 0
     /// Only `resetForm()` bumps this — distinguishes sign-out from a normal reload.
     private var sessionGeneration = 0
+    private var actionTask: Task<Void, Never>?
 
     var incomingCount: Int {
         guard case let .loaded(items) = incomingState else { return 0 }
@@ -42,13 +43,16 @@ final class ConnectionInboxViewModel: ObservableObject {
 
         incomingState = .loading
 
-        let task = Task { @MainActor in
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
                 let requests = try await self.connectionRepository.fetchIncomingRequests()
                 let items = try await self.resolveRequestItems(requests, peerId: \.fromUserId)
                     .filter { !self.blockFilter.contains($0.peer.id) }
                 guard !Task.isCancelled, generation == self.loadGeneration else { return }
                 self.incomingState = items.isEmpty ? .empty : .loaded(items)
+            } catch is CancellationError {
+                return
             } catch {
                 guard !Task.isCancelled, generation == self.loadGeneration else { return }
                 self.incomingState = .error(error.localizedDescription)
@@ -59,47 +63,75 @@ final class ConnectionInboxViewModel: ObservableObject {
     }
 
     func accept(requestId: String, fromUserId: String) async {
+        // Global guard: accept/decline refresh the whole inbox; concurrent actions race.
+        guard respondingRequestId == nil, actionTask == nil else { return }
         _ = fromUserId
         let session = sessionGeneration
         respondingRequestId = requestId
         actionErrorMessage = nil
 
-        do {
-            try await connectionRepository.respond(to: requestId, accept: true)
-        } catch {
-            guard session == sessionGeneration else { return }
-            actionErrorMessage = error.localizedDescription
-            respondingRequestId = nil
-            return
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.sessionGeneration == session {
+                    self.respondingRequestId = nil
+                }
+            }
+
+            do {
+                try await self.connectionRepository.respond(to: requestId, accept: true)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard session == self.sessionGeneration else { return }
+                self.actionErrorMessage = error.localizedDescription
+                return
+            }
+
+            guard !Task.isCancelled, session == self.sessionGeneration else { return }
+
+            // Accept only — user opens chat manually from Matches (no auto-navigation).
+            await self.load()
+            guard !Task.isCancelled, session == self.sessionGeneration else { return }
+            await self.onAcceptSucceeded?()
         }
-
-        guard session == sessionGeneration else { return }
-
-        // Accept only — user opens chat manually from Matches (no auto-navigation).
-        await load()
-        guard session == sessionGeneration else { return }
-        await onAcceptSucceeded?()
-
-        guard session == sessionGeneration else { return }
-        respondingRequestId = nil
+        actionTask = task
+        await task.value
+        if actionTask == task {
+            actionTask = nil
+        }
     }
 
     func decline(requestId: String) async {
+        guard respondingRequestId == nil, actionTask == nil else { return }
         let session = sessionGeneration
         respondingRequestId = requestId
         actionErrorMessage = nil
 
-        do {
-            try await connectionRepository.respond(to: requestId, accept: false)
-            guard session == sessionGeneration else { return }
-            await load()
-        } catch {
-            guard session == sessionGeneration else { return }
-            actionErrorMessage = error.localizedDescription
-        }
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.sessionGeneration == session {
+                    self.respondingRequestId = nil
+                }
+            }
 
-        guard session == sessionGeneration else { return }
-        respondingRequestId = nil
+            do {
+                try await self.connectionRepository.respond(to: requestId, accept: false)
+                guard !Task.isCancelled, session == self.sessionGeneration else { return }
+                await self.load()
+            } catch is CancellationError {
+                return
+            } catch {
+                guard session == self.sessionGeneration else { return }
+                self.actionErrorMessage = error.localizedDescription
+            }
+        }
+        actionTask = task
+        await task.value
+        if actionTask == task {
+            actionTask = nil
+        }
     }
 
     func removeLocally(userId: String) {
@@ -112,6 +144,8 @@ final class ConnectionInboxViewModel: ObservableObject {
     func resetForm() {
         loadTask?.cancel()
         loadTask = nil
+        actionTask?.cancel()
+        actionTask = nil
         loadGeneration += 1
         sessionGeneration += 1
         incomingState = .idle

@@ -267,4 +267,87 @@ struct ConnectViewModelTests {
             Issue.record("Expected matched list without blocked peer")
         }
     }
+
+    @Test func overlappingDashboardLoadKeepsLatestState() async {
+        let connection = MockConnectionRepository()
+        connection.incoming = [pendingRequest(id: "req-old")]
+        let community = MockCommunityRepository()
+        community.shouldHoldCommunities = true
+
+        let tab = ConnectTabModel(
+            connectionRepository: connection,
+            chatRepository: MockChatRepository(),
+            communityRepository: community,
+            userRepository: MockUserRepository(),
+            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
+            moderationRepository: StubModerationRepository(),
+            onOpenChat: { _ in }
+        )
+
+        let first = Task { await tab.load() }
+        await waitUntil { community.isHoldingCommunities }
+
+        community.shouldHoldCommunities = false
+        connection.incoming = [pendingRequest(id: "req-new", fromUserId: "peer-2")]
+        let second = Task { await tab.load() }
+        await Task.yield()
+        community.releaseCommunitiesHold()
+        await first.value
+        await second.value
+
+        #expect(connection.fetchIncomingCallCount >= 2)
+        if case let .loaded(items) = tab.inbox.incomingState {
+            #expect(items.map(\.request.id) == ["req-new"])
+        } else {
+            Issue.record("Expected latest inbox after overlapping loads")
+        }
+    }
+
+    @Test func acceptIgnoresDuplicateWhileInFlight() async {
+        let connection = MockConnectionRepository()
+        connection.incoming = [pendingRequest()]
+        connection.shouldHoldRespond = true
+        let inbox = await makeInbox(connection: connection)
+        await inbox.load()
+
+        let first = Task { await inbox.accept(requestId: "req-1", fromUserId: "peer-1") }
+        await waitUntil { connection.isHoldingRespond }
+
+        await inbox.accept(requestId: "req-1", fromUserId: "peer-1")
+        #expect(connection.acceptCallCount == 0)
+
+        connection.releaseRespondHold()
+        await first.value
+
+        #expect(connection.acceptCallCount == 1)
+        #expect(inbox.respondingRequestId == nil)
+    }
+
+    @Test func openChatIgnoresDuplicateWhileInFlight() async {
+        let chat = MockChatRepository()
+        chat.createDirectChatResult = "chat-42"
+        chat.shouldHoldCreateDirect = true
+        var opened: [String] = []
+
+        let matches = await makeMatches(chat: chat) { opened.append($0) }
+        let first = Task { await matches.openChat(with: "peer-1") }
+        await waitUntil { chat.isHoldingCreateDirect }
+
+        await matches.openChat(with: "peer-1")
+        #expect(chat.createDirectChatCallCount == 1)
+
+        chat.releaseCreateDirectHold()
+        await first.value
+
+        #expect(chat.createDirectChatCallCount == 1)
+        #expect(opened == ["chat-42"])
+        #expect(matches.openingChatPeerId == nil)
+    }
+
+    private func waitUntil(_ condition: @MainActor () -> Bool) async {
+        for _ in 0..<200 {
+            if condition() { return }
+            await Task.yield()
+        }
+    }
 }

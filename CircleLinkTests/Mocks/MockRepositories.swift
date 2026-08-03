@@ -134,6 +134,9 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     /// When true, `sendMessage` waits until `releaseSendHold()`.
     var shouldHoldSend = false
     private var sendHold: CheckedContinuation<Void, Never>?
+    /// When true, `createDirectChat` waits until `releaseCreateDirectHold()`.
+    var shouldHoldCreateDirect = false
+    private var createDirectHold: CheckedContinuation<Void, Never>?
     var fetchMessagesError: Error?
 
     func releaseFetchOrganizedHold() {
@@ -156,6 +159,13 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     }
 
     var isHoldingSend: Bool { sendHold != nil }
+
+    func releaseCreateDirectHold() {
+        createDirectHold?.resume()
+        createDirectHold = nil
+    }
+
+    var isHoldingCreateDirect: Bool { createDirectHold != nil }
 
     func fetchChats() async throws -> [ChatSummary] { visibleChats }
 
@@ -255,6 +265,11 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
         createDirectChatCallCount += 1
         lastCreateDirectPeerId = userId
         callLog?.append("createDirectChat")
+        if shouldHoldCreateDirect {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                createDirectHold = continuation
+            }
+        }
         if let createDirectChatError { throw createDirectChatError }
         return createDirectChatResult
     }
@@ -343,8 +358,35 @@ final class MockConnectionRepository: ConnectionRepository, @unchecked Sendable 
     var lastSendConnectUserId: String?
     var lastSendConnectCommunityId: String?
     var lastRemovedPeerId: String?
+    var fetchIncomingCallCount = 0
+    var fetchMatchedCallCount = 0
+    var fetchCandidatesCallCount = 0
+    /// When true, `fetchIncomingRequests` waits until `releaseIncomingHold()`.
+    var shouldHoldIncoming = false
+    private var incomingHold: CheckedContinuation<Void, Never>?
+    /// When true, `respond` waits until `releaseRespondHold()`.
+    var shouldHoldRespond = false
+    private var respondHold: CheckedContinuation<Void, Never>?
+    /// When true, `createDirectChat` waits — configured on MockChatRepository instead.
 
-    func fetchCandidates(communityId: String) async throws -> [User] { candidates }
+    func releaseIncomingHold() {
+        incomingHold?.resume()
+        incomingHold = nil
+    }
+
+    var isHoldingIncoming: Bool { incomingHold != nil }
+
+    func releaseRespondHold() {
+        respondHold?.resume()
+        respondHold = nil
+    }
+
+    var isHoldingRespond: Bool { respondHold != nil }
+
+    func fetchCandidates(communityId: String) async throws -> [User] {
+        fetchCandidatesCallCount += 1
+        return candidates
+    }
 
     func sendConnect(to userId: String, in communityId: String) async throws {
         sendConnectCallCount += 1
@@ -353,11 +395,27 @@ final class MockConnectionRepository: ConnectionRepository, @unchecked Sendable 
         if let sendConnectError { throw sendConnectError }
     }
 
-    func fetchIncomingRequests() async throws -> [ConnectionRequest] { incoming }
+    func fetchIncomingRequests() async throws -> [ConnectionRequest] {
+        fetchIncomingCallCount += 1
+        if shouldHoldIncoming {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                incomingHold = continuation
+            }
+        }
+        return incoming
+    }
 
-    func fetchMatchedConnections() async throws -> [ConnectionRequest] { matched }
+    func fetchMatchedConnections() async throws -> [ConnectionRequest] {
+        fetchMatchedCallCount += 1
+        return matched
+    }
 
     func respond(to requestId: String, accept: Bool) async throws {
+        if shouldHoldRespond {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                respondHold = continuation
+            }
+        }
         if let respondError { throw respondError }
         if accept {
             acceptCallCount += 1
@@ -431,8 +489,25 @@ final class MockCommunityRepository: CommunityRepository, @unchecked Sendable {
     var lastLeftCommunityId: String?
     var lastCreatedCommunity: Community?
     var callLog: MockCallLog?
+    var fetchCommunitiesCallCount = 0
+    /// When true, `fetchCommunities` waits until `releaseCommunitiesHold()`.
+    var shouldHoldCommunities = false
+    private var communitiesHold: CheckedContinuation<Void, Never>?
+
+    func releaseCommunitiesHold() {
+        communitiesHold?.resume()
+        communitiesHold = nil
+    }
+
+    var isHoldingCommunities: Bool { communitiesHold != nil }
 
     func fetchCommunities() async throws -> [Community] {
+        fetchCommunitiesCallCount += 1
+        if shouldHoldCommunities {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                communitiesHold = continuation
+            }
+        }
         if let fetchCommunitiesError { throw fetchCommunitiesError }
         return communities
     }

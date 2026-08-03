@@ -18,6 +18,8 @@ final class ConnectTabModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     /// Invalidates in-flight `load()` / moderation after sign-out `resetForm()`.
     private var sessionGeneration = 0
+    private var loadTask: Task<Void, Never>?
+    private var peerSheetRefreshTask: Task<Void, Never>?
 
     var incomingCount: Int { inbox.incomingCount }
     var matchedCount: Int { matches.matchedCount }
@@ -74,23 +76,31 @@ final class ConnectTabModel: ObservableObject {
     }
 
     func load() async {
+        loadTask?.cancel()
         let generation = sessionGeneration
-        await blockFilter.refresh()
-        guard generation == sessionGeneration else { return }
 
-        async let discoveryLoad: Void = discovery.load()
-        async let inboxLoad: Void = inbox.load()
-        async let matchesLoad: Void = matches.load()
-        _ = await (discoveryLoad, inboxLoad, matchesLoad)
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performLoad(generation: generation)
+        }
+        loadTask = task
+        await task.value
     }
 
     func refreshAfterPeerSheet() async {
+        peerSheetRefreshTask?.cancel()
         let generation = sessionGeneration
-        await inbox.load()
-        guard generation == sessionGeneration else { return }
-        await matches.load()
-        guard generation == sessionGeneration else { return }
-        await discovery.reloadCandidatesIfNeeded()
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.inbox.load()
+            guard !Task.isCancelled, generation == self.sessionGeneration else { return }
+            await self.matches.load()
+            guard !Task.isCancelled, generation == self.sessionGeneration else { return }
+            await self.discovery.reloadCandidatesIfNeeded()
+        }
+        peerSheetRefreshTask = task
+        await task.value
     }
 
     func report(
@@ -151,6 +161,10 @@ final class ConnectTabModel: ObservableObject {
     }
 
     func resetForm() {
+        loadTask?.cancel()
+        loadTask = nil
+        peerSheetRefreshTask?.cancel()
+        peerSheetRefreshTask = nil
         sessionGeneration += 1
         discovery.resetForm()
         inbox.resetForm()
@@ -165,5 +179,17 @@ final class ConnectTabModel: ObservableObject {
         actionErrorMessage = nil
         moderationMessage = nil
         moderatingUserId = nil
+    }
+
+    // MARK: - Private
+
+    private func performLoad(generation: Int) async {
+        await blockFilter.refresh()
+        guard !Task.isCancelled, generation == sessionGeneration else { return }
+
+        async let discoveryLoad: Void = discovery.load()
+        async let inboxLoad: Void = inbox.load()
+        async let matchesLoad: Void = matches.load()
+        _ = await (discoveryLoad, inboxLoad, matchesLoad)
     }
 }

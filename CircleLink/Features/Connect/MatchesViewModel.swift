@@ -19,6 +19,7 @@ final class MatchesViewModel: ObservableObject {
     private var loadGeneration = 0
     /// Only `resetForm()` bumps this — distinguishes sign-out from a normal reload.
     private var sessionGeneration = 0
+    private var openChatTask: Task<Void, Never>?
 
     var matchedCount: Int {
         guard case let .loaded(items) = matchedState else { return 0 }
@@ -48,7 +49,8 @@ final class MatchesViewModel: ObservableObject {
 
         matchedState = .loading
 
-        let task = Task { @MainActor in
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
                 let requests = try await self.connectionRepository.fetchMatchedConnections()
                 let currentUserId = self.authRepository.currentUser?.id
@@ -75,6 +77,8 @@ final class MatchesViewModel: ObservableObject {
                 }
 
                 self.matchedState = items.isEmpty ? .empty : .loaded(items)
+            } catch is CancellationError {
+                return
             } catch {
                 guard !Task.isCancelled, generation == self.loadGeneration else { return }
                 self.matchedState = .error(error.localizedDescription)
@@ -85,21 +89,36 @@ final class MatchesViewModel: ObservableObject {
     }
 
     func openChat(with peerId: String) async {
+        // Global guard: open-chat navigates; concurrent creates would double-open.
+        guard openingChatPeerId == nil, openChatTask == nil else { return }
         let session = sessionGeneration
         openingChatPeerId = peerId
         actionErrorMessage = nil
 
-        do {
-            let chatId = try await chatRepository.createDirectChat(with: peerId)
-            guard session == sessionGeneration else { return }
-            onOpenChat(chatId)
-        } catch {
-            guard session == sessionGeneration else { return }
-            actionErrorMessage = error.localizedDescription
-        }
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.sessionGeneration == session {
+                    self.openingChatPeerId = nil
+                }
+            }
 
-        guard session == sessionGeneration else { return }
-        openingChatPeerId = nil
+            do {
+                let chatId = try await self.chatRepository.createDirectChat(with: peerId)
+                guard !Task.isCancelled, session == self.sessionGeneration else { return }
+                self.onOpenChat(chatId)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard session == self.sessionGeneration else { return }
+                self.actionErrorMessage = error.localizedDescription
+            }
+        }
+        openChatTask = task
+        await task.value
+        if openChatTask == task {
+            openChatTask = nil
+        }
     }
 
     func removeLocally(userId: String) {
@@ -112,6 +131,8 @@ final class MatchesViewModel: ObservableObject {
     func resetForm() {
         loadTask?.cancel()
         loadTask = nil
+        openChatTask?.cancel()
+        openChatTask = nil
         loadGeneration += 1
         sessionGeneration += 1
         matchedState = .idle
