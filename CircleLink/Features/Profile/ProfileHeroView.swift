@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Personal cabinet identity: soft atmosphere + avatar + name.
 struct ProfileHeroView: View {

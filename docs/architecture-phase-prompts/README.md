@@ -46,12 +46,12 @@ Priority chosen for coupling / navigation risk first:
 
 | Phase | File | Screen |
 |------:|------|--------|
-| 24 | `phase-24-slim-connect-view.md` | ConnectView |
-| 25 | `phase-25-slim-community-detail-view.md` | CommunityDetailView |
-| 26 | `phase-26-slim-chat-list-view.md` | ChatListView |
-| 27 | `phase-27-slim-communities-list-view.md` | CommunitiesListView |
-| 28 | `phase-28-slim-profile-view.md` | ProfileView |
-| 29 | `phase-29-slim-chat-info-view.md` | ChatInfoView |
+| 24 | ~~`phase-24-slim-connect-view.md`~~ **done** | ConnectView |
+| 25 | ~~`phase-25-slim-community-detail-view.md`~~ **done** | CommunityDetailView |
+| 26 | ~~`phase-26-slim-chat-list-view.md`~~ **done** | ChatListView |
+| 27 | ~~`phase-27-slim-communities-list-view.md`~~ **done** | CommunitiesListView |
+| 28 | ~~`phase-28-slim-profile-view.md`~~ **done** | ProfileView |
+| 29 | ~~`phase-29-slim-chat-info-view.md`~~ **done** | ChatInfoView |
 
 Prefer **22 before 24–29** so empty/error extraction isn’t redone twice. Prefer **13 before 26**.
 

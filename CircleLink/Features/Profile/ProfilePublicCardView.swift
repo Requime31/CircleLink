@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Read-only mirror of public fields — same visual language as peer profile.
 struct ProfilePublicCardView: View {
