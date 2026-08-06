@@ -1,46 +1,46 @@
 import UIKit
 
-/// UIKit tokens for Chat — mirrors `CLColor` / DESIGN.md hex.
+/// UIKit tokens for Chat — mirrors `CLColor` / DESIGN.md (Sunset Parchment).
 /// Visual chrome only; keep Dynamic Type fonts. Chat stays UIKit-isolated.
 enum ChatAppearance {
     // MARK: Surfaces
 
-    /// `#FAF9F7`
-    static let canvas = UIColor(red: 0.980, green: 0.976, blue: 0.969, alpha: 1.0)
+    /// `#FCF9F8`
+    static let canvas = UIColor(red: 0.988, green: 0.976, blue: 0.973, alpha: 1.0)
     /// `#FFFFFF`
     static let surface = UIColor.white
-    /// `#F5F3F0`
-    static let surfaceSoft = UIColor(red: 0.961, green: 0.953, blue: 0.941, alpha: 1.0)
+    /// `#F6F3F2`
+    static let surfaceSoft = UIColor(red: 0.965, green: 0.953, blue: 0.949, alpha: 1.0)
     /// `#E8E4DF`
     static let hairline = UIColor(red: 0.910, green: 0.894, blue: 0.875, alpha: 1.0)
-    /// `#D4CFC8`
-    static let hairlineStrong = UIColor(red: 0.831, green: 0.812, blue: 0.784, alpha: 1.0)
+    /// `#DCC1B9`
+    static let hairlineStrong = UIColor(red: 0.863, green: 0.757, blue: 0.725, alpha: 1.0)
 
     // MARK: Ink
 
-    /// `#1A1A1A`
-    static let ink = UIColor(red: 0.102, green: 0.102, blue: 0.102, alpha: 1.0)
-    /// `#5C574F`
-    static let inkSecondary = UIColor(red: 0.361, green: 0.341, blue: 0.310, alpha: 1.0)
-    /// `#8A847A`
-    static let inkMuted = UIColor(red: 0.541, green: 0.518, blue: 0.478, alpha: 1.0)
+    /// `#1C1B1B`
+    static let ink = UIColor(red: 0.110, green: 0.106, blue: 0.106, alpha: 1.0)
+    /// `#55423D`
+    static let inkSecondary = UIColor(red: 0.333, green: 0.259, blue: 0.239, alpha: 1.0)
+    /// `#88726C`
+    static let inkMuted = UIColor(red: 0.533, green: 0.447, blue: 0.424, alpha: 1.0)
     /// `#B8B2A8`
     static let inkDisabled = UIColor(red: 0.722, green: 0.698, blue: 0.659, alpha: 1.0)
 
-    // MARK: Primary (peach)
+    // MARK: Primary (Sunset Clay)
 
-    /// `#F2A68A`
-    static let primary = UIColor(red: 0.949, green: 0.651, blue: 0.541, alpha: 1.0)
-    /// `#E08B6C`
-    static let primaryPressed = UIColor(red: 0.878, green: 0.545, blue: 0.424, alpha: 1.0)
-    /// `#FDE8DE`
-    static let primarySoft = UIColor(red: 0.992, green: 0.910, blue: 0.871, alpha: 1.0)
+    /// `#E67E5F`
+    static let primary = UIColor(red: 0.902, green: 0.494, blue: 0.373, alpha: 1.0)
+    /// `#9B442A`
+    static let primaryPressed = UIColor(red: 0.608, green: 0.267, blue: 0.165, alpha: 1.0)
+    /// `#FFDBD1`
+    static let primarySoft = UIColor(red: 1.000, green: 0.859, blue: 0.820, alpha: 1.0)
 
     // MARK: Bubbles
 
-    /// Mine: soft peach + dark ink
+    /// Mine: soft clay + dark ink
     static let outgoingBubble = primarySoft
-    /// Theirs: white surface on warm canvas
+    /// Theirs: white surface on parchment (better contrast than surfaceSoft)
     static let incomingBubble = surface
 
     // MARK: Geometry
@@ -81,8 +81,9 @@ enum ChatAppearance {
     }
 
     enum Radius {
-        static let bubble: CGFloat = 16
-        static let image: CGFloat = 12
-        static let field: CGFloat = 8
+        static let bubble: CGFloat = 18
+        static let image: CGFloat = 14
+        static let field: CGFloat = 14
+        static let avatar: CGFloat = 14
     }
 }

@@ -2,47 +2,130 @@ import SwiftUI
 
 struct AuthView: View {
     @ObservedObject var viewModel: AuthViewModel
+    @State private var showEmailForm = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: CLSpacing.xl) {
-                brandHeader
-                    .clAppear()
+        ZStack {
+            CLColor.canvas.ignoresSafeArea()
+            ambientBackground
 
-                signInStack
-                    .clAppear(delay: 0.06)
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer(minLength: CLSpacing.xxl)
+
+                    logoMark
+                        .padding(.bottom, CLSpacing.xl)
+                        .clAppear()
+
+                    headerCopy
+                        .padding(.bottom, CLSpacing.xl)
+                        .clAppear(delay: 0.04)
+
+                    actionCluster
+                        .clAppear(delay: 0.08)
+
+                    Spacer(minLength: CLSpacing.xl)
+
+                    termsFooter
+                        .padding(.bottom, CLSpacing.lg)
+                }
+                .padding(.horizontal, CLSpacing.screenHorizontal)
+                .frame(maxWidth: 400)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, CLSpacing.lg)
-            .padding(.top, CLSpacing.xxl)
-            .padding(.bottom, CLSpacing.xl)
+            .scrollDismissesKeyboard(.interactively)
         }
-        .scrollDismissesKeyboard(.interactively)
-        .clCanvasBackground()
-        .navigationTitle("Sign In")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
     }
 
-    private var brandHeader: some View {
+    // MARK: - Chrome
+
+    private var ambientBackground: some View {
+        ZStack {
+            Circle()
+                .fill(CLColor.primary.opacity(0.06))
+                .frame(width: 280, height: 280)
+                .blur(radius: 60)
+                .offset(x: -120, y: -180)
+
+            Circle()
+                .fill(CLColor.inkMuted.opacity(0.05))
+                .frame(width: 220, height: 220)
+                .blur(radius: 50)
+                .offset(x: 140, y: 280)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var logoMark: some View {
+        Image(systemName: "person.3.fill")
+            .font(.system(size: 28, weight: .semibold))
+            .foregroundStyle(CLColor.primary)
+            .frame(width: 64, height: 64)
+            .background(CLColor.surface)
+            .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
+                    .stroke(CLColor.hairline, lineWidth: 1)
+            )
+            .clFloatingShadow()
+            .accessibilityHidden(true)
+    }
+
+    private var headerCopy: some View {
         VStack(spacing: CLSpacing.xs) {
-            Text("CircleLink")
+            Text("Find your circle.")
                 .font(CLTypography.largeTitle)
                 .foregroundStyle(CLColor.ink)
+                .multilineTextAlignment(.center)
                 .accessibilityAddTraits(.isHeader)
 
-            Text("Sign in or create an account")
-                .font(CLTypography.subheadline)
+            Text("Low-stress social discovery.")
+                .font(CLTypography.body)
                 .foregroundStyle(CLColor.inkSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, CLSpacing.md)
     }
 
-    private var signInStack: some View {
-        VStack(spacing: CLSpacing.lg) {
+    private var actionCluster: some View {
+        VStack(spacing: CLSpacing.md) {
             appleButton
-            orDivider
-            emailFields
+
+            if showEmailForm {
+                emailFields
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            } else {
+                Button {
+                    withAnimation(CLMotion.soft) {
+                        showEmailForm = true
+                    }
+                } label: {
+                    Text("Continue with Email")
+                }
+                .buttonStyle(CLSecondaryButtonStyle())
+                .accessibilityLabel("Continue with email")
+
+                Button {
+                    withAnimation(CLMotion.soft) {
+                        showEmailForm = true
+                    }
+                } label: {
+                    (
+                        Text("Already have an account? ")
+                            .foregroundColor(CLColor.inkSecondary)
+                        + Text("Log in")
+                            .foregroundColor(CLColor.primary)
+                            .fontWeight(.semibold)
+                    )
+                    .font(CLTypography.footnote)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, CLSpacing.xxs)
+                .accessibilityLabel("Log in with email")
+            }
+
             statusBlock
         }
     }
@@ -56,31 +139,17 @@ struct AuthView: View {
                 Image(systemName: "apple.logo")
                     .font(.title3)
                 Text("Sign in with Apple")
-                    .font(CLTypography.button)
+                    .font(CLTypography.button.weight(.semibold))
             }
             .frame(maxWidth: .infinity)
-            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+            .frame(minHeight: 56)
             .foregroundStyle(.white)
             .background(Color.black)
             .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
         }
         .buttonStyle(.plain)
+        .disabled(isBusy)
         .accessibilityLabel("Sign in with Apple")
-    }
-
-    private var orDivider: some View {
-        HStack(spacing: CLSpacing.sm) {
-            Rectangle()
-                .fill(CLColor.hairline)
-                .frame(height: 1)
-            Text("or")
-                .font(CLTypography.footnote)
-                .foregroundStyle(CLColor.inkMuted)
-            Rectangle()
-                .fill(CLColor.hairline)
-                .frame(height: 1)
-        }
-        .accessibilityHidden(true)
     }
 
     private var emailFields: some View {
@@ -105,7 +174,8 @@ struct AuthView: View {
             } label: {
                 Text("Sign In with Email")
             }
-            .buttonStyle(CLPrimaryButtonStyle())
+            .buttonStyle(CLEmphasisButtonStyle())
+            .disabled(isBusy)
             .accessibilityLabel("Sign in with email and password")
 
             Button {
@@ -114,8 +184,31 @@ struct AuthView: View {
                 Text("Create Account")
             }
             .buttonStyle(CLSecondaryButtonStyle())
+            .disabled(isBusy)
             .accessibilityLabel("Create account with email and password")
+
+            Button {
+                withAnimation(CLMotion.soft) {
+                    showEmailForm = false
+                }
+            } label: {
+                Text("Back")
+                    .font(CLTypography.footnote.weight(.medium))
+                    .foregroundStyle(CLColor.inkSecondary)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, CLSpacing.xxs)
+            .accessibilityLabel("Back to sign-in options")
         }
+    }
+
+    private var termsFooter: some View {
+        Text("By continuing, you agree to CircleLink’s Terms of Service and Privacy Policy.")
+            .font(CLTypography.caption)
+            .foregroundStyle(CLColor.inkMuted)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, CLSpacing.md)
+            .accessibilityLabel("By continuing, you agree to CircleLink Terms of Service and Privacy Policy")
     }
 
     @ViewBuilder
@@ -133,5 +226,10 @@ struct AuthView: View {
                 .multilineTextAlignment(.center)
                 .accessibilityLabel("Error: \(message)")
         }
+    }
+
+    private var isBusy: Bool {
+        if case .loading = viewModel.state { return true }
+        return false
     }
 }

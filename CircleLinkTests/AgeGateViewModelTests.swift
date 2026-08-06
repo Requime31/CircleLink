@@ -4,45 +4,52 @@ import Testing
 
 @MainActor
 struct AgeGateViewModelTests {
-    @Test func canContinueMatchesCheckbox() {
-        let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            userRepository: MockUserRepository(),
-            onAgeConfirmed: { _ in }
-        )
+    @Test func canContinueRequiresValidAdultBirthYear() {
+        let viewModel = makeViewModel()
 
         #expect(viewModel.canContinue == false)
-        viewModel.isAgeConfirmed = true
+
+        viewModel.birthYearText = "2010"
+        #expect(viewModel.canContinue == false)
+
+        viewModel.birthYearText = "1990"
         #expect(viewModel.canContinue == true)
     }
 
-    @Test func confirmAgeWithoutCheckboxIsNoOp() async {
+    @Test func confirmAgeWithoutYearShowsErrorAndDoesNotCallRepository() async {
         let users = MockUserRepository()
-        let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            userRepository: users,
-            onAgeConfirmed: { _ in }
-        )
+        let viewModel = makeViewModel(userRepository: users)
 
         await viewModel.confirmAge()
 
         #expect(users.confirmAgeCallCount == 0)
-        if case .idle = viewModel.state {
-            // ok
+        if case let .error(message) = viewModel.state {
+            #expect(message.lowercased().contains("year"))
         } else {
-            Issue.record("Expected idle when checkbox unchecked")
+            Issue.record("Expected year validation error")
+        }
+    }
+
+    @Test func confirmAgeUnder18ShowsError() async {
+        let users = MockUserRepository()
+        let viewModel = makeViewModel(userRepository: users)
+        viewModel.birthYearText = String(Calendar.current.component(.year, from: Date()) - 10)
+
+        await viewModel.confirmAge()
+
+        #expect(users.confirmAgeCallCount == 0)
+        if case let .error(message) = viewModel.state {
+            #expect(message.contains("18"))
+        } else {
+            Issue.record("Expected under-18 error")
         }
     }
 
     @Test func confirmAgeSuccessFetchesProfileAndCallbacks() async {
         let users = MockUserRepository()
         var confirmedUser: User?
-        let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            userRepository: users,
-            onAgeConfirmed: { confirmedUser = $0 }
-        )
-        viewModel.isAgeConfirmed = true
+        let viewModel = makeViewModel(userRepository: users) { confirmedUser = $0 }
+        viewModel.birthYearText = "1990"
 
         await viewModel.confirmAge()
 
@@ -62,7 +69,7 @@ struct AgeGateViewModelTests {
             userRepository: users,
             onAgeConfirmed: { _ in }
         )
-        viewModel.isAgeConfirmed = true
+        viewModel.birthYearText = "1990"
 
         await viewModel.confirmAge()
 
@@ -81,12 +88,8 @@ struct AgeGateViewModelTests {
 
         let users = MockUserRepository()
         users.confirmAgeError = Boom()
-        let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            userRepository: users,
-            onAgeConfirmed: { _ in }
-        )
-        viewModel.isAgeConfirmed = true
+        let viewModel = makeViewModel(userRepository: users)
+        viewModel.birthYearText = "1990"
 
         await viewModel.confirmAge()
 
@@ -97,22 +100,29 @@ struct AgeGateViewModelTests {
         }
     }
 
-    @Test func resetFormClearsCheckboxAndState() async {
-        let viewModel = AgeGateViewModel(
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            userRepository: MockUserRepository(),
-            onAgeConfirmed: { _ in }
-        )
-        viewModel.isAgeConfirmed = true
+    @Test func resetFormClearsYearAndState() async {
+        let viewModel = makeViewModel()
+        viewModel.birthYearText = "1990"
         await viewModel.confirmAge()
 
         viewModel.resetForm()
 
-        #expect(viewModel.isAgeConfirmed == false)
+        #expect(viewModel.birthYearText.isEmpty)
         if case .idle = viewModel.state {
             // ok
         } else {
             Issue.record("Expected idle after reset")
         }
+    }
+
+    private func makeViewModel(
+        userRepository: MockUserRepository = MockUserRepository(),
+        onAgeConfirmed: @escaping (User) -> Void = { _ in }
+    ) -> AgeGateViewModel {
+        AgeGateViewModel(
+            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
+            userRepository: userRepository,
+            onAgeConfirmed: onAgeConfirmed
+        )
     }
 }

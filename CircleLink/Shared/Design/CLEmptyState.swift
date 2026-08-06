@@ -14,8 +14,11 @@ struct CLEmptyState: View {
     var body: some View {
         VStack(spacing: CLSpacing.md) {
             Image(systemName: systemImage)
-                .font(.system(size: 48, weight: .regular))
+                .font(.system(size: 44, weight: .regular))
                 .foregroundStyle(CLColor.inkMuted)
+                .frame(width: 72, height: 72)
+                .background(CLColor.surfaceSoft)
+                .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
                 .accessibilityHidden(true)
 
             Text(title)

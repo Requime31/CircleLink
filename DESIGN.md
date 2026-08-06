@@ -1,87 +1,92 @@
 # CircleLink — DESIGN.md
 
-> Soft, warm, modern UI for a community messenger.  
-> Inspired by Notion (warm surfaces, calm hierarchy) + Airbnb (friendly rounding, human feel).  
-> Adapted for **SwiftUI / iOS**, not web.
+> **Sunset Parchment** — soft-native UI for a community messenger.  
+> Warm parchment surfaces, Sunset Clay accent, calm hierarchy.  
+> Adapted for **SwiftUI / iOS** (SF Pro), not web Inter.
 
 Use this file as the single source of truth for visual decisions.  
 Before any UI work: read this file and follow it.
+
+Source brief: `stitch_circlelink_visual_redesign_brief` (Stitch export).
 
 ---
 
 ## 1. Visual Theme & Atmosphere
 
-CircleLink should feel like a calm place to meet people — warm, soft, and approachable.
-
 | Trait | Direction |
 |-------|-----------|
-| Mood | Warm, friendly, low-stress |
-| Density | Comfortable whitespace; not dense dashboards |
-| Surfaces | Soft warm neutrals, light elevation |
-| Accent | Peach — used sparingly for primary actions |
-| Motion | Spring-based, gentle; never snappy or flashy |
+| Mood | Soft-native, calm, interpersonal warmth |
+| Density | Airy whitespace; not dense dashboards |
+| Surfaces | Parchment canvas + white cards + hairline edges |
+| Accent | **Sunset Clay** — used sparingly to guide focus |
+| Depth | Tonal layering + hairlines; shadows only for floating actions |
+| Motion | Soft springs / slight dim on press — never flashy |
 | Mode | Light-first (no dark-first UI in MVP) |
 
-**Brand test:** screens should feel like CircleLink even without the logo — warm canvas + peach accent + soft cards.
+**Brand test:** screens should feel like CircleLink without the logo — parchment canvas + clay accent + soft squircles.
 
 ---
 
 ## 2. Color Palette
 
-### Core
+Map from Stitch “Sunset Parchment” → CircleLink tokens.
 
-| Token | Hex | SwiftUI role |
-|-------|-----|----------------|
-| `canvas` | `#FAF9F7` | Screen background |
-| `surface` | `#FFFFFF` | Cards, sheets, inputs |
-| `surfaceSoft` | `#F5F3F0` | Secondary groups, muted rows |
-| `hairline` | `#E8E4DF` | Dividers, borders |
-| `hairlineStrong` | `#D4CFC8` | Stronger borders / secondary buttons |
+### Core surfaces
+
+| Token | Hex | Role |
+|-------|-----|------|
+| `canvas` | `#FCF9F8` | Screen background (parchment) |
+| `surface` | `#FFFFFF` | Cards, sheets, inputs (`surface-container-lowest`) |
+| `surfaceSoft` | `#F6F3F2` | Secondary groups, muted rows (`surface-container-low`) |
+| `hairline` | `#E8E4DF` | Dividers, card borders (structural) |
+| `hairlineStrong` | `#DCC1B9` | Stronger borders (`outline-variant`) |
 
 ### Ink (text)
 
 | Token | Hex | Use |
 |-------|-----|-----|
-| `ink` | `#1A1A1A` | Primary text |
-| `inkSecondary` | `#5C574F` | Secondary labels |
-| `inkMuted` | `#8A847A` | Captions, placeholders, meta |
+| `ink` | `#1C1B1B` | Primary text (`on-surface`) |
+| `inkSecondary` | `#55423D` | Secondary labels (`on-surface-variant`) |
+| `inkMuted` | `#88726C` | Captions, placeholders, meta (`outline`) |
 | `inkDisabled` | `#B8B2A8` | Disabled text |
 
-### Primary (Peach)
+### Primary (Sunset Clay)
 
 | Token | Hex | Use |
 |-------|-----|-----|
-| `primary` | `#F2A68A` | Primary CTA fill, selected accents |
-| `primaryPressed` | `#E08B6C` | Pressed / highlighted |
-| `primarySoft` | `#FDE8DE` | Soft chips, selected backgrounds |
-| `primaryStrong` | `#E8926F` | Optional stronger CTA when white label is needed |
-| `onPrimary` | `#1A1A1A` | Label on `primary` / `primarySoft` (dark for contrast) |
-| `onPrimaryStrong` | `#FFFFFF` | Label only on `primaryStrong` |
+| `primary` | `#E67E5F` | Brand accent, selected chips text, FAB, active accents (`terracotta` / `primary-container`) |
+| `primaryPressed` | `#9B442A` | Pressed / deep clay (`primary` in Material tokens) |
+| `primarySoft` | `#FFDBD1` | Soft CTA fill, selected backgrounds (`primary-fixed`) |
+| `primaryStrong` | `#9B442A` | High-emphasis fill when white label is needed |
+| `onPrimary` | `#1C1B1B` | Label on `primarySoft` / soft CTAs |
+| `onPrimaryStrong` | `#FFFFFF` | Label on solid clay / deep fill |
 
-### Soft tints (communities / interests)
+### Soft tints
 
 Use lightly — never as full-screen backgrounds.
 
 | Token | Hex | Use |
 |-------|-----|-----|
-| `tintPeach` | `#FDE8DE` | Default interest / soft highlight |
-| `tintCream` | `#F8F1E7` | Empty / calm blocks |
+| `tintPeach` | `#FFDBD1` | Soft highlight (= `primarySoft`) |
+| `tintCream` | `#F6F3F2` | Empty / calm blocks |
 | `tintMint` | `#E4F3EC` | Success-adjacent soft state |
-| `tintRose` | `#F8E6EA` | Soft warning / attention |
+| `tintRose` | `#FFDAD6` | Soft warning / attention (`error-container`) |
 
 ### Semantic
 
 | Token | Hex | Use |
 |-------|-----|-----|
-| `success` | `#3D9B6E` | Connected, sent, confirmed |
+| `success` | `#3D9B6E` | Connected, sent, confirmed (desaturated) |
 | `warning` | `#D4A017` | Caution |
-| `error` | `#D94F4F` | Errors, destructive |
-| `errorSoft` | `#FCEAEA` | Error background |
+| `error` | `#BA1A1A` | Errors, destructive |
+| `errorSoft` | `#FFDAD6` | Error background |
 
 ### Rules
 
-- Peach is for **actions and selection**, not decoration everywhere.
-- Prefer `primarySoft` for selected list rows / chips; reserve solid `primary` for main CTAs.
+- Clay is for **actions and selection**, not decoration everywhere.
+- Default primary CTA = **low-impact**: `primarySoft` + `ink` (less fatigue).
+- Solid `primary` / `primaryStrong` = high-emphasis only (FAB, Say Hi, unread accents).
+- Prefer hairline borders over shadows.
 - Never use purple as brand accent.
 - Never use neon / glow accents.
 
@@ -89,71 +94,71 @@ Use lightly — never as full-screen backgrounds.
 
 ## 3. Typography (SwiftUI)
 
-Use **SF Pro** (system). Do not embed web fonts (Notion Sans / Airbnb Cereal).
+Use **SF Pro** (system). Do **not** embed Inter (web-only in the brief).
 
-| Style | Size | Weight | Line | Use |
-|-------|------|--------|------|-----|
-| `largeTitle` | 28 | Semibold | tight | Screen titles (rare) |
-| `title` | 22 | Semibold | 1.2 | Section / feature titles |
-| `title2` | 18 | Semibold | 1.25 | Card titles, chat names |
-| `headline` | 16 | Semibold | 1.3 | Row titles, emphasis |
-| `body` | 16 | Regular | 1.45 | Main reading text |
-| `callout` | 15 | Regular | 1.4 | Secondary body |
-| `subheadline` | 14 | Regular | 1.35 | Meta, secondary |
-| `footnote` | 13 | Regular | 1.3 | Timestamps, hints |
-| `caption` | 12 | Medium | 1.25 | Badges, tiny labels |
-| `button` | 16 | Medium | 1.2 | Button labels |
+| Style | Size | Weight | Use |
+|-------|------|--------|-----|
+| `display` | 34 | Bold | Rare marketing-style titles |
+| `largeTitle` | 28 / 24 mobile | Bold | Screen titles |
+| `title` | 22 | Semibold | Section / feature titles |
+| `title2` | 18 | Semibold | Card titles, chat names |
+| `headline` | 17 | Semibold | Row titles, emphasis |
+| `body` | 17 | Regular | Main reading / messages |
+| `callout` | 15 | Regular | Secondary body |
+| `subheadline` | 15 | Regular | Meta, secondary |
+| `footnote` | 13 | Medium | Timestamps, hints (`label-md`) |
+| `caption` | 11–12 | Semibold | Tiny labels (`label-sm`) |
+| `button` | 17 | Medium | Button labels |
 
 ### Rules
 
+- Prefer Dynamic Type (`Font.body`, `.headline`, …) over fixed sizes when possible.
+- Headlines: slightly tight tracking is ok; keep soft, not shouty.
 - This is an **app**, not a marketing site — avoid huge 48–80pt display type.
-- Prefer Semibold over Bold for titles (softer).
-- Dynamic Type: respect system text styles where possible; don't lock tiny fixed sizes for body text.
 
 ---
 
 ## 4. Spacing & Radius
 
-### Spacing scale
+### Spacing scale (4pt baseline)
 
 | Token | Value | Use |
 |-------|-------|-----|
-| `xxs` | 4 | Tight icon gaps |
+| `xxs` | 4 | Tight icon gaps; same-sender bubble gap |
 | `xs` | 8 | Inline spacing |
-| `sm` | 12 | Compact stacks |
-| `md` | 16 | Default padding |
+| `sm` | 12 | Compact stacks (app convenience; brief often uses 8) |
+| `md` | 16 | Default padding; different-sender bubble gap |
 | `lg` | 24 | Section padding |
 | `xl` | 32 | Large section gaps |
 | `xxl` | 48 | Screen top breathing room |
-
-Screen horizontal padding default: **16–20**.
+| `screenHorizontal` | **20** | Default side margin (mobile) |
 
 ### Corner radius
 
 | Token | Value | Use |
 |-------|-------|-----|
-| `radiusSm` | 10 | Small controls, tags |
-| `radiusMd` | 14 | Buttons, inputs |
-| `radiusLg` | 18 | Cards |
-| `radiusXl` | 24 | Sheets, large panels |
-| `radiusFull` | Capsule / Circle | Chips, avatars, pill CTAs |
+| `radiusSm` | 8 | Small tags / tight controls |
+| `radiusMd` | 14 | Buttons, inputs, **avatars** |
+| `radiusLg` | 18 | Bubbles, medium cards |
+| `radiusXl` | 24 | Primary cards, sheets, large panels |
+| `radiusFull` | Capsule | Chips, pill filters |
 
-**Rule:** no hard 0° corners on interactive surfaces.
+**Rule:** squircle-adjacent (`RoundedRectangle` + `.continuous`). No hard 0° corners on interactive surfaces.
 
 ---
 
 ## 5. Elevation & Depth
 
-Keep depth soft — Notion calm, not heavy Material shadows.
+Depth = tonal layering + low-contrast outlines. Not heavy Material shadows.
 
 | Level | Treatment |
 |-------|-----------|
-| Flat | `canvas` / `surfaceSoft`, no shadow |
-| Card | `surface` + very soft shadow (black ~8–12% opacity, y: 4–8, blur: 16–24) |
-| Sheet / modal | `surface` + stronger soft shadow or system sheet |
-| Overlay | Dim scrim ~35–45% black behind modals |
+| 0 Canvas | `canvas` — no shadow |
+| 1 Card / surface | `surface` + **1px `hairline`** — no shadow by default |
+| 2 Floating | Soft diffused shadow: `0 / 4 / 20`, ~4% of `ink` — FAB / compose only |
+| Press | Dim or fill → `surfaceSoft` — do **not** lift |
 
-Prefer **hairline borders** (`hairline`) over heavy shadows when stacking list rows.
+Overlay scrim behind modals: ~35–45% black.
 
 ---
 
@@ -161,78 +166,96 @@ Prefer **hairline borders** (`hairline`) over heavy shadows when stacking list r
 
 ### Buttons
 
-**Primary**
-- Fill: `primary`
-- Text: `onPrimary`
-- Radius: `radiusMd` or Capsule for hero CTAs
-- Min height: 48
-- Pressed → `primaryPressed`
+**Primary (default / low-impact)**
+- Fill: `primarySoft`
+- Text: `onPrimary` (`ink`)
+- Radius: `radiusMd` (or Capsule for hero pills)
+- Min height: 48–56
+- Pressed → slightly dim / `primary` at low opacity
 - Disabled → `surfaceSoft` + `inkDisabled`
 
-**Primary strong** (optional, when peach needs white text)
-- Fill: `primaryStrong`
-- Text: `onPrimaryStrong`
+**Emphasis (solid clay)** — FAB, Say Hi, rare high-impact CTAs
+- Fill: `primary`
+- Text: `onPrimaryStrong` (white) **or** deep ink if contrast needs it
+- Pressed → `primaryPressed`
 
 **Secondary**
 - Fill: `surface`
-- Border: `hairlineStrong`
+- Border: `hairline` / `hairlineStrong`
 - Text: `ink`
 
 **Tertiary / text**
 - No fill
-- Text: `ink` or `primaryPressed` for links
+- Text: `ink` or `primary` for links
+
+**Auth exception:** “Sign in with Apple” stays system black + white (platform guideline).
 
 ### Inputs
 
 - Background: `surface`
-- Border: `hairline` → focus `primary`
+- Border: `hairline` → focus `primary` (1px)
 - Radius: `radiusMd`
-- Placeholder: `inkMuted`
-- Error: border `error`, helper text `error`
+- Placeholder: `inkMuted` / `inkSecondary`
+- Error: border `error`, helper `error`
 
 ### Cards
 
 - Background: `surface`
-- Radius: `radiusLg`
+- Radius: `radiusXl` (24)
 - Padding: 16
-- Optional soft shadow
-- Used for: Connect candidates, community tiles, empty states that need a container
+- Border: 1px `hairline`
+- Shadow: **off** unless floating
+- Used for: Connect candidates, community tiles, grouped empty states
 
 **Card rule:** cards are for interaction/grouping. Don't wrap everything in cards.
 
-### Chips / interests
+### Chips / interests / filters
 
 - Unselected: `surfaceSoft` + `inkSecondary`
-- Selected: `primarySoft` + `ink`
+- Selected: `primarySoft` + `primary` text (or solid `primary` + dark label on Connect filters)
 - Radius: Capsule
 - Soft spring on select
 
 ### Avatars
 
-- Circle
+- **Rounded square** — corner radius `radiusMd` (14), continuous
 - Soft placeholder fill: `surfaceSoft`
-- Initials: `inkSecondary`
+- Initials / icon: `inkSecondary`
+- Do **not** default to circles (design system). Overlapping group stacks may still use the same squircle mask.
 
 ### Tab bar
 
 - Background: `surface` (blur/system ok)
-- Selected: peach tint / `primary` icon+label
+- Selected: `primary` or `primaryPressed` (icon + label)
 - Unselected: `inkMuted`
-- Keep system tab feel — don't invent a floating exotic tab bar unless necessary
+- Keep system tab feel — no exotic floating tab bar unless a screen explicitly requires it
 
 ### Chat bubbles
 
 | Role | Fill | Text |
 |------|------|------|
-| Mine | `primarySoft` | `ink` |
-| Theirs | `surface` + hairline or `surfaceSoft` | `ink` |
+| Mine (outbound) | `primarySoft` (or `surface` + hairline) | `ink` |
+| Theirs (inbound) | `surfaceSoft` | `ink` |
 
-Radius: 16–18, with a slightly tighter corner on the “tail” side if custom. Soft, not comic-style.
+- Radius: 18; tighter origin corner (~12) instead of comic tails
+- Same sender gap: 4; different sender / system: 16
+
+### FAB / compose
+
+- Size ~56
+- Shape: rounded square (`radiusLg`–`radiusXl`)
+- Fill: `primary`; icon: `onPrimaryStrong`
+- Floating shadow (Level 2)
+
+### Lists
+
+- `hairline` separators inset ~16 from the leading edge (clear avatar)
+- Unread: small `primary` dot — not a loud banner
 
 ### Navigation
 
-- Large or inline titles in `ink`
-- Back chevron system-standard
+- Titles in `ink` (or `primary` when the mock intentionally brands the title, e.g. Chats)
+- System back chevron
 - Avoid heavy custom nav chrome
 
 ---
@@ -240,36 +263,42 @@ Radius: 16–18, with a slightly tighter corner on the “tail” side if custom
 ## 7. Screen Patterns (CircleLink)
 
 ### Auth / Age gate
-- Centered calm composition
-- One headline, one short supporting line, one primary CTA
-- Warm `canvas`, no busy illustrations required
+- Centered calm composition on parchment
+- One headline, one short supporting line, CTAs stacked
+- Apple = black system button; Email = secondary hairline
 
 ### Profile setup
-- Clear progress feel (soft)
-- Interest chips with peach soft selection
-- Primary CTA pinned comfortably above home indicator
+- Soft progress feel
+- Interest chips with clay soft selection
+- Primary CTA pinned above home indicator
 
 ### Communities
-- Soft list or gentle cards
-- Selected community uses `primarySoft`, not loud solid peach blocks
+- Soft list or gentle hairline cards
+- Selected / joined uses `primarySoft`, not loud solid blocks
 
 ### Connect
-- Candidate cards with generous photo/avatar space
-- Primary actions obvious but not aggressive
+- Large candidate card (`radiusXl`), generous photo area
+- Pass / Say Hi / Back action row — Say Hi = solid clay emphasis
+- Filter chips above tab bar
 - Empty state: warm, short copy, one next step
 
 ### Chat list
-- Clean rows, soft separators (`hairline`)
-- Unread accent: small peach dot or soft badge — not a loud banner
+- Clean rows, inset hairline separators
+- Squircle avatars; unread clay dot
+- Optional FAB compose (floating)
 
 ### Chat thread
-- `canvas` or `surfaceSoft` background
-- Soft bubbles, comfortable spacing
-- Composer: rounded, `surface`, peach send when active
+- `canvas` background
+- Soft bubbles + comfortable spacing
+- Composer: rounded `surface`, clay send when active
 
 ### Profile
 - Calm hierarchy: avatar → name → interests → actions
-- Destructive actions visually quieter until confirmed
+- Destructive actions quieter until confirmed
+
+### Community feed (design-ready)
+- Feed cards on parchment; hairline cards; clay accents for actions
+- Implement feature logic before visual pass if data is missing
 
 ---
 
@@ -284,7 +313,7 @@ Goal: **smooth and soft**, never flashy.
 | Sheets / modals | System sheet + soft spring |
 | Chip select | Quick spring (background + scale micro) |
 | Tab switch | System default |
-| Button press | Opacity / slight scale down ~0.98 |
+| Button press | Opacity / fill dim — **no lift** |
 
 ### Suggested springs
 
@@ -313,25 +342,27 @@ Respect Reduce Motion: fall back to simple fades.
 ## 9. Do / Don't
 
 ### Do
-- Warm off-white canvas
-- Peach for primary actions and selection
-- Soft corners and soft springs
-- Clear hierarchy with calm typography
-- One primary CTA per screen section
+- Parchment canvas `#FCF9F8`
+- Sunset Clay `#E67E5F` for accents
+- Soft CTAs (`primarySoft` + ink) by default
+- Hairline cards (24 radius), squircle avatars (14)
+- SF Pro + soft springs
 
 ### Don't
 - Purple/indigo “AI default” themes
 - Dark cinematic UI as default
 - Hard corners on buttons/cards
-- Neon accents, multi-layer glow shadows
-- Dashboard clutter (stat strips, chip overload)
+- Heavy multi-layer shadows on every card
+- Circle avatars as the system default
 - Giant marketing display type inside app screens
+- Embed Inter font files
 
 ---
 
 ## 10. Accessibility
 
-- Contrast: dark text on peach (`onPrimary`), not white on light peach
+- Soft CTAs use dark ink on `primarySoft` (not white on light peach)
+- Solid clay: prefer white label (`onPrimaryStrong`) and check contrast
 - Min tap target: 44×44
 - Support Dynamic Type for body/chat text
 - Don't rely on color alone for state (pair with label/icon)
@@ -344,19 +375,18 @@ Respect Reduce Motion: fall back to simple fades.
 When generating or editing UI:
 
 1. Read `DESIGN.md` first.
-2. Use tokens above (names + hex).
+2. Use tokens above (names + hex) via `CLColor` / `CLTheme`.
 3. Prefer SwiftUI system fonts and soft springs.
 4. Map flow: User action → View → ViewModel → … → UI update, without putting design logic in Domain.
-5. Keep screens light-first, warm, peach-accented, rounded, calmly animated.
+5. Keep screens light-first, parchment + clay, rounded, calmly animated.
 
 **Short prompt:**  
-“Build this CircleLink screen using DESIGN.md: warm canvas `#FAF9F7`, peach primary `#F2A68A`, soft cards radius 18, SF Pro, spring motion.”
+“Build this CircleLink screen using DESIGN.md: parchment canvas `#FCF9F8`, Sunset Clay `#E67E5F`, soft CTA `primarySoft`+ink, cards radius 24 + hairline, squircle avatars radius 14, SF Pro, spring motion.”
 
 ---
 
-## Sources (inspiration only)
+## Sources
 
-- Notion — warm neutrals, soft surfaces, calm text hierarchy  
-- Airbnb — friendly rounding, human consumer feel, clear CTAs  
-
-CircleLink tokens above are **project-specific** (peach primary, SwiftUI constraints). Do not copy Notion purple or Airbnb Rausch as brand colors.
+- Stitch brief: **Sunset Parchment** (`stitch_circlelink_visual_redesign_brief`)
+- Material-style color YAML in the export is mapped into the simpler CL tokens above for SwiftUI
+- SF Pro replaces Inter on iOS

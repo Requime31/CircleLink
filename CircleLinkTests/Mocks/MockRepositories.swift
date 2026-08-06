@@ -92,6 +92,30 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
 
     func fetchChats() async throws -> [ChatSummary] { [] }
 
+    func fetchHiddenChats() async throws -> [ChatSummary] { [] }
+
+    func fetchOrganizedChats() async throws -> OrganizedChats {
+        OrganizedChats(visible: [], hidden: [])
+    }
+
+    func fetchChatInfo(chatId: String) async throws -> ChatInfo {
+        ChatInfo(
+            id: chatId,
+            type: .direct,
+            title: "Chat",
+            communityId: nil,
+            participants: []
+        )
+    }
+
+    func leaveChat(chatId: String) async throws {}
+
+    func setChatMuted(chatId: String, muted: Bool) async throws {}
+
+    func hideChat(chatId: String) async throws {}
+
+    func unhideChat(chatId: String) async throws {}
+
     func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
         let filtered: [Message]
         if let before {
@@ -195,6 +219,16 @@ final class MockConnectionRepository: ConnectionRepository, @unchecked Sendable 
             incoming.removeAll { $0.id == requestId }
         }
     }
+
+    func fetchConnection(with peerId: String) async throws -> ConnectionRequest? {
+        matched.first { $0.fromUserId == peerId || $0.toUserId == peerId }
+            ?? incoming.first { $0.fromUserId == peerId || $0.toUserId == peerId }
+    }
+
+    func removeConnection(with peerId: String) async throws {
+        matched.removeAll { $0.fromUserId == peerId || $0.toUserId == peerId }
+        incoming.removeAll { $0.fromUserId == peerId || $0.toUserId == peerId }
+    }
 }
 
 // MARK: - Community / User
@@ -250,6 +284,46 @@ final class MockCommunityRepository: CommunityRepository, @unchecked Sendable {
         callLog?.append("community.leave")
         if let leaveError { throw leaveError }
         membersByCommunity[communityId]?.removeAll { $0.id == MockAuthRepository.sampleUser.id }
+    }
+
+    func createCommunity(name: String, description: String, interestTag: String) async throws -> Community {
+        let community = Community(
+            id: "community-new",
+            name: name,
+            description: description,
+            interestTag: interestTag,
+            memberCount: 1
+        )
+        communities.append(community)
+        return community
+    }
+}
+
+final class MockModerationRepository: ModerationRepository, @unchecked Sendable {
+    var blockedUserIds: Set<String> = []
+    var reportCallCount = 0
+    var blockCallCount = 0
+
+    func reportUser(
+        userId: String,
+        reason: ReportReason,
+        chatId: String?,
+        communityId: String?
+    ) async throws {
+        reportCallCount += 1
+    }
+
+    func blockUser(_ userId: String) async throws {
+        blockCallCount += 1
+        blockedUserIds.insert(userId)
+    }
+
+    func unblockUser(_ userId: String) async throws {
+        blockedUserIds.remove(userId)
+    }
+
+    func fetchBlockedUserIds() async throws -> Set<String> {
+        blockedUserIds
     }
 }
 

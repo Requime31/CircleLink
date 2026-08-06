@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 /// Displays avatar from local preview, Firestore base64, or remote URL.
+/// Shape: squircle (`CLAvatar` / DESIGN.md) — not a circle.
 struct AvatarImageView: View {
     let localPreview: UIImage?
     let avatarBase64: String?
@@ -25,20 +26,31 @@ struct AvatarImageView: View {
                     .resizable()
                     .scaledToFill()
             } else if avatarURL != nil {
-                ProgressView()
+                ZStack {
+                    CLColor.surfaceSoft
+                    ProgressView()
+                        .tint(CLColor.primary)
+                }
             } else {
-                Image(systemName: "person.circle.fill")
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(.secondary)
+                ZStack {
+                    CLColor.surfaceSoft
+                    Image(systemName: "person.fill")
+                        .font(.system(size: size * 0.42, weight: .medium))
+                        .foregroundStyle(CLColor.inkSecondary)
+                }
             }
         }
         .frame(width: size, height: size)
-        .clipShape(Circle())
+        .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius(for: size), style: .continuous))
         .accessibilityHidden(true)
         .task(id: avatarURL) {
             await loadRemoteImage()
         }
+    }
+
+    /// Keeps squircles readable at tiny sizes (near-round) and premium at large sizes.
+    private static func cornerRadius(for size: CGFloat) -> CGFloat {
+        min(CLAvatar.cornerRadius, size * 0.28)
     }
 
     private func loadRemoteImage() async {

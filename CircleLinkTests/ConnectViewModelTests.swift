@@ -28,6 +28,7 @@ struct ConnectViewModelTests {
             communityRepository: MockCommunityRepository(),
             userRepository: MockUserRepository(),
             authRepository: auth,
+            moderationRepository: MockModerationRepository(),
             onOpenChat: { openedChatId = $0 }
         )
 
@@ -67,6 +68,7 @@ struct ConnectViewModelTests {
             communityRepository: MockCommunityRepository(),
             userRepository: MockUserRepository(),
             authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
+            moderationRepository: MockModerationRepository(),
             onOpenChat: { openedChatId = $0 }
         )
 
@@ -102,6 +104,7 @@ struct ConnectViewModelTests {
             communityRepository: MockCommunityRepository(),
             userRepository: MockUserRepository(),
             authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
+            moderationRepository: MockModerationRepository(),
             onOpenChat: { _ in }
         )
 
@@ -129,6 +132,7 @@ struct ConnectViewModelTests {
             communityRepository: MockCommunityRepository(),
             userRepository: MockUserRepository(),
             authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
+            moderationRepository: MockModerationRepository(),
             onOpenChat: { openedChatId = $0 }
         )
 
@@ -138,21 +142,5 @@ struct ConnectViewModelTests {
         #expect(openedChatId == "chat-42")
     }
 
-    @Test func sendConnectWithoutCommunityShowsError() async {
-        let connection = MockConnectionRepository()
-        let viewModel = ConnectViewModel(
-            connectionRepository: connection,
-            chatRepository: MockChatRepository(),
-            communityRepository: MockCommunityRepository(),
-            userRepository: MockUserRepository(),
-            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
-            onOpenChat: { _ in }
-        )
-
-        // Do not call load — selectedCommunityId stays nil.
-        await viewModel.sendConnect(to: "peer-1")
-
-        #expect(connection.sendConnectCallCount == 0)
-        #expect(viewModel.actionErrorMessage == "Select a community first.")
-    }
+    // Removed: `sendConnect(to:)` no longer exists on ConnectViewModel (Discover API changed).
 }
