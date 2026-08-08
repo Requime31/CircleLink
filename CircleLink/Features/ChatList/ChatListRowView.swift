@@ -4,14 +4,16 @@ import SwiftUI
 struct ChatListRowView: View {
     let chat: ChatSummary
 
+    private let avatarSize: CGFloat = 56
+
     var body: some View {
-        HStack(spacing: CLSpacing.sm) {
+        HStack(spacing: CLSpacing.md) {
             ZStack(alignment: .topTrailing) {
                 AvatarImageView(
                     localPreview: nil,
                     avatarBase64: chat.avatarBase64,
                     avatarURL: chat.avatarURL,
-                    size: 52
+                    size: avatarSize
                 )
 
                 if chat.unreadCount > 0 {
@@ -24,7 +26,7 @@ struct ChatListRowView: View {
             VStack(alignment: .leading, spacing: CLSpacing.xxs) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(chat.title)
-                        .font(CLTypography.headline)
+                        .font(CLTypography.footnote.weight(.semibold))
                         .foregroundStyle(CLColor.ink)
                         .lineLimit(1)
 
@@ -44,39 +46,38 @@ struct ChatListRowView: View {
                     }
                 }
 
-                Text(chat.lastMessageText ?? "No messages yet")
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkSecondary)
-                    .lineLimit(1)
+                HStack(alignment: .center, spacing: CLSpacing.xs) {
+                    Text(chat.lastMessageText ?? "No messages yet")
+                        .font(CLTypography.callout)
+                        .foregroundStyle(CLColor.inkSecondary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+
+                    if chat.unreadCount > 0 {
+                        Circle()
+                            .fill(CLColor.primary)
+                            .frame(width: 10, height: 10)
+                            .accessibilityHidden(true)
+                    }
+                }
             }
         }
-        .padding(.vertical, CLSpacing.xxs)
+        .padding(.vertical, CLSpacing.xs)
         .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         .contentShape(Rectangle())
     }
 
     @ViewBuilder
     private var unreadIndicator: some View {
-        if chat.unreadCount == 1 {
-            Circle()
-                .fill(CLColor.primary)
-                .frame(width: 10, height: 10)
-                .overlay(
-                    Circle()
-                        .stroke(CLColor.canvas, lineWidth: 2)
-                )
-        } else {
+        if chat.unreadCount > 1 {
             Text(unreadBadgeText)
                 .font(CLTypography.caption)
-                .foregroundStyle(CLColor.onPrimary)
+                .foregroundStyle(CLColor.onPrimaryStrong)
                 .padding(.horizontal, CLSpacing.xs)
                 .padding(.vertical, CLSpacing.xxs)
-                .background(CLColor.primarySoft)
+                .background(CLColor.primary)
                 .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(CLColor.hairline, lineWidth: 1)
-                )
         }
     }
 

@@ -67,9 +67,9 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create, update: if isSignedIn() && request.auth.uid == userId;
 
-      // Phase 8: per-user chat references (+ Phase 6 muted / hidden)
-      // Owner: full write (mute / hide / unhide / leave delete).
-      // Peer participant: preview fields only — must not touch muted / hidden.
+      // Phase 8: per-user chat references (+ Phase 6 muted / hidden + clearedAt)
+      // Owner: full write (mute / hide / unhide / clear history / leave delete).
+      // Peer participant: preview fields only — must not touch muted / hidden / clearedAt.
       match /chatRefs/{chatId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
 

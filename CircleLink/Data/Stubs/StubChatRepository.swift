@@ -15,11 +15,15 @@ final class StubChatRepository: ChatRepository, @unchecked Sendable {
             type: .direct,
             title: "Stub Chat",
             communityId: nil,
-            participants: []
+            participants: [],
+            isMuted: false,
+            clearedAt: nil
         )
     }
 
     func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message] { [] }
+
+    func fetchChatMedia(chatId: String, limit: Int, before: Date?) async throws -> [Message] { [] }
 
     func sendMessage(chatId: String, text: String?, image: Data?, clientMessageId: String) async throws {}
 
@@ -44,4 +48,8 @@ final class StubChatRepository: ChatRepository, @unchecked Sendable {
     func hideChat(chatId: String) async throws {}
 
     func unhideChat(chatId: String) async throws {}
+
+    func clearChatHistory(chatId: String) async throws {}
+
+    func deleteDirectChat(chatId: String) async throws {}
 }

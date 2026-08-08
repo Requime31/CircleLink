@@ -80,9 +80,28 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     var createGroupChatResult: String = "group_community-1"
     var createGroupChatError: Error?
     var leaveGroupChatError: Error?
+    var leaveChatError: Error?
+    var setMutedError: Error?
+    var hideChatError: Error?
+    var unhideChatError: Error?
+    var clearHistoryError: Error?
+    var deleteDirectChatError: Error?
     var createDirectChatCallCount = 0
     var createGroupChatCallCount = 0
     var leaveGroupChatCallCount = 0
+    var leaveChatCallCount = 0
+    var setMutedCallCount = 0
+    var hideChatCallCount = 0
+    var unhideChatCallCount = 0
+    var clearHistoryCallCount = 0
+    var deleteDirectChatCallCount = 0
+    var leaveChatIds: [String] = []
+    var hideChatIds: [String] = []
+    var deleteDirectChatIds: [String] = []
+    var isMutedByChatId: [String: Bool] = [:]
+    var clearedAtByChatId: [String: Date] = [:]
+    var chatInfoType: ChatType = .direct
+    var chatInfoParticipants: [User] = []
     var lastCreateDirectPeerId: String?
     var lastCreateGroupCommunityId: String?
     var lastLeaveGroupCommunityId: String?
@@ -101,30 +120,82 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     func fetchChatInfo(chatId: String) async throws -> ChatInfo {
         ChatInfo(
             id: chatId,
-            type: .direct,
+            type: chatInfoType,
             title: "Chat",
             communityId: nil,
-            participants: []
+            participants: chatInfoParticipants,
+            isMuted: isMutedByChatId[chatId] ?? false,
+            clearedAt: clearedAtByChatId[chatId]
         )
     }
 
-    func leaveChat(chatId: String) async throws {}
+    func leaveChat(chatId: String) async throws {
+        leaveChatCallCount += 1
+        leaveChatIds.append(chatId)
+        if let leaveChatError { throw leaveChatError }
+    }
 
-    func setChatMuted(chatId: String, muted: Bool) async throws {}
+    func setChatMuted(chatId: String, muted: Bool) async throws {
+        setMutedCallCount += 1
+        isMutedByChatId[chatId] = muted
+        if let setMutedError { throw setMutedError }
+    }
 
-    func hideChat(chatId: String) async throws {}
+    func hideChat(chatId: String) async throws {
+        hideChatCallCount += 1
+        hideChatIds.append(chatId)
+        if let hideChatError { throw hideChatError }
+    }
 
-    func unhideChat(chatId: String) async throws {}
+    func unhideChat(chatId: String) async throws {
+        unhideChatCallCount += 1
+        if let unhideChatError { throw unhideChatError }
+    }
+
+    func clearChatHistory(chatId: String) async throws {
+        clearHistoryCallCount += 1
+        clearedAtByChatId[chatId] = Date()
+        if let clearHistoryError { throw clearHistoryError }
+    }
+
+    func deleteDirectChat(chatId: String) async throws {
+        deleteDirectChatCallCount += 1
+        deleteDirectChatIds.append(chatId)
+        if let deleteDirectChatError { throw deleteDirectChatError }
+    }
 
     func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
+        let watermark = clearedAtByChatId[chatId]
         let filtered: [Message]
         if let before {
-            filtered = messages.filter { $0.createdAt < before && $0.chatId == chatId }
+            filtered = messages.filter {
+                $0.createdAt < before && $0.chatId == chatId && isVisible($0, clearedAt: watermark)
+            }
         } else {
-            filtered = messages.filter { $0.chatId == chatId }
+            filtered = messages.filter {
+                $0.chatId == chatId && isVisible($0, clearedAt: watermark)
+            }
         }
         return Array(filtered.sorted { $0.createdAt > $1.createdAt }.prefix(limit))
             .sorted { $0.createdAt < $1.createdAt }
+    }
+
+    func fetchChatMedia(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
+        let watermark = clearedAtByChatId[chatId]
+        var filtered = messages.filter {
+            $0.chatId == chatId
+                && $0.imageURL != nil
+                && isVisible($0, clearedAt: watermark)
+        }
+        if let before {
+            filtered = filtered.filter { $0.createdAt < before }
+        }
+        return Array(filtered.sorted { $0.createdAt > $1.createdAt }.prefix(limit))
+    }
+
+    private func isVisible(_ message: Message, clearedAt: Date?) -> Bool {
+        guard let clearedAt else { return true }
+        return message.createdAt > clearedAt
     }
 
     func sendMessage(chatId: String, text: String?, image: Data?, clientMessageId: String) async throws {

@@ -20,6 +20,8 @@ final class ChatViewModel: ObservableObject {
     /// Success / error copy for report & block alerts in `ChatSheetView`.
     @Published private(set) var moderationMessage: String?
     @Published private(set) var moderationErrorMessage: String?
+    /// When set, the UIKit thread should scroll this message into view.
+    @Published private(set) var revealMessageId: String?
 
     let chatId: String
     /// Navigation title — peer name for direct, community name for group.
@@ -33,11 +35,14 @@ final class ChatViewModel: ObservableObject {
     private let pageSize = 30
 
     private var liveMessagesTask: Task<Void, Never>?
+    private var historyClearedObserver: NSObjectProtocol?
+    private var revealMessageObserver: NSObjectProtocol?
     private var knownMessageIds = Set<String>()
     private var knownClientMessageIds = Set<String>()
     private var participantsById: [String: User] = [:]
     /// Prevents overlapping report/block requests.
     private var isModerating = false
+    private var pendingRevealMessageId: String?
 
     var canModeratePeer: Bool {
         peerUserId != nil && moderationRepository != nil
@@ -64,6 +69,12 @@ final class ChatViewModel: ObservableObject {
     deinit {
         // Cancelling terminates observeLiveMessages AsyncStream → ListenerRegistration.remove().
         liveMessagesTask?.cancel()
+        if let historyClearedObserver {
+            NotificationCenter.default.removeObserver(historyClearedObserver)
+        }
+        if let revealMessageObserver {
+            NotificationCenter.default.removeObserver(revealMessageObserver)
+        }
     }
 
     // MARK: - Lifecycle
@@ -74,6 +85,10 @@ final class ChatViewModel: ObservableObject {
         if loadState == .loaded {
             startObservingLiveMessages()
         }
+        // Keep observer for VM lifetime — Info push calls onDisappear and must not drop it.
+        observeHistoryCleared()
+        observeRevealMessage()
+        consumePendingRevealIfPossible()
     }
 
     func onDisappear() {
@@ -146,9 +161,22 @@ final class ChatViewModel: ObservableObject {
             canLoadMore = fetched.count == pageSize
             loadState = .loaded
             startObservingLiveMessages()
+            consumePendingRevealIfPossible()
         } catch {
             loadState = .error(error.localizedDescription)
         }
+    }
+
+    /// Full reload after the user clears history from Chat Info.
+    func reloadAfterHistoryCleared() async {
+        liveMessagesTask?.cancel()
+        liveMessagesTask = nil
+        messages = []
+        knownMessageIds = []
+        knownClientMessageIds = []
+        canLoadMore = true
+        loadState = .idle
+        await loadInitialMessages()
     }
 
     func loadMoreMessagesIfNeeded(currentIndex: Int) async {
@@ -443,5 +471,64 @@ final class ChatViewModel: ObservableObject {
             knownMessageIds.insert(item.id)
             knownClientMessageIds.insert(item.clientMessageId)
         }
+    }
+
+    private func observeHistoryCleared() {
+        guard historyClearedObserver == nil else { return }
+        let observedChatId = chatId
+        historyClearedObserver = NotificationCenter.default.addObserver(
+            forName: .circleLinkChatHistoryCleared,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let clearedId = notification.userInfo?[ChatHistoryClearedUserInfoKey.chatId] as? String
+            guard clearedId == observedChatId else { return }
+            Task { @MainActor [weak self] in
+                await self?.reloadAfterHistoryCleared()
+            }
+        }
+    }
+
+    private func removeHistoryClearedObserver() {
+        if let historyClearedObserver {
+            NotificationCenter.default.removeObserver(historyClearedObserver)
+            self.historyClearedObserver = nil
+        }
+    }
+
+    private func observeRevealMessage() {
+        guard revealMessageObserver == nil else { return }
+        let observedChatId = chatId
+        revealMessageObserver = NotificationCenter.default.addObserver(
+            forName: .circleLinkRevealChatMessage,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let clearedId = notification.userInfo?[ChatRevealMessageUserInfoKey.chatId] as? String
+            let messageId = notification.userInfo?[ChatRevealMessageUserInfoKey.messageId] as? String
+            guard clearedId == observedChatId, let messageId else { return }
+            Task { @MainActor [weak self] in
+                self?.queueReveal(messageId: messageId)
+            }
+        }
+    }
+
+    private func queueReveal(messageId: String) {
+        pendingRevealMessageId = messageId
+        consumePendingRevealIfPossible()
+    }
+
+    private func consumePendingRevealIfPossible() {
+        guard let id = pendingRevealMessageId else { return }
+        let match = messages.contains {
+            $0.id == id || $0.clientMessageId == id
+        }
+        guard match else { return }
+        pendingRevealMessageId = nil
+        revealMessageId = id
+    }
+
+    func clearRevealMessageId() {
+        revealMessageId = nil
     }
 }

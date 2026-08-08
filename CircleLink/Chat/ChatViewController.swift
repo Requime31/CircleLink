@@ -159,6 +159,7 @@ final class ChatViewController: UIViewController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] messages in
                 self?.applyMessageUpdates(messages)
+                self?.scrollToPendingRevealIfNeeded()
             }
             .store(in: &cancellables)
 
@@ -171,12 +172,34 @@ final class ChatViewController: UIViewController {
                 }
             }
             .store(in: &cancellables)
+
+        viewModel.$revealMessageId
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.scrollToPendingRevealIfNeeded()
+            }
+            .store(in: &cancellables)
     }
 
     private func presentError(_ message: String) {
         let alert = UIAlertController(title: "Chat Error", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
+    }
+
+    private func scrollToPendingRevealIfNeeded() {
+        guard let messageId = viewModel.revealMessageId else { return }
+        guard let index = displayedMessages.firstIndex(where: {
+            $0.id == messageId || $0.clientMessageId == messageId
+        }) else { return }
+
+        let indexPath = IndexPath(row: index, section: 0)
+        // Defer until after layout so inverted table has valid frames.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.tableView.scrollToRow(at: indexPath, at: .middle, animated: true)
+            self.viewModel.clearRevealMessageId()
+        }
     }
 
     private func applyMessageUpdates(_ messages: [ChatMessageItem]) {

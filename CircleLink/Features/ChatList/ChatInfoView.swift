@@ -1,24 +1,56 @@
 import SwiftUI
 
-/// Chat Info (DM) / Members (group). Opened from the chats list context menu.
-/// Owns its ViewModel via `@StateObject` so navigation re-renders don’t reset load state.
+/// Destinations pushed from Chat Info (one at a time — avoids List NavigationLink bugs).
+private enum ChatInfoDestination: Hashable, Identifiable {
+    case search
+    case participants
+    case media
+
+    var id: Self { self }
+}
+
+private enum ChatInfoAlert: Identifiable {
+    case leave
+    case clearHistory
+    case hide
+    case delete
+    case leaveError(String)
+    case actionError(String)
+
+    var id: String {
+        switch self {
+        case .leave: return "leave"
+        case .clearHistory: return "clearHistory"
+        case .hide: return "hide"
+        case .delete: return "delete"
+        case .leaveError: return "leaveError"
+        case .actionError: return "actionError"
+        }
+    }
+}
+
+/// Chat Info — mute, search, participants, media, clear history; leave (group) or hide/delete (DM).
 struct ChatInfoView: View {
     @StateObject private var viewModel: ChatInfoViewModel
     let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
-    /// Called after a successful leave so the list can refresh and pop.
+    /// Called after leave / hide / delete so the list can refresh and pop.
     let onLeftChat: () -> Void
+    /// Search hit → pop Info and open that message in the thread.
+    let onOpenMessage: (Message) -> Void
 
-    @State private var presentedPeer: ChatPeerSheetItem?
-    @State private var showLeaveConfirmation = false
+    @State private var destination: ChatInfoDestination?
+    @State private var activeAlert: ChatInfoAlert?
 
     init(
         viewModel: @autoclosure @escaping () -> ChatInfoViewModel,
         makePeerProfileSheet: @escaping (String, String?) -> PeerProfileSheet,
-        onLeftChat: @escaping () -> Void
+        onLeftChat: @escaping () -> Void,
+        onOpenMessage: @escaping (Message) -> Void
     ) {
         _viewModel = StateObject(wrappedValue: viewModel())
         self.makePeerProfileSheet = makePeerProfileSheet
         self.onLeftChat = onLeftChat
+        self.onOpenMessage = onOpenMessage
     }
 
     var body: some View {
@@ -30,50 +62,165 @@ struct ChatInfoView: View {
                     .foregroundStyle(CLColor.inkMuted)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .empty:
-                emptyState(message: "No participants found.")
+                emptyState(message: "Chat info unavailable.")
             case let .error(message):
                 errorState(message: message)
             case let .loaded(info):
-                participantsContent(info)
+                infoContent(info)
             }
         }
         .clCanvasBackground()
         .navigationTitle(viewModel.navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .background(hiddenNavigationLinks)
         .task {
             viewModel.load()
         }
         .onDisappear {
             viewModel.cancelLoad()
         }
-        .sheet(item: $presentedPeer) { item in
-            makePeerProfileSheet(item.userId, item.communityId)
-        }
-        .alert("Leave this chat?", isPresented: $showLeaveConfirmation) {
-            Button("Leave Chat", role: .destructive) {
-                Task { await confirmLeave() }
+        .onChange(of: viewModel.leaveErrorMessage) { message in
+            if let message {
+                activeAlert = .leaveError(message)
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You leave the chat only. You stay in the community.")
+        }
+        .onChange(of: viewModel.actionErrorMessage) { message in
+            if let message {
+                activeAlert = .actionError(message)
+            }
         }
         .alert(
-            "Couldn’t leave chat",
+            alertTitle,
             isPresented: Binding(
-                get: { viewModel.leaveErrorMessage != nil },
-                set: { if !$0 { viewModel.clearLeaveError() } }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.leaveErrorMessage ?? "")
+                get: { activeAlert != nil },
+                set: { if !$0 { dismissAlert() } }
+            ),
+            presenting: activeAlert
+        ) { alert in
+            alertButtons(for: alert)
+        } message: { alert in
+            Text(alertMessage(for: alert))
+        }
+    }
+
+    /// Programmatic pushes — one selection at a time (no List NavigationLink collisions).
+    @ViewBuilder
+    private var hiddenNavigationLinks: some View {
+        NavigationLink(
+            destination: ChatMessageSearchView(
+                chatId: viewModel.chatId,
+                chatRepository: viewModel.chatRepository
+            ) { message in
+                destination = nil
+                onOpenMessage(message)
+            },
+            tag: ChatInfoDestination.search,
+            selection: $destination
+        ) { EmptyView() }
+        .hidden()
+
+        NavigationLink(
+            destination: Group {
+                if case let .loaded(info) = viewModel.state {
+                    ChatParticipantsView(
+                        info: info,
+                        currentUserId: viewModel.currentUserId,
+                        makePeerProfileSheet: makePeerProfileSheet
+                    )
+                } else {
+                    ProgressView()
+                        .tint(CLColor.primary)
+                }
+            },
+            tag: ChatInfoDestination.participants,
+            selection: $destination
+        ) { EmptyView() }
+        .hidden()
+
+        NavigationLink(
+            destination: ChatMediaGalleryView(
+                chatId: viewModel.chatId,
+                chatRepository: viewModel.chatRepository
+            ),
+            tag: ChatInfoDestination.media,
+            selection: $destination
+        ) { EmptyView() }
+        .hidden()
+    }
+
+    private var alertTitle: String {
+        switch activeAlert {
+        case .leave: return "Leave this chat?"
+        case .clearHistory: return "Clear chat history?"
+        case .hide: return "Hide this chat?"
+        case .delete: return "Delete this chat?"
+        case .leaveError: return "Couldn’t leave chat"
+        case .actionError: return "Something went wrong"
+        case .none: return ""
+        }
+    }
+
+    private func alertMessage(for alert: ChatInfoAlert) -> String {
+        switch alert {
+        case .leave:
+            return "You leave the chat only. You stay in the community."
+        case .clearHistory:
+            return "Messages stay for others. Only you stop seeing past messages."
+        case .hide:
+            return "The chat moves to Hidden. You can restore it later."
+        case .delete:
+            return "Removes the chat from your list. It can come back if they message you again."
+        case let .leaveError(message), let .actionError(message):
+            return message
         }
     }
 
     @ViewBuilder
-    private func participantsContent(_ info: ChatInfo) -> some View {
-        let participants = viewModel.displayParticipants(from: info)
+    private func alertButtons(for alert: ChatInfoAlert) -> some View {
+        switch alert {
+        case .leave:
+            Button("Leave Chat", role: .destructive) {
+                Task { await confirmLeave() }
+            }
+            Button("Cancel", role: .cancel) {}
+        case .clearHistory:
+            Button("Clear History", role: .destructive) {
+                Task { _ = await viewModel.clearHistory() }
+            }
+            Button("Cancel", role: .cancel) {}
+        case .hide:
+            Button("Hide", role: .destructive) {
+                Task { await confirmHide() }
+            }
+            Button("Cancel", role: .cancel) {}
+        case .delete:
+            Button("Delete Chat", role: .destructive) {
+                Task { await confirmDelete() }
+            }
+            Button("Cancel", role: .cancel) {}
+        case .leaveError:
+            Button("OK", role: .cancel) {
+                viewModel.clearLeaveError()
+            }
+        case .actionError:
+            Button("OK", role: .cancel) {
+                viewModel.clearActionError()
+            }
+        }
+    }
 
+    private func dismissAlert() {
+        if case .leaveError = activeAlert {
+            viewModel.clearLeaveError()
+        }
+        if case .actionError = activeAlert {
+            viewModel.clearActionError()
+        }
+        activeAlert = nil
+    }
+
+    @ViewBuilder
+    private func infoContent(_ info: ChatInfo) -> some View {
         List {
             Section {
                 header(for: info)
@@ -82,45 +229,52 @@ struct ChatInfoView: View {
             }
 
             Section {
-                if participants.isEmpty {
-                    Text(info.type == .group ? "No members yet." : "No other person in this chat.")
-                        .font(CLTypography.subheadline)
-                        .foregroundStyle(CLColor.inkSecondary)
-                        .listRowBackground(CLColor.surface)
-                } else {
-                    ForEach(participants) { user in
-                        participantRow(user: user, communityId: info.communityId)
-                    }
-                }
-            } header: {
-                Text(info.type == .group ? "Members" : "Person")
-                    .font(CLTypography.caption)
-                    .foregroundStyle(CLColor.inkMuted)
-                    .textCase(nil)
+                actionGrid(info)
+                    .listRowBackground(CLColor.canvas)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(
+                        top: CLSpacing.xs,
+                        leading: CLSpacing.screenHorizontal,
+                        bottom: CLSpacing.sm,
+                        trailing: CLSpacing.screenHorizontal
+                    ))
             }
 
-            if info.type == .group {
-                Section {
-                    Button(role: .destructive) {
-                        showLeaveConfirmation = true
-                    } label: {
-                        HStack {
-                            Spacer()
-                            if viewModel.isLeaving {
-                                ProgressView()
-                                    .tint(CLColor.error)
-                            } else {
-                                Text("Leave Chat")
-                                    .font(CLTypography.button)
-                            }
-                            Spacer()
-                        }
-                    }
-                    .disabled(viewModel.isLeaving)
-                    .accessibilityLabel("Leave chat")
-                    .accessibilityHint("Leaves the chat only, not the community")
-                    .listRowBackground(CLColor.surface)
+            Section {
+                muteRow(info)
+
+                Button {
+                    destination = .participants
+                } label: {
+                    settingsLabel(systemImage: "person.2", title: "View Participants", showsChevron: true)
                 }
+                .buttonStyle(.plain)
+                .listRowBackground(CLColor.surface)
+
+                Button {
+                    activeAlert = .clearHistory
+                } label: {
+                    settingsLabel(systemImage: "clock.arrow.circlepath", title: "Clear History", showsChevron: false)
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.isMutatingPrefs)
+                .listRowBackground(CLColor.surface)
+            }
+
+            Section {
+                mediaSection()
+                    .listRowBackground(CLColor.canvas)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(
+                        top: CLSpacing.sm,
+                        leading: CLSpacing.screenHorizontal,
+                        bottom: CLSpacing.sm,
+                        trailing: CLSpacing.screenHorizontal
+                    ))
+            }
+
+            Section {
+                dangerZone(info)
             }
         }
         .listStyle(.insetGrouped)
@@ -129,45 +283,239 @@ struct ChatInfoView: View {
     }
 
     private func header(for info: ChatInfo) -> some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: info.type == .group ? "person.3.fill" : "person.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(CLColor.inkMuted)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.primarySoft))
-                .accessibilityHidden(true)
+        let peer = viewModel.displayParticipants(from: info).first
+        let count = info.participants.count
+
+        return VStack(spacing: CLSpacing.sm) {
+            if info.type == .direct, let peer {
+                AvatarImageView(
+                    localPreview: nil,
+                    avatarBase64: peer.avatarBase64,
+                    avatarURL: peer.avatarURL,
+                    size: 96
+                )
+            } else {
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(CLColor.inkMuted)
+                    .frame(width: 96, height: 96)
+                    .background(
+                        RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
+                            .fill(CLColor.primarySoft)
+                    )
+                    .accessibilityHidden(true)
+            }
 
             Text(info.title)
-                .font(CLTypography.title2)
+                .font(CLTypography.display)
                 .foregroundStyle(CLColor.ink)
                 .multilineTextAlignment(.center)
 
-            Text(info.type == .group ? "Group chat" : "Direct chat")
-                .font(CLTypography.subheadline)
+            Text(info.type == .group ? "\(count) Participants" : "Direct chat")
+                .font(CLTypography.footnote)
                 .foregroundStyle(CLColor.inkSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, CLSpacing.sm)
     }
 
-    @ViewBuilder
-    private func participantRow(user: User, communityId: String?) -> some View {
-        let isSelf = user.id == viewModel.currentUserId
-        let displayName = user.displayName.isEmpty ? "Member" : user.displayName
+    private func actionGrid(_ info: ChatInfo) -> some View {
+        HStack(spacing: CLSpacing.sm) {
+            actionTile(
+                systemImage: info.isMuted ? "bell.slash.fill" : "bell.fill",
+                title: info.isMuted ? "Unmute" : "Mute"
+            ) {
+                Task { await viewModel.setMuted(!info.isMuted) }
+            }
 
-        if isSelf {
-            ChatParticipantRowView(user: user, subtitle: "You", showsChevron: false)
-                .accessibilityLabel("\(displayName), You")
-                .listRowBackground(CLColor.surface)
+            actionTile(systemImage: "magnifyingglass", title: "Search") {
+                destination = .search
+            }
+
+            actionTile(systemImage: "person.2.fill", title: "People") {
+                destination = .participants
+            }
+        }
+    }
+
+    private func actionTile(
+        systemImage: String,
+        title: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: CLSpacing.xs) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(CLColor.primary)
+                Text(title)
+                    .font(CLTypography.footnote)
+                    .foregroundStyle(CLColor.ink)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, CLSpacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
+                    .fill(CLColor.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
+                            .stroke(CLColor.hairline, lineWidth: 1)
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func muteRow(_ info: ChatInfo) -> some View {
+        Button {
+            Task { await viewModel.setMuted(!info.isMuted) }
+        } label: {
+            HStack {
+                settingsLabel(
+                    systemImage: "bell.slash",
+                    title: "Mute Notifications",
+                    showsChevron: false
+                )
+                Spacer()
+                Text(info.isMuted ? "On" : "Off")
+                    .font(CLTypography.footnote)
+                    .foregroundStyle(CLColor.inkSecondary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(CLColor.inkMuted)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityValue(info.isMuted ? "On" : "Off")
+        .listRowBackground(CLColor.surface)
+    }
+
+    private func settingsLabel(
+        systemImage: String,
+        title: String,
+        showsChevron: Bool
+    ) -> some View {
+        HStack(spacing: CLSpacing.md) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(CLColor.inkSecondary)
+                .frame(width: 28, alignment: .center)
+            Text(title)
+                .font(CLTypography.body)
+                .foregroundStyle(CLColor.ink)
+            Spacer(minLength: 0)
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(CLColor.inkMuted)
+            }
+        }
+    }
+
+    private func mediaSection() -> some View {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+            HStack {
+                Text("Shared Media")
+                    .font(CLTypography.caption)
+                    .foregroundStyle(CLColor.inkSecondary)
+                    .textCase(.uppercase)
+                Spacer()
+                Button("See All") {
+                    destination = .media
+                }
+                .font(CLTypography.footnote.weight(.semibold))
+                .foregroundStyle(CLColor.primary)
+                .buttonStyle(.plain)
+            }
+
+            if viewModel.mediaPreview.isEmpty {
+                Text("No photos yet.")
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, CLSpacing.xs)
+            } else {
+                // HStack (not LazyVGrid) — grids inside List rows often overlap on iOS 16.
+                HStack(spacing: CLSpacing.xs) {
+                    ForEach(viewModel.mediaPreview.prefix(4)) { message in
+                        mediaThumbnail(for: message)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func mediaThumbnail(for message: Message) -> some View {
+        let shape = RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
+        Group {
+            if let url = message.imageURL {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case let .success(image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    default:
+                        CLColor.surfaceSoft
+                    }
+                }
+            } else {
+                CLColor.surfaceSoft
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .clipped()
+        .clipShape(shape)
+        .overlay(shape.stroke(CLColor.hairline, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func dangerZone(_ info: ChatInfo) -> some View {
+        if info.type == .group {
+            Button(role: .destructive) {
+                activeAlert = .leave
+            } label: {
+                HStack {
+                    Spacer()
+                    if viewModel.isLeaving {
+                        ProgressView()
+                            .tint(CLColor.error)
+                    } else {
+                        Text("Leave Chat")
+                            .font(CLTypography.button)
+                    }
+                    Spacer()
+                }
+            }
+            .disabled(viewModel.isLeaving)
+            .accessibilityLabel("Leave chat")
+            .listRowBackground(CLColor.surface)
         } else {
             Button {
-                presentedPeer = ChatPeerSheetItem(userId: user.id, communityId: communityId)
+                activeAlert = .hide
             } label: {
-                ChatParticipantRowView(user: user, subtitle: nil, showsChevron: true)
+                settingsLabel(systemImage: "eye.slash", title: "Hide Chat", showsChevron: true)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(displayName)
-            .accessibilityHint("Opens profile")
+            .disabled(viewModel.isMutatingPrefs)
+            .listRowBackground(CLColor.surface)
+
+            Button(role: .destructive) {
+                activeAlert = .delete
+            } label: {
+                HStack {
+                    Spacer()
+                    Text("Delete Chat")
+                        .font(CLTypography.button)
+                    Spacer()
+                }
+            }
+            .disabled(viewModel.isMutatingPrefs)
             .listRowBackground(CLColor.surface)
         }
     }
@@ -200,55 +548,18 @@ struct ChatInfoView: View {
             onLeftChat()
         }
     }
-}
 
-// MARK: - Row
-
-private struct ChatParticipantRowView: View {
-    static let avatarSize: CGFloat = 44
-
-    let user: User
-    var subtitle: String?
-    var showsChevron: Bool = true
-
-    var body: some View {
-        HStack(spacing: CLSpacing.sm) {
-            AvatarImageView(
-                localPreview: nil,
-                avatarBase64: user.avatarBase64,
-                avatarURL: user.avatarURL,
-                size: Self.avatarSize
-            )
-
-            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
-                Text(user.displayName.isEmpty ? "Member" : user.displayName)
-                    .font(CLTypography.headline)
-                    .foregroundStyle(CLColor.ink)
-
-                if let subtitle {
-                    Text(subtitle)
-                        .font(CLTypography.caption)
-                        .foregroundStyle(CLColor.inkMuted)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(CLColor.inkMuted)
-                    .accessibilityHidden(true)
-            }
+    private func confirmHide() async {
+        let success = await viewModel.hideChat()
+        if success {
+            onLeftChat()
         }
-        .padding(.vertical, CLSpacing.xxs)
-        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-        .contentShape(Rectangle())
     }
-}
 
-/// Sheet identity for `.sheet(item:)`.
-private struct ChatPeerSheetItem: Identifiable {
-    let userId: String
-    let communityId: String?
-    var id: String { userId }
+    private func confirmDelete() async {
+        let success = await viewModel.deleteDirectChat()
+        if success {
+            onLeftChat()
+        }
+    }
 }

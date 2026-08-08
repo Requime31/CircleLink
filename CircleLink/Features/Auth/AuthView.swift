@@ -9,31 +9,36 @@ struct AuthView: View {
             CLColor.canvas.ignoresSafeArea()
             ambientBackground
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    Spacer(minLength: CLSpacing.xxl)
+            GeometryReader { geo in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        Spacer(minLength: CLSpacing.lg)
 
-                    logoMark
-                        .padding(.bottom, CLSpacing.xl)
-                        .clAppear()
+                        logoMark
+                            .padding(.bottom, CLSpacing.xl)
+                            .clAppear()
 
-                    headerCopy
-                        .padding(.bottom, CLSpacing.xl)
-                        .clAppear(delay: 0.04)
+                        headerCopy
+                            .padding(.bottom, CLSpacing.xl)
+                            .clAppear(delay: 0.04)
 
-                    actionCluster
-                        .clAppear(delay: 0.08)
+                        actionCluster
+                            .clAppear(delay: 0.08)
 
-                    Spacer(minLength: CLSpacing.xl)
+                        termsFooter
+                            .padding(.top, CLSpacing.xl)
+                            .clAppear(delay: 0.1)
 
-                    termsFooter
-                        .padding(.bottom, CLSpacing.lg)
+                        Spacer(minLength: CLSpacing.lg)
+                    }
+                    .padding(.horizontal, CLSpacing.screenHorizontal)
+                    .frame(maxWidth: 400)
+                    .frame(maxWidth: .infinity)
+                    // Spacers only center when the stack is at least as tall as the screen.
+                    .frame(minHeight: geo.size.height)
                 }
-                .padding(.horizontal, CLSpacing.screenHorizontal)
-                .frame(maxWidth: 400)
-                .frame(maxWidth: .infinity)
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
         .toolbar(.hidden, for: .navigationBar)
     }

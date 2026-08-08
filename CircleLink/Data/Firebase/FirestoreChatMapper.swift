@@ -96,6 +96,10 @@ enum FirestoreChatMapper {
         data["muted"] as? Bool == true
     }
 
+    static func clearedAt(from data: [String: Any]) -> Date? {
+        (data["clearedAt"] as? Timestamp)?.dateValue()
+    }
+
     static func directChatId(userIdA: String, userIdB: String) -> String {
         [userIdA, userIdB].sorted().joined(separator: "_")
     }

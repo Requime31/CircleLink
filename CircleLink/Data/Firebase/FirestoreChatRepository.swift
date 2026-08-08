@@ -10,6 +10,7 @@ enum FirestoreChatError: LocalizedError {
     case chatNotFound
     case notCommunityMember
     case emptyParticipants
+    case notDirectChat
 
     var errorDescription: String? {
         switch self {
@@ -27,6 +28,8 @@ enum FirestoreChatError: LocalizedError {
             return "Only community members can open this group chat."
         case .emptyParticipants:
             return "Group chat needs at least one member."
+        case .notDirectChat:
+            return "This action is only available for direct chats."
         }
     }
 }
@@ -126,7 +129,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     }
 
     func fetchChatInfo(chatId: String) async throws -> ChatInfo {
-        guard Auth.auth().currentUser?.uid != nil else {
+        guard let userId = Auth.auth().currentUser?.uid else {
             throw FirestoreChatError.notAuthenticated
         }
 
@@ -159,12 +162,16 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             }
         }
 
+        let refData = try await ownChatRefData(userId: userId, chatId: chatId)
+
         return ChatInfo(
             id: chatId,
             type: type,
             title: resolvedTitle,
             communityId: resolvedCommunityId,
-            participants: participants
+            participants: participants,
+            isMuted: FirestoreChatMapper.isMutedChatRef(refData),
+            clearedAt: FirestoreChatMapper.clearedAt(from: refData)
         )
     }
 
@@ -174,20 +181,130 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         }
 
         try await ensureChatAccess(chatId: chatId, senderId: senderId)
+        let clearedAt = try await ownClearedAt(userId: senderId, chatId: chatId)
 
-        var query: Query = db.collection(chatsCollection)
-            .document(chatId)
-            .collection(messagesCollection)
-            .order(by: "createdAt", descending: true)
-            .limit(to: limit)
+        // Fetch a bit more when filtering by watermark so pages stay useful.
+        let fetchLimit = min(limit * 3, 90)
+        var collected: [Message] = []
+        var cursor = before
+        var pagesWithoutProgress = 0
 
-        if let before {
-            query = query.start(after: [Timestamp(date: before)])
+        while collected.count < limit, pagesWithoutProgress < 3 {
+            var query: Query = db.collection(chatsCollection)
+                .document(chatId)
+                .collection(messagesCollection)
+                .order(by: "createdAt", descending: true)
+                .limit(to: fetchLimit)
+
+            if let cursor {
+                query = query.start(after: [Timestamp(date: cursor)])
+            }
+
+            let snapshot = try await query.getDocuments()
+            if snapshot.documents.isEmpty { break }
+
+            let page = try snapshot.documents.map { try FirestoreChatMapper.message(from: $0, chatId: chatId) }
+            let visible = page.filter { Self.isVisibleAfterClear($0, clearedAt: clearedAt) }
+            let beforeCount = collected.count
+            for message in visible where collected.count < limit {
+                collected.append(message)
+            }
+
+            cursor = page.last?.createdAt
+            if collected.count == beforeCount {
+                pagesWithoutProgress += 1
+            } else {
+                pagesWithoutProgress = 0
+            }
+
+            // Older than watermark — no need to keep paging into cleared history.
+            if let clearedAt, let oldest = page.last?.createdAt, oldest <= clearedAt {
+                break
+            }
+            if page.count < fetchLimit { break }
         }
 
-        let snapshot = try await query.getDocuments()
-        let messages = try snapshot.documents.map { try FirestoreChatMapper.message(from: $0, chatId: chatId) }
-        return messages.sorted { $0.createdAt < $1.createdAt }
+        return collected.sorted { $0.createdAt < $1.createdAt }
+    }
+
+    func fetchChatMedia(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
+        guard let senderId = Auth.auth().currentUser?.uid else {
+            throw FirestoreChatError.notAuthenticated
+        }
+
+        try await ensureChatAccess(chatId: chatId, senderId: senderId)
+        let clearedAt = try await ownClearedAt(userId: senderId, chatId: chatId)
+
+        var collected: [Message] = []
+        var cursor = before
+        var pagesWithoutProgress = 0
+        let pageSize = 40
+
+        while collected.count < limit, pagesWithoutProgress < 5 {
+            var query: Query = db.collection(chatsCollection)
+                .document(chatId)
+                .collection(messagesCollection)
+                .order(by: "createdAt", descending: true)
+                .limit(to: pageSize)
+
+            if let cursor {
+                query = query.start(after: [Timestamp(date: cursor)])
+            }
+
+            let snapshot = try await query.getDocuments()
+            if snapshot.documents.isEmpty { break }
+
+            let page = try snapshot.documents.map { try FirestoreChatMapper.message(from: $0, chatId: chatId) }
+            let beforeCount = collected.count
+            for message in page {
+                guard Self.isVisibleAfterClear(message, clearedAt: clearedAt) else { continue }
+                guard message.imageURL != nil else { continue }
+                collected.append(message)
+                if collected.count >= limit { break }
+            }
+
+            cursor = page.last?.createdAt
+            if collected.count == beforeCount {
+                pagesWithoutProgress += 1
+            } else {
+                pagesWithoutProgress = 0
+            }
+
+            if let clearedAt, let oldest = page.last?.createdAt, oldest <= clearedAt {
+                break
+            }
+            if page.count < pageSize { break }
+        }
+
+        return collected
+    }
+
+    func clearChatHistory(chatId: String) async throws {
+        try await updateOwnChatRef(
+            chatId: chatId,
+            data: ["clearedAt": Timestamp(date: Date())]
+        )
+    }
+
+    func deleteDirectChat(chatId: String) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw FirestoreChatError.notAuthenticated
+        }
+
+        let chatDoc = try await db.collection(chatsCollection).document(chatId).getDocument()
+        guard chatDoc.exists else {
+            throw FirestoreChatError.chatNotFound
+        }
+        let typeRaw = chatDoc.data()?["type"] as? String ?? ChatType.direct.rawValue
+        guard ChatType(rawValue: typeRaw) == .direct else {
+            throw FirestoreChatError.notDirectChat
+        }
+
+        try await db.collection(usersCollection)
+            .document(userId)
+            .collection(chatRefsCollection)
+            .document(chatId)
+            .delete()
     }
 
     func sendMessage(
@@ -276,43 +393,74 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     /// Listener is removed when the AsyncStream terminates (VM cancels observe Task).
     func observeLiveMessages(chatId: String) -> AsyncStream<Message> {
         AsyncStream { continuation in
-            let query = db.collection(chatsCollection)
-                .document(chatId)
-                .collection(messagesCollection)
-                .order(by: "createdAt", descending: false)
-                .limit(toLast: Self.liveMessagesWindowSize)
+            let userId = Auth.auth().currentUser?.uid
+            let db = self.db
+            let chatsCollection = self.chatsCollection
+            let messagesCollection = self.messagesCollection
+            let usersCollection = self.usersCollection
+            let chatRefsCollection = self.chatRefsCollection
+            let windowSize = Self.liveMessagesWindowSize
 
-            let registration = query.addSnapshotListener { snapshot, error in
-                if let error {
-                    #if DEBUG
-                    print("[FirestoreChatRepository] messages listener error: \(error.localizedDescription)")
-                    #endif
-                    return
+            final class ListenerBox: @unchecked Sendable {
+                var registration: ListenerRegistration?
+            }
+            let box = ListenerBox()
+
+            let setupTask = Task {
+                var clearedAt: Date?
+                if let userId {
+                    let snapshot = try? await db.collection(usersCollection)
+                        .document(userId)
+                        .collection(chatRefsCollection)
+                        .document(chatId)
+                        .getDocument()
+                    clearedAt = FirestoreChatMapper.clearedAt(from: snapshot?.data() ?? [:])
                 }
 
-                guard let snapshot else { return }
+                guard !Task.isCancelled else { return }
 
-                for change in snapshot.documentChanges {
-                    guard change.type == .added || change.type == .modified else {
-                        continue
+                let query = db.collection(chatsCollection)
+                    .document(chatId)
+                    .collection(messagesCollection)
+                    .order(by: "createdAt", descending: false)
+                    .limit(toLast: windowSize)
+
+                box.registration = query.addSnapshotListener { snapshot, error in
+                    if let error {
+                        #if DEBUG
+                        print("[FirestoreChatRepository] messages listener error: \(error.localizedDescription)")
+                        #endif
+                        return
                     }
 
-                    do {
-                        let message = try FirestoreChatMapper.message(
-                            from: change.document,
-                            chatId: chatId
-                        )
-                        continuation.yield(message)
-                    } catch {
-                        #if DEBUG
-                        print("[FirestoreChatRepository] message map failed: \(error.localizedDescription)")
-                        #endif
+                    guard let snapshot else { return }
+
+                    for change in snapshot.documentChanges {
+                        guard change.type == .added || change.type == .modified else {
+                            continue
+                        }
+
+                        do {
+                            let message = try FirestoreChatMapper.message(
+                                from: change.document,
+                                chatId: chatId
+                            )
+                            guard Self.isVisibleAfterClear(message, clearedAt: clearedAt) else {
+                                continue
+                            }
+                            continuation.yield(message)
+                        } catch {
+                            #if DEBUG
+                            print("[FirestoreChatRepository] message map failed: \(error.localizedDescription)")
+                            #endif
+                        }
                     }
                 }
             }
 
             continuation.onTermination = { _ in
-                registration.remove()
+                setupTask.cancel()
+                box.registration?.remove()
             }
         }
     }
@@ -536,6 +684,25 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             .collection(chatRefsCollection)
             .document(chatId)
             .setData(data, merge: true)
+    }
+
+    private func ownChatRefData(userId: String, chatId: String) async throws -> [String: Any] {
+        let snapshot = try await db.collection(usersCollection)
+            .document(userId)
+            .collection(chatRefsCollection)
+            .document(chatId)
+            .getDocument()
+        return snapshot.data() ?? [:]
+    }
+
+    private func ownClearedAt(userId: String, chatId: String) async throws -> Date? {
+        let data = try await ownChatRefData(userId: userId, chatId: chatId)
+        return FirestoreChatMapper.clearedAt(from: data)
+    }
+
+    private static func isVisibleAfterClear(_ message: Message, clearedAt: Date?) -> Bool {
+        guard let clearedAt else { return true }
+        return message.createdAt > clearedAt
     }
 
     /// Ensures the current user is listed as a participant and has a chatRef.
