@@ -11,20 +11,37 @@ final class ProfileViewModel: ObservableObject {
     @Published private(set) var saveState: ViewState<User> = .idle
     @Published private(set) var localAvatarPreview: UIImage?
 
+    @Published private(set) var circlesCount = 0
+    @Published private(set) var connectsCount = 0
+    @Published private(set) var postsCount = 0
+    @Published private(set) var posts: [ProfilePost] = []
+    @Published private(set) var isPosting = false
+    @Published private(set) var postErrorMessage: String?
+
     private let authRepository: AuthRepository
     private let userRepository: UserRepository
+    private let communityRepository: CommunityRepository
+    private let connectionRepository: ConnectionRepository
+    private let profilePostRepository: ProfilePostRepository
     private let onProfileSaved: ((User) -> Void)?
 
     private var pendingAvatarData: Data?
     private var shouldRemoveAvatar = false
+    private var statsTask: Task<Void, Never>?
 
     init(
         authRepository: AuthRepository,
         userRepository: UserRepository,
+        communityRepository: CommunityRepository,
+        connectionRepository: ConnectionRepository,
+        profilePostRepository: ProfilePostRepository,
         onProfileSaved: ((User) -> Void)? = nil
     ) {
         self.authRepository = authRepository
         self.userRepository = userRepository
+        self.communityRepository = communityRepository
+        self.connectionRepository = connectionRepository
+        self.profilePostRepository = profilePostRepository
         self.onProfileSaved = onProfileSaved
     }
 
@@ -64,9 +81,15 @@ final class ProfileViewModel: ObservableObject {
             let user = try await userRepository.fetchProfile(userId: userId)
             apply(user: user)
             state = .loaded(user)
+            await refreshStatsAndPosts(userId: userId)
         } catch {
             state = .error(error.localizedDescription)
         }
+    }
+
+    func refreshStatsAndPosts() async {
+        guard let userId = authRepository.currentUser?.id else { return }
+        await refreshStatsAndPosts(userId: userId)
     }
 
     func toggleInterest(_ interest: String) {
@@ -132,7 +155,91 @@ final class ProfileViewModel: ObservableObject {
         }
     }
 
+    /// Creates a profile post, then refreshes the list + count.
+    @discardableResult
+    func createPost(text: String?, image: Data?) async -> Bool {
+        guard !isPosting else { return false }
+        guard authRepository.currentUser?.id != nil else {
+            postErrorMessage = "Session expired. Please sign in again."
+            return false
+        }
+
+        isPosting = true
+        postErrorMessage = nil
+        defer { isPosting = false }
+
+        do {
+            let created = try await profilePostRepository.createPost(
+                postId: UUID().uuidString,
+                text: text,
+                image: image
+            )
+            // Optimistic local update so a soft-fail refresh cannot hide the new post.
+            if !posts.contains(where: { $0.id == created.id }) {
+                posts.insert(created, at: 0)
+                postsCount += 1
+            }
+            await refreshStatsAndPosts()
+            return true
+        } catch {
+            postErrorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Updates an existing profile post and patches the local list.
+    @discardableResult
+    func updatePost(
+        _ post: ProfilePost,
+        text: String?,
+        image: Data?,
+        removeImage: Bool
+    ) async -> Bool {
+        guard !isPosting else { return false }
+        guard authRepository.currentUser?.id != nil else {
+            postErrorMessage = "Session expired. Please sign in again."
+            return false
+        }
+
+        isPosting = true
+        postErrorMessage = nil
+        defer { isPosting = false }
+
+        do {
+            let updated = try await profilePostRepository.updatePost(
+                post,
+                text: text,
+                image: image,
+                removeImage: removeImage
+            )
+            if let index = posts.firstIndex(where: { $0.id == updated.id }) {
+                posts[index] = updated
+            }
+            await refreshStatsAndPosts()
+            return true
+        } catch {
+            postErrorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func deletePost(_ post: ProfilePost) async {
+        guard !isPosting else { return }
+        do {
+            try await profilePostRepository.deletePost(post)
+            posts.removeAll { $0.id == post.id }
+            postsCount = max(0, postsCount - 1)
+        } catch {
+            postErrorMessage = error.localizedDescription
+        }
+    }
+
+    func clearPostError() {
+        postErrorMessage = nil
+    }
+
     func resetForm() {
+        statsTask?.cancel()
         displayName = ""
         selectedInterests = []
         profile = nil
@@ -141,10 +248,31 @@ final class ProfileViewModel: ObservableObject {
         localAvatarPreview = nil
         pendingAvatarData = nil
         shouldRemoveAvatar = false
+        circlesCount = 0
+        connectsCount = 0
+        postsCount = 0
+        posts = []
+        isPosting = false
+        postErrorMessage = nil
     }
 
     func resetSaveState() {
         saveState = .idle
+    }
+
+    /// Compact stats label: `124`, `8.2k`, `1.1M`.
+    static func formattedCount(_ value: Int) -> String {
+        let absValue = abs(value)
+        switch absValue {
+        case 1_000_000...:
+            let millions = Double(absValue) / 1_000_000
+            return String(format: "%gM", (millions * 10).rounded() / 10)
+        case 1_000...:
+            let thousands = Double(absValue) / 1_000
+            return String(format: "%gk", (thousands * 10).rounded() / 10)
+        default:
+            return "\(value)"
+        }
     }
 
     private func apply(user: User) {
@@ -154,5 +282,43 @@ final class ProfileViewModel: ObservableObject {
         if pendingAvatarData == nil {
             localAvatarPreview = nil
         }
+    }
+
+    private func refreshStatsAndPosts(userId: String) async {
+        statsTask?.cancel()
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            async let circles = self.communityRepository.fetchJoinedCommunityCount()
+            async let connects = self.connectionRepository.fetchMatchedConnections()
+            async let postCount = self.profilePostRepository.fetchPostCount(userId: userId)
+            async let latestPosts = self.profilePostRepository.fetchPosts(
+                userId: userId,
+                limit: 30,
+                before: nil
+            )
+
+            // Soft-fail per field: keep the previous value when a call fails
+            // so a refresh cannot wipe good stats/posts with zeros/empty.
+            let nextCircles = try? await circles
+            let nextConnects = try? await connects
+            let nextPostCount = try? await postCount
+            let nextPosts = try? await latestPosts
+
+            guard !Task.isCancelled else { return }
+            if let nextCircles {
+                self.circlesCount = nextCircles
+            }
+            if let nextConnects {
+                self.connectsCount = nextConnects.count
+            }
+            if let nextPostCount {
+                self.postsCount = nextPostCount
+            }
+            if let nextPosts {
+                self.posts = nextPosts
+            }
+        }
+        statsTask = task
+        await task.value
     }
 }

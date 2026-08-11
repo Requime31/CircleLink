@@ -12,4 +12,7 @@ protocol CommunityRepository: Sendable {
         description: String,
         interestTag: String
     ) async throws -> Community
+
+    /// How many communities the signed-in user has joined (Circles count on Profile).
+    func fetchJoinedCommunityCount() async throws -> Int
 }

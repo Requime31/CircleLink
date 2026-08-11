@@ -11,6 +11,7 @@ final class AppDependencies {
     let connectionRepository: ConnectionRepository
     let chatRepository: ChatRepository
     let moderationRepository: ModerationRepository
+    let profilePostRepository: ProfilePostRepository
     let pushNotificationHandler: PushNotificationHandler
 
     init(
@@ -21,6 +22,7 @@ final class AppDependencies {
         connectionRepository: ConnectionRepository? = nil,
         chatRepository: ChatRepository? = nil,
         moderationRepository: ModerationRepository? = nil,
+        profilePostRepository: ProfilePostRepository? = nil,
         pushNotificationHandler: PushNotificationHandler? = nil
     ) {
         let resolvedTokenStorage = tokenStorage ?? KeychainTokenStorage()
@@ -40,6 +42,9 @@ final class AppDependencies {
             imageStorage: resolvedImageStorage
         )
         self.moderationRepository = moderationRepository ?? FirestoreModerationRepository()
+        self.profilePostRepository = profilePostRepository ?? FirestoreProfilePostRepository(
+            imageStorage: SupabaseProfileImageStorage()
+        )
         self.pushNotificationHandler = pushNotificationHandler ?? PushNotificationHandler(
             userRepository: resolvedUserRepository,
             authRepository: self.authRepository
@@ -131,6 +136,9 @@ final class AppDependencies {
         ProfileViewModel(
             authRepository: authRepository,
             userRepository: userRepository,
+            communityRepository: communityRepository,
+            connectionRepository: connectionRepository,
+            profilePostRepository: profilePostRepository,
             onProfileSaved: onProfileSaved
         )
     }

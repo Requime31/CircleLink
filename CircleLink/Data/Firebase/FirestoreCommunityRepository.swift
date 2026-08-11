@@ -187,6 +187,37 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
         }
     }
 
+    func fetchJoinedCommunityCount() async throws -> Int {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw FirestoreCommunityError.notAuthenticated
+        }
+
+        // Membership lives under communities/{id}/members/{uid}. There is no reverse index yet,
+        // so we check membership docs in parallel (fine while community count stays small).
+        let communities = try await fetchCommunities()
+        guard !communities.isEmpty else { return 0 }
+
+        return await withTaskGroup(of: Bool.self, returning: Int.self) { group in
+            for community in communities {
+                group.addTask {
+                    let memberDoc = try? await self.db
+                        .collection(self.communitiesCollection)
+                        .document(community.id)
+                        .collection(self.membersCollection)
+                        .document(userId)
+                        .getDocument()
+                    return memberDoc?.exists == true
+                }
+            }
+
+            var count = 0
+            for await isMember in group where isMember {
+                count += 1
+            }
+            return count
+        }
+    }
+
     func createCommunity(
         name: String,
         description: String,

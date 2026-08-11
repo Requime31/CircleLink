@@ -368,6 +368,114 @@ final class MockCommunityRepository: CommunityRepository, @unchecked Sendable {
         communities.append(community)
         return community
     }
+
+    var joinedCommunityCount = 0
+
+    func fetchJoinedCommunityCount() async throws -> Int {
+        joinedCommunityCount
+    }
+}
+
+// MARK: - Profile posts
+
+final class MockProfilePostRepository: ProfilePostRepository, @unchecked Sendable {
+    var posts: [ProfilePost] = []
+    var createCallCount = 0
+    var updateCallCount = 0
+    var deleteCallCount = 0
+    var createError: Error?
+    var updateError: Error?
+    var fetchError: Error?
+    /// When true, `fetchPosts` / `fetchPostCount` fail after the first successful create.
+    var failReadsAfterCreate = false
+    private var didCreate = false
+
+    func fetchPosts(userId: String, limit: Int, before: Date?) async throws -> [ProfilePost] {
+        if failReadsAfterCreate, didCreate {
+            throw FirestoreProfilePostError.invalidData
+        }
+        if let fetchError { throw fetchError }
+        let sorted = posts
+            .filter { $0.authorId == userId }
+            .sorted { $0.createdAt > $1.createdAt }
+        let filtered: [ProfilePost]
+        if let before {
+            filtered = sorted.filter { $0.createdAt < before }
+        } else {
+            filtered = sorted
+        }
+        return Array(filtered.prefix(max(limit, 1)))
+    }
+
+    func fetchPostCount(userId: String) async throws -> Int {
+        if failReadsAfterCreate, didCreate {
+            throw FirestoreProfilePostError.invalidData
+        }
+        if let fetchError { throw fetchError }
+        return posts.filter { $0.authorId == userId }.count
+    }
+
+    func createPost(postId: String, text: String?, image: Data?) async throws -> ProfilePost {
+        createCallCount += 1
+        if let createError { throw createError }
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasText = !(trimmed?.isEmpty ?? true)
+        guard hasText || image != nil else {
+            throw FirestoreProfilePostError.emptyContent
+        }
+        let post = ProfilePost(
+            id: postId,
+            authorId: MockAuthRepository.sampleUser.id,
+            text: hasText ? trimmed : nil,
+            imageURL: image == nil ? nil : URL(string: "https://example.com/\(postId).jpg"),
+            createdAt: Date()
+        )
+        posts.insert(post, at: 0)
+        didCreate = true
+        return post
+    }
+
+    func updatePost(
+        _ post: ProfilePost,
+        text: String?,
+        image: Data?,
+        removeImage: Bool
+    ) async throws -> ProfilePost {
+        updateCallCount += 1
+        if let updateError { throw updateError }
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasText = !(trimmed?.isEmpty ?? true)
+
+        var imageURL = post.imageURL
+        if image != nil {
+            imageURL = URL(string: "https://example.com/\(post.id).jpg")
+        } else if removeImage {
+            imageURL = nil
+        }
+
+        guard hasText || imageURL != nil else {
+            throw FirestoreProfilePostError.emptyContent
+        }
+
+        let updated = ProfilePost(
+            id: post.id,
+            authorId: post.authorId,
+            text: hasText ? trimmed : nil,
+            imageURL: imageURL,
+            createdAt: post.createdAt
+        )
+        if let index = posts.firstIndex(where: { $0.id == post.id }) {
+            posts[index] = updated
+        } else {
+            posts.insert(updated, at: 0)
+        }
+        return updated
+    }
+
+    func deletePost(_ post: ProfilePost) async throws {
+        deleteCallCount += 1
+        posts.removeAll { $0.id == post.id }
+    }
 }
 
 final class MockModerationRepository: ModerationRepository, @unchecked Sendable {

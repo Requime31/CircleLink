@@ -1,9 +1,9 @@
-# Supabase Storage Setup (Phase 6 — Chat images)
+# Supabase Storage Setup (Chat + Profile images)
 
-CircleLink uses **Supabase Storage only for chat image attachments** (free tier).
+CircleLink uses **Supabase Storage for image binaries** (free tier): chat attachments and profile post photos.
 Auth and database stay on Firebase — Supabase is **not** used for login or Firestore.
 
-Firestore message documents store only the public `imageURL` — not the binary.
+Firestore / profile-post documents store only the public `imageURL` — not the binary.
 Firebase Storage is **not** required.
 
 ## 1. Create Supabase project
@@ -24,23 +24,36 @@ Firebase Storage is **not** required.
 In Supabase Dashboard → SQL Editor, run:
 
 ```sql
--- Allow anyone to read chat images (public bucket)
+-- Allow anyone to read images (public bucket)
 CREATE POLICY "Public read chat images"
 ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'chat-images');
 
--- Allow uploads to chat-images bucket (MVP — tighten in production)
-CREATE POLICY "Anon upload chat images"
+-- Allow uploads for chat + profile post images (MVP — tighten in production)
+-- If you already created the old "Anon upload chat images" policy, drop it first:
+-- DROP POLICY IF EXISTS "Anon upload chat images" ON storage.objects;
+
+CREATE POLICY "Anon upload chat and profile images"
 ON storage.objects FOR INSERT
 TO anon
 WITH CHECK (
   bucket_id = 'chat-images'
-  AND (storage.foldername(name))[1] = 'chats'
+  AND (storage.foldername(name))[1] IN ('chats', 'profilePosts')
+);
+
+-- Best-effort cleanup when a chat/profile image is deleted
+CREATE POLICY "Anon delete chat and profile images"
+ON storage.objects FOR DELETE
+TO anon
+USING (
+  bucket_id = 'chat-images'
+  AND (storage.foldername(name))[1] IN ('chats', 'profilePosts')
 );
 ```
 
-> **Production:** replace anon upload with authenticated policies or signed uploads.
+> **Production:** replace anon upload/delete with authenticated policies or signed uploads.
+> If INSERT still fails after this change, confirm the old chats-only policy was dropped.
 
 ## 4. Configure iOS app
 
@@ -71,18 +84,25 @@ chat-images/
   chats/
     {chatId}/
       {clientMessageId}.jpg
+  profilePosts/
+    {userId}/
+      {postId}.jpg
 ```
 
 ## 6. Data flow
 
 ```
-User attaches image
-  → ImageCompressor.compressForChat
-  → SupabaseChatImageStorage.uploadChatImage
-  → Supabase Storage (chat-images bucket)
-  → public URL
-  → Firestore message { imageURL }
-  → MessageCell loads URL via ImageLoader
+Chat image:
+  User attaches image
+    → ImageCompressor.compressForChat
+    → SupabaseChatImageStorage.uploadChatImage
+    → public URL → Firestore message { imageURL }
+
+Profile post image:
+  User attaches image
+    → ImageCompressor.compressForChat
+    → SupabaseProfileImageStorage.uploadProfileImage
+    → public URL → Firestore profilePosts { imageURL }
 ```
 
 ## Free tier limits (typical)

@@ -1,11 +1,15 @@
 import SwiftUI
 
 struct ProfileView: View {
+    /// Flip to `true` to bring back the public-preview card without restoring from git.
+    private static let showsHowOthersSeeYouPreview = false
+
     @ObservedObject var viewModel: ProfileViewModel
     let pushHandler: PushNotificationHandler
     let onSignOut: () -> Void
 
     @State private var isEditing = false
+    @State private var composeMode: ComposeProfilePostSheet.Mode?
     @State private var path = NavigationPath()
 
     var body: some View {
@@ -27,22 +31,17 @@ struct ProfileView: View {
             }
             .clCanvasBackground()
             .navigationTitle("Profile")
-            .toolbar {
-                if case .loaded = viewModel.state {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Edit") {
-                            isEditing = true
-                        }
-                        .foregroundStyle(CLColor.primaryPressed)
-                        .accessibilityLabel("Edit profile")
-                    }
-                }
-            }
+            .navigationBarTitleDisplayMode(.large)
             .navigationDestination(isPresented: $isEditing) {
                 ProfileEditView(viewModel: viewModel)
             }
             .navigationDestination(for: SettingsRoute.self) { _ in
                 SettingsView(pushHandler: pushHandler)
+            }
+            .sheet(item: $composeMode) { mode in
+                ComposeProfilePostSheet(viewModel: viewModel, mode: mode) {
+                    composeMode = nil
+                }
             }
             .task {
                 await viewModel.loadProfile()
@@ -59,7 +58,17 @@ struct ProfileView: View {
                 profileHero(user: user)
 
                 VStack(spacing: CLSpacing.xl) {
-                    howOthersSeeYouCard(user: user)
+                    actionButtons
+
+                    statsRow
+
+                    if Self.showsHowOthersSeeYouPreview {
+                        howOthersSeeYouCard(user: user)
+                    }
+
+                    myInterestsSection(user: user)
+
+                    myPostsSection(user: user)
 
                     accountSection
                 }
@@ -69,9 +78,22 @@ struct ProfileView: View {
             }
             .clAppear()
         }
+        .alert(
+            "Couldn’t delete post",
+            isPresented: Binding(
+                get: { viewModel.postErrorMessage != nil },
+                set: { if !$0 { viewModel.clearPostError() } }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                viewModel.clearPostError()
+            }
+        } message: {
+            Text(viewModel.postErrorMessage ?? "")
+        }
     }
 
-    /// Personal cabinet identity: soft atmosphere + avatar + name.
+    /// Avatar + name + member subtitle (design: my_profile).
     private func profileHero(user: User) -> some View {
         VStack(spacing: CLSpacing.md) {
             AvatarImageView(
@@ -81,10 +103,17 @@ struct ProfileView: View {
                 size: 112
             )
             .accessibilityLabel("Profile photo")
-            .overlay(
+            .overlay(alignment: .bottomTrailing) {
                 Circle()
-                    .stroke(CLColor.surface.opacity(0.9), lineWidth: 3)
-            )
+                    .fill(CLColor.primary)
+                    .frame(width: 22, height: 22)
+                    .overlay(
+                        Circle()
+                            .stroke(CLColor.surface, lineWidth: 3)
+                    )
+                    .offset(x: -4, y: -4)
+                    .accessibilityHidden(true)
+            }
 
             VStack(spacing: CLSpacing.xxs) {
                 Text(displayName(for: user))
@@ -93,31 +122,168 @@ struct ProfileView: View {
                     .multilineTextAlignment(.center)
                     .accessibilityLabel("Display name: \(displayName(for: user))")
 
-                Text("Your profile")
+                Text(memberSubtitle(for: user))
                     .font(CLTypography.subheadline)
                     .foregroundStyle(CLColor.inkMuted)
-                    .accessibilityHidden(true)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, CLSpacing.lg)
         .padding(.top, CLSpacing.xl)
-        .padding(.bottom, CLSpacing.xl)
-        .background {
-            LinearGradient(
-                colors: [
-                    CLColor.tintCream,
-                    CLColor.primarySoft.opacity(0.55),
-                    CLColor.canvas
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea(edges: .top)
+        .padding(.bottom, CLSpacing.md)
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: CLSpacing.sm) {
+            Button {
+                isEditing = true
+            } label: {
+                Label("Edit Profile", systemImage: "pencil")
+            }
+            .buttonStyle(CLPrimaryButtonStyle())
+            .accessibilityLabel("Edit profile")
+
+            ShareLink(item: shareText) {
+                Text("Share")
+                    .font(CLTypography.button)
+                    .foregroundStyle(CLColor.ink)
+                    .frame(minWidth: 88)
+                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                    .padding(.horizontal, CLSpacing.md)
+                    .background(CLColor.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
+                            .stroke(CLColor.hairline, lineWidth: 1)
+                    )
+            }
+            .accessibilityLabel("Share profile")
         }
     }
 
+    private var statsRow: some View {
+        HStack(spacing: 0) {
+            statCell(
+                value: ProfileViewModel.formattedCount(viewModel.circlesCount),
+                label: "Circles"
+            )
+            Divider()
+                .frame(height: 36)
+                .overlay(CLColor.hairline)
+            statCell(
+                value: ProfileViewModel.formattedCount(viewModel.connectsCount),
+                label: "Connects"
+            )
+            Divider()
+                .frame(height: 36)
+                .overlay(CLColor.hairline)
+            statCell(
+                value: ProfileViewModel.formattedCount(viewModel.postsCount),
+                label: "Posts"
+            )
+        }
+        .padding(.vertical, CLSpacing.md)
+        .frame(maxWidth: .infinity)
+        .background(CLColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous)
+                .stroke(CLColor.hairline, lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(viewModel.circlesCount) circles, \(viewModel.connectsCount) connects, \(viewModel.postsCount) posts"
+        )
+    }
+
+    private func statCell(value: String, label: String) -> some View {
+        VStack(spacing: CLSpacing.xxs) {
+            Text(value)
+                .font(CLTypography.title2)
+                .foregroundStyle(CLColor.primaryPressed)
+            Text(label.uppercased())
+                .font(CLTypography.caption)
+                .foregroundStyle(CLColor.inkMuted)
+                .tracking(0.6)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func myInterestsSection(user: User) -> some View {
+        VStack(alignment: .leading, spacing: CLSpacing.md) {
+            HStack {
+                Text("My Interests")
+                    .font(CLTypography.headline)
+                    .foregroundStyle(CLColor.ink)
+                    .accessibilityAddTraits(.isHeader)
+
+                Spacer(minLength: CLSpacing.xs)
+
+                Button("Edit") {
+                    isEditing = true
+                }
+                .font(CLTypography.subheadline.weight(.semibold))
+                .foregroundStyle(CLColor.primaryPressed)
+                .accessibilityLabel("Edit interests")
+            }
+
+            publicInterests(user.interests)
+        }
+    }
+
+    private func myPostsSection(user: User) -> some View {
+        VStack(alignment: .leading, spacing: CLSpacing.md) {
+            HStack {
+                Text("My Posts")
+                    .font(CLTypography.headline)
+                    .foregroundStyle(CLColor.ink)
+                    .accessibilityAddTraits(.isHeader)
+
+                Spacer(minLength: CLSpacing.xs)
+
+                Button {
+                    viewModel.clearPostError()
+                    composeMode = .create
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(CLColor.primaryPressed)
+                        .frame(minWidth: AccessibilityHelpers.minimumTouchTarget,
+                               minHeight: AccessibilityHelpers.minimumTouchTarget)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Create new post")
+            }
+
+            if viewModel.posts.isEmpty {
+                Text("No posts yet. Share a photo or a thought.")
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(CLSpacing.md)
+                    .background(CLColor.surfaceSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+            } else {
+                ProfilePostsListView(
+                    posts: viewModel.posts,
+                    author: user,
+                    localAvatarPreview: viewModel.localAvatarPreview,
+                    onDelete: { post in
+                        Task { await viewModel.deletePost(post) }
+                    },
+                    onEdit: { post in
+                        viewModel.clearPostError()
+                        composeMode = .edit(post)
+                    }
+                )
+            }
+        }
+    }
+
+    // MARK: - How others see you (kept, not shown)
+
     /// Read-only mirror of public fields — same visual language as peer profile.
+    /// Temporarily not rendered from `profileContent` (product pause).
     private func howOthersSeeYouCard(user: User) -> some View {
         VStack(alignment: .leading, spacing: CLSpacing.md) {
             VStack(alignment: .leading, spacing: CLSpacing.xxs) {
@@ -176,7 +342,11 @@ struct ProfileView: View {
                         .padding(.horizontal, CLSpacing.sm)
                         .padding(.vertical, CLSpacing.xxs)
                         .background(CLColor.surfaceSoft)
-                        .clipShape(Capsule())
+                        .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
+                                .stroke(CLColor.hairline, lineWidth: 1)
+                        )
                 }
             }
         }
@@ -240,11 +410,24 @@ struct ProfileView: View {
         .padding(.top, CLSpacing.xl)
     }
 
+    // MARK: - Helpers
+
+    private var shareText: String {
+        let name = viewModel.profile.map(displayName(for:)) ?? "Member"
+        return "Check out \(name) on CircleLink"
+    }
+
+    private func memberSubtitle(for user: User) -> String {
+        if let date = user.ageConfirmedAt {
+            return "Member since \(date.formatted(.dateTime.month(.wide).year()))"
+        }
+        return "Your profile"
+    }
+
     private func howOthersAccessibilityLabel(user: User) -> String {
         let interests = user.interests.isEmpty
             ? "No interests yet"
             : "Interests: \(user.interests.joined(separator: ", "))"
-        // Name is already announced in the hero — avoid VoiceOver duplication.
         return "How others see you. \(interests)"
     }
 

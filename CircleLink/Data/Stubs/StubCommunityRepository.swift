@@ -26,4 +26,9 @@ final class StubCommunityRepository: CommunityRepository, @unchecked Sendable {
         communities.append(community)
         return community
     }
+
+    func fetchJoinedCommunityCount() async throws -> Int {
+        // Stub has no membership graph — treat created list as joined for previews.
+        communities.count
+    }
 }
