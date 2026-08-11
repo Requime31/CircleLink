@@ -5,7 +5,7 @@ struct CommunityDetailView: View {
     /// Called with `(chatId, title)` after group chat is created or opened.
     let onOpenGroupChat: (String, String) -> Void
     /// Builds Phase 2 peer profile sheet. Pass `communityId` so Connect works.
-    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+    let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
 
     @State private var presentedPeer: PeerSheetItem?
 
@@ -29,7 +29,7 @@ struct CommunityDetailView: View {
         .navigationTitle(viewModel.communityState.loadedValue?.name ?? "Community")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $presentedPeer) { peer in
-            makePeerProfileSheet(peer.userId, viewModel.communityId)
+            makePeerProfileSheet(peer.userId, .social)
         }
         .task {
             await viewModel.load()

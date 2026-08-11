@@ -156,7 +156,8 @@ struct ChatMediaGalleryView: View {
     }
 }
 
-private struct IdentifiedURL: Identifiable {
+/// Identifiable wrapper so a remote image URL can drive `fullScreenCover(item:)`.
+struct IdentifiedURL: Identifiable, Hashable {
     let id: String
     let url: URL
 
@@ -166,7 +167,8 @@ private struct IdentifiedURL: Identifiable {
     }
 }
 
-private struct ChatMediaFullscreenView: View {
+/// Full-screen photo viewer shared by Chat Info preview and Shared Media gallery.
+struct ChatMediaFullscreenView: View {
     let url: URL
     @Environment(\.dismiss) private var dismiss
 

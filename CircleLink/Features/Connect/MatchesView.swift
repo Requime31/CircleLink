@@ -82,7 +82,6 @@ struct MatchesView: View {
                             onBlock(item.peer.id, item.peer.displayName)
                         }
                     }
-                    .clAppear()
                 }
             }
             .padding(.horizontal, CLSpacing.md)

@@ -32,7 +32,7 @@ private enum ChatInfoAlert: Identifiable {
 /// Chat Info — mute, search, participants, media, clear history; leave (group) or hide/delete (DM).
 struct ChatInfoView: View {
     @StateObject private var viewModel: ChatInfoViewModel
-    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+    let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
     /// Called after leave / hide / delete so the list can refresh and pop.
     let onLeftChat: () -> Void
     /// Search hit → pop Info and open that message in the thread.
@@ -40,10 +40,11 @@ struct ChatInfoView: View {
 
     @State private var destination: ChatInfoDestination?
     @State private var activeAlert: ChatInfoAlert?
+    @State private var presentedMedia: IdentifiedURL?
 
     init(
         viewModel: @autoclosure @escaping () -> ChatInfoViewModel,
-        makePeerProfileSheet: @escaping (String, String?) -> PeerProfileSheet,
+        makePeerProfileSheet: @escaping (String, PeerProfileMode) -> PeerProfileSheet,
         onLeftChat: @escaping () -> Void,
         onOpenMessage: @escaping (Message) -> Void
     ) {
@@ -100,6 +101,9 @@ struct ChatInfoView: View {
             alertButtons(for: alert)
         } message: { alert in
             Text(alertMessage(for: alert))
+        }
+        .fullScreenCover(item: $presentedMedia) { item in
+            ChatMediaFullscreenView(url: item.url)
         }
     }
 
@@ -232,11 +236,9 @@ struct ChatInfoView: View {
                 actionGrid(info)
                     .listRowBackground(CLColor.canvas)
                     .listRowSeparator(.hidden)
-                    .listRowInsets(EdgeInsets(
+                    .listRowInsets(chatInfoCustomRowInsets(
                         top: CLSpacing.xs,
-                        leading: CLSpacing.screenHorizontal,
-                        bottom: CLSpacing.sm,
-                        trailing: CLSpacing.screenHorizontal
+                        bottom: CLSpacing.sm
                     ))
             }
 
@@ -261,15 +263,17 @@ struct ChatInfoView: View {
                 .listRowBackground(CLColor.surface)
             }
 
+            // insetGrouped already matches the settings-card width for this section.
+            // Do NOT add screenHorizontal again — that made Shared Media narrower than the buttons.
             Section {
                 mediaSection()
                     .listRowBackground(CLColor.canvas)
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(
                         top: CLSpacing.sm,
-                        leading: CLSpacing.screenHorizontal,
+                        leading: 0,
                         bottom: CLSpacing.sm,
-                        trailing: CLSpacing.screenHorizontal
+                        trailing: 0
                     ))
             }
 
@@ -414,6 +418,16 @@ struct ChatInfoView: View {
         }
     }
 
+    /// Same horizontal inset as Mute / Search / People — keeps Shared Media edges aligned.
+    private func chatInfoCustomRowInsets(top: CGFloat, bottom: CGFloat) -> EdgeInsets {
+        EdgeInsets(
+            top: top,
+            leading: CLSpacing.screenHorizontal,
+            bottom: bottom,
+            trailing: CLSpacing.screenHorizontal
+        )
+    }
+
     private func mediaSection() -> some View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
             HStack {
@@ -421,7 +435,7 @@ struct ChatInfoView: View {
                     .font(CLTypography.caption)
                     .foregroundStyle(CLColor.inkSecondary)
                     .textCase(.uppercase)
-                Spacer()
+                Spacer(minLength: 0)
                 Button("See All") {
                     destination = .media
                 }
@@ -437,41 +451,55 @@ struct ChatInfoView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, CLSpacing.xs)
             } else {
-                // HStack (not LazyVGrid) — grids inside List rows often overlap on iOS 16.
+                // Equal flexible tiles. Color.clear owns size so AsyncImage cannot stretch the row.
+                // Avoid LazyVGrid inside List — it often overlaps on iOS 16.
+                // Buttons must also expand — otherwise the HStack shrink-wraps and List centers it
+                // (looks more inset than Mute / Search / People).
                 HStack(spacing: CLSpacing.xs) {
                     ForEach(viewModel.mediaPreview.prefix(4)) { message in
-                        mediaThumbnail(for: message)
+                        Button {
+                            if let url = message.imageURL {
+                                presentedMedia = IdentifiedURL(url)
+                            } else {
+                                destination = .media
+                            }
+                        } label: {
+                            mediaThumbnail(for: message)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityLabel("Open photo")
                     }
                 }
-                .frame(maxWidth: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    @ViewBuilder
     private func mediaThumbnail(for message: Message) -> some View {
         let shape = RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
-        Group {
-            if let url = message.imageURL {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case let .success(image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
-                        CLColor.surfaceSoft
+        return Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .overlay {
+                if let url = message.imageURL {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case let .success(image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        default:
+                            CLColor.surfaceSoft
+                        }
                     }
+                } else {
+                    CLColor.surfaceSoft
                 }
-            } else {
-                CLColor.surfaceSoft
             }
-        }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .clipped()
-        .clipShape(shape)
-        .overlay(shape.stroke(CLColor.hairline, lineWidth: 1))
+            .clipped()
+            .clipShape(shape)
+            .overlay(shape.stroke(CLColor.hairline, lineWidth: 1))
     }
 
     @ViewBuilder

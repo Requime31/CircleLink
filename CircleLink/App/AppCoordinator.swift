@@ -114,7 +114,12 @@ final class AppCoordinator: ObservableObject {
                         self.dependencies.makeChatViewModel(chatId: chatId, title: title)
                     },
                     makeChatInfoViewModel: dependencies.makeChatInfoViewModel,
-                    makePeerProfileSheet: dependencies.makePeerProfileSheet,
+                    makePeerProfileSheet: { userId, mode in
+                        self.dependencies.makePeerProfileSheet(
+                            userId: userId,
+                            mode: mode
+                        )
+                    },
                     pushHandler: dependencies.pushNotificationHandler,
                     onCommunitySelected: onCommunitySelected,
                     onOpenGroupChat: onOpenGroupChat,

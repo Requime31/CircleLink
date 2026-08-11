@@ -1,13 +1,13 @@
 import SwiftUI
 
-/// Soft sheet wrapper for another user's profile.
+/// Soft sheet wrapper for another user's profile (all modes).
 ///
-/// **Public API (Phases 4 / 5 / 7):**
+/// **Public API:**
 /// ```swift
 /// .sheet(item: $presentedPeer) { item in
 ///     dependencies.makePeerProfileSheet(
 ///         userId: item.userId,
-///         communityId: item.communityId // pass when known
+///         mode: .social // or .likedYou(requestId:)
 ///     )
 /// }
 /// ```
@@ -15,45 +15,79 @@ import SwiftUI
 /// Never auto-opens chat.
 struct PeerProfileSheet: View {
     @StateObject private var viewModel: PeerProfileViewModel
+    let onFinished: () -> Void
+    @Environment(\.dismiss) private var dismiss
 
     init(
         userId: String,
-        communityId: String? = nil,
+        mode: PeerProfileMode = .social,
         userRepository: UserRepository,
-        connectionRepository: ConnectionRepository
+        connectionRepository: ConnectionRepository,
+        communityRepository: CommunityRepository,
+        onFinished: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(
             wrappedValue: PeerProfileViewModel(
                 userId: userId,
-                communityId: communityId,
+                mode: mode,
                 userRepository: userRepository,
-                connectionRepository: connectionRepository
+                connectionRepository: connectionRepository,
+                communityRepository: communityRepository
             )
         )
+        self.onFinished = onFinished
     }
 
     /// Preview / tests — inject a preconfigured ViewModel.
-    init(previewViewModel: PeerProfileViewModel) {
+    init(
+        previewViewModel: PeerProfileViewModel,
+        onFinished: @escaping () -> Void = {}
+    ) {
         _viewModel = StateObject(wrappedValue: previewViewModel)
+        self.onFinished = onFinished
     }
 
     var body: some View {
-        NavigationStack {
-            PeerProfileView(viewModel: viewModel)
-                .navigationTitle("Profile")
-                .navigationBarTitleDisplayMode(.inline)
+        PeerProfileView(viewModel: viewModel) {
+            handleClose()
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-        .modifier(PeerProfileSheetChrome())
+        .modifier(PeerProfileSheetChrome(mode: viewModel.mode))
         .task {
             await viewModel.load()
+        }
+        .onChange(of: viewModel.didCompleteAction) { completed in
+            if completed {
+                handleClose()
+            }
+        }
+    }
+
+    private func handleClose() {
+        onFinished()
+        dismiss()
+    }
+}
+
+/// Soft sheet corners; social keeps large detent, Liked You goes full height.
+private struct PeerProfileSheetChrome: ViewModifier {
+    let mode: PeerProfileMode
+
+    func body(content: Content) -> some View {
+        switch mode {
+        case .social:
+            content
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .modifier(SoftCornerRadius())
+        case .likedYou:
+            content
+                .presentationDragIndicator(.visible)
+                .modifier(SoftCornerRadius())
         }
     }
 }
 
-/// Soft sheet corners when the OS supports them (iOS 16.4+).
-private struct PeerProfileSheetChrome: ViewModifier {
+private struct SoftCornerRadius: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 16.4, *) {
             content.presentationCornerRadius(CLRadius.xl)
@@ -73,15 +107,17 @@ private enum PeerProfilePreviewData {
         avatarURL: nil,
         avatarBase64: nil,
         interests: ["Music", "Travel", "Photography"],
+        aboutMe: "Always up for a board game night and good coffee.",
         ageConfirmedAt: Date()
     )
 
     static func viewModel(
-        relationship: PeerRelationship,
-        communityId: String? = "community-1"
+        mode: PeerProfileMode = .social,
+        relationship: PeerRelationship = .none
     ) -> PeerProfileViewModel {
         let users = PreviewPeerUserRepository(user: sampleUser)
         let connections = StubConnectionRepository()
+        let communities = StubCommunityRepository()
 
         switch relationship {
         case .none:
@@ -91,7 +127,7 @@ private enum PeerProfilePreviewData {
                 id: "a_b",
                 fromUserId: "me",
                 toUserId: sampleUser.id,
-                communityId: "community-1",
+                communityId: nil,
                 status: .pending,
                 createdAt: Date()
             )
@@ -100,7 +136,7 @@ private enum PeerProfilePreviewData {
                 id: "a_b",
                 fromUserId: "me",
                 toUserId: sampleUser.id,
-                communityId: "community-1",
+                communityId: nil,
                 status: .accepted,
                 createdAt: Date()
             )
@@ -108,9 +144,10 @@ private enum PeerProfilePreviewData {
 
         return PeerProfileViewModel(
             userId: sampleUser.id,
-            communityId: communityId,
+            mode: mode,
             userRepository: users,
-            connectionRepository: connections
+            connectionRepository: connections,
+            communityRepository: communities
         )
     }
 }
@@ -129,23 +166,22 @@ private final class PreviewPeerUserRepository: UserRepository, @unchecked Sendab
     func clearFCMToken() async throws {}
 }
 
-#Preview("Connect available") {
+#Preview("Social — Connect available") {
     PeerProfileSheet(previewViewModel: PeerProfilePreviewData.viewModel(relationship: .none))
 }
 
-#Preview("Request sent") {
+#Preview("Social — Request sent") {
     PeerProfileSheet(previewViewModel: PeerProfilePreviewData.viewModel(relationship: .pending))
 }
 
-#Preview("Matched / Remove") {
+#Preview("Social — Matched / Remove") {
     PeerProfileSheet(previewViewModel: PeerProfilePreviewData.viewModel(relationship: .matched))
 }
 
-#Preview("No community context") {
+#Preview("Liked You") {
     PeerProfileSheet(
         previewViewModel: PeerProfilePreviewData.viewModel(
-            relationship: .none,
-            communityId: nil
+            mode: .likedYou(requestId: "req-1")
         )
     )
 }

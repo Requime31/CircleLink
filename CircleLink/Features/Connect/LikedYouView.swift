@@ -1,11 +1,16 @@
 import SwiftUI
 
-/// Incoming Connect requests — pushed from Discover.
+/// Incoming Connect requests — grid of people who liked you.
 struct LikedYouView: View {
     @ObservedObject var viewModel: ConnectViewModel
-    let onSelectPeer: (User) -> Void
+    let onSelectPeer: (ConnectRequestItem) -> Void
     let onReport: (String, String) -> Void
     let onBlock: (String, String) -> Void
+
+    private let columns = [
+        GridItem(.flexible(), spacing: CLSpacing.md),
+        GridItem(.flexible(), spacing: CLSpacing.md)
+    ]
 
     var body: some View {
         Group {
@@ -20,11 +25,11 @@ struct LikedYouView: View {
             case let .error(message):
                 errorState(message)
             case let .loaded(items):
-                list(items)
+                grid(items)
             }
         }
         .clCanvasBackground()
-        .navigationTitle("Liked you")
+        .navigationTitle("Liked You")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -62,26 +67,16 @@ struct LikedYouView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private func list(_ items: [ConnectRequestItem]) -> some View {
+    private func grid(_ items: [ConnectRequestItem]) -> some View {
         ScrollView {
-            LazyVStack(spacing: CLSpacing.md) {
+            LazyVGrid(columns: columns, spacing: CLSpacing.md) {
                 ForEach(items) { item in
-                    IncomingRequestCardView(
-                        item: item,
-                        isResponding: viewModel.respondingRequestId == item.id,
-                        onAccept: {
-                            Task {
-                                await viewModel.accept(
-                                    requestId: item.request.id,
-                                    fromUserId: item.request.fromUserId
-                                )
-                            }
-                        },
-                        onDecline: {
-                            Task { await viewModel.decline(requestId: item.request.id) }
-                        },
-                        onSelectPeer: { onSelectPeer(item.peer) }
-                    )
+                    Button {
+                        onSelectPeer(item)
+                    } label: {
+                        LikedYouGridCard(user: item.peer)
+                    }
+                    .buttonStyle(.plain)
                     .contextMenu {
                         Button("Report…") {
                             onReport(item.peer.id, item.peer.displayName)
@@ -90,7 +85,7 @@ struct LikedYouView: View {
                             onBlock(item.peer.id, item.peer.displayName)
                         }
                     }
-                    .clAppear()
+                    .accessibilityLabel("View profile of \(item.peer.displayNameWithAge)")
                 }
             }
             .padding(.horizontal, CLSpacing.md)
@@ -99,76 +94,50 @@ struct LikedYouView: View {
     }
 }
 
-// MARK: - Card
+// MARK: - Grid card
 
-struct IncomingRequestCardView: View {
-    let item: ConnectRequestItem
-    let isResponding: Bool
-    let onAccept: () -> Void
-    let onDecline: () -> Void
-    let onSelectPeer: () -> Void
+private struct LikedYouGridCard: View {
+    let user: User
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Button(action: onSelectPeer) {
-                HStack(spacing: CLSpacing.sm) {
-                    AvatarImageView(
-                        localPreview: nil,
-                        avatarBase64: item.peer.avatarBase64,
-                        avatarURL: item.peer.avatarURL,
-                        size: 56
-                    )
-
-                    VStack(alignment: .leading, spacing: CLSpacing.xxs) {
-                        Text(item.peer.displayName)
-                            .font(CLTypography.headline)
-                            .foregroundStyle(CLColor.ink)
-
-                        if !item.peer.interests.isEmpty {
-                            Text(item.peer.interests.prefix(3).joined(separator: " · "))
-                                .font(CLTypography.footnote)
-                                .foregroundStyle(CLColor.inkMuted)
-                                .lineLimit(1)
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(CLColor.inkMuted)
-                        .accessibilityHidden(true)
-                }
+        // Fixed aspect box first — image fills via overlay so LazyVGrid stays stable.
+        Color.clear
+            .aspectRatio(3 / 4, contentMode: .fit)
+            .overlay {
+                ProfileHeroImageView(
+                    avatarBase64: user.avatarBase64,
+                    avatarURL: user.avatarURL
+                )
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("View profile of \(item.peer.displayName)")
-
-            HStack(spacing: CLSpacing.sm) {
-                Button(action: onDecline) {
-                    if isResponding {
-                        ProgressView()
-                            .tint(CLColor.ink)
-                    } else {
-                        Text("Decline")
-                    }
-                }
-                .buttonStyle(CLSecondaryButtonStyle())
-                .disabled(isResponding)
-                .accessibilityLabel("Decline \(item.peer.displayName)")
-
-                Button(action: onAccept) {
-                    if isResponding {
-                        ProgressView()
-                            .tint(CLColor.onPrimary)
-                    } else {
-                        Text("Accept")
-                    }
-                }
-                .buttonStyle(CLPrimaryButtonStyle())
-                .disabled(isResponding)
-                .accessibilityLabel("Accept \(item.peer.displayName)")
+            .overlay {
+                LinearGradient(
+                    colors: [.clear, Color.black.opacity(0.6)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
             }
-        }
-        .clCardStyle()
+            .overlay(alignment: .bottomLeading) {
+                Text(user.displayNameWithAge)
+                    .font(CLTypography.title2)
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .padding(CLSpacing.md)
+            }
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(.white.opacity(0.2))
+                    .clipShape(Circle())
+                    .padding(CLSpacing.sm)
+                    .accessibilityHidden(true)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous)
+                    .stroke(CLColor.hairline, lineWidth: 1)
+            )
+            .shadow(color: CLShadow.cardColor, radius: CLShadow.cardRadius, x: 0, y: CLShadow.cardY)
     }
 }

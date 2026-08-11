@@ -120,8 +120,12 @@ service cloud.firestore {
       }
 
       // Phase 14: owner-only block list
+      // `list` must NOT depend on `blockedUid` — otherwise collection queries fail.
+      // Self-block is still blocked on write (and in client code).
       match /blocked/{blockedUid} {
-        allow read, write: if isSignedIn()
+        allow list: if isSignedIn() && request.auth.uid == userId;
+
+        allow get, create, update, delete: if isSignedIn()
           && request.auth.uid == userId
           && userId != blockedUid;
       }
@@ -270,8 +274,17 @@ service cloud.firestore {
         && request.resource.data.fromUserId != request.resource.data.toUserId
         && request.resource.data.pairKey == requestId
         && request.resource.data.keys().hasAll([
-          'fromUserId', 'toUserId', 'communityId', 'status', 'createdAt', 'pairKey'
-        ]);
+          'fromUserId', 'toUserId', 'status', 'createdAt', 'pairKey'
+        ])
+        // communityId is legacy/optional — older clients may still send it.
+        && (
+          !('communityId' in request.resource.data)
+          || (
+            request.resource.data.communityId is string
+            && request.resource.data.communityId.size() > 0
+            && request.resource.data.communityId.size() <= 128
+          )
+        );
 
       allow update: if isSignedIn() && (
         // Recipient accepts or declines a pending request.

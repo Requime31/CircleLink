@@ -1,86 +1,54 @@
 import SwiftUI
 
-/// One large Discover card + optional underlay. Swipe left = Pass, swipe right = View profile.
+/// Discover page for one candidate: hero card + profile sections in one ScrollView.
+/// Horizontal swipe on the card = Pass / Say Hi. Vertical scroll = Interests / About / Communities.
 /// Reduce Motion: drag disabled; use buttons only.
 struct ConnectDiscoverDeckView: View {
     let top: User
-    let underlay: User?
+    let communities: [Community]
+    let canUndo: Bool
+    let isSendingConnect: Bool
     let onPass: () -> Void
-    let onViewProfile: () -> Void
+    let onSayHi: () -> Void
+    let onUndo: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var dragOffset: CGSize = .zero
+    @State private var dragOffsetX: CGFloat = 0
     @State private var isExiting = false
     @State private var exitTask: Task<Void, Never>?
 
     private let swipeThreshold: CGFloat = 120
+    private let visibleCommunityLimit = 3
+
+    private var visibleCommunities: [Community] {
+        Array(communities.prefix(visibleCommunityLimit))
+    }
+
+    private var overflowCommunityCount: Int {
+        max(0, communities.count - visibleCommunityLimit)
+    }
 
     var body: some View {
-        VStack(spacing: CLSpacing.lg) {
-            ZStack {
-                if let underlay {
-                    DiscoverCardView(user: underlay, isTop: false)
-                        .scaleEffect(0.96)
-                        .offset(y: 10)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: CLSpacing.lg) {
+                heroCard
 
-                DiscoverCardView(user: top, isTop: true)
-                    .offset(dragOffset)
-                    .rotationEffect(.degrees(Double(dragOffset.width / 24)))
-                    .opacity(isExiting ? 0 : 1)
-                    .modifier(OptionalDragModifier(
-                        isEnabled: !reduceMotion,
-                        onChanged: { translation in
-                            guard !isExiting else { return }
-                            // Ignore vertical-dominant drags so parent ScrollView can scroll.
-                            guard abs(translation.width) > abs(translation.height) else { return }
-                            dragOffset = CGSize(width: translation.width, height: 0)
-                        },
-                        onEnded: { translation in
-                            guard abs(translation.width) > abs(translation.height) else {
-                                withAnimation(reduceMotion ? .easeOut(duration: 0.15) : CLMotion.soft) {
-                                    dragOffset = .zero
-                                }
-                                return
-                            }
-                            handleDragEnded(CGSize(width: translation.width, height: 0))
-                        }
-                    ))
-                    .clSoftSpring(value: dragOffset.width)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(accessibilitySummary(for: top))
-                    .accessibilityHint("Swipe right or use View profile to open profile. Swipe left or use Pass to skip.")
-                    .accessibilityAddTraits(.isButton)
-                    .onTapGesture { onViewProfile() }
+                profileDetails
             }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 360)
-
-            HStack(spacing: CLSpacing.md) {
-                Button {
-                    animateExit(direction: -1, then: onPass)
-                } label: {
-                    Text("Pass")
-                }
-                .buttonStyle(CLSecondaryButtonStyle())
-                .accessibilityLabel("Pass \(top.displayName)")
-
-                Button {
-                    onViewProfile()
-                } label: {
-                    Text("View profile")
-                }
-                .buttonStyle(CLPrimaryButtonStyle())
-                .accessibilityLabel("View profile of \(top.displayName)")
-            }
+            .padding(.horizontal, CLSpacing.md)
+            .padding(.top, CLSpacing.sm)
+            // Keep profile sections clear of the floating Pass / Say Hi / Back bar.
+            .padding(.bottom, 120)
+        }
+        .scrollIndicators(.hidden)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            actionBar
         }
         .onChange(of: top.id) { _ in
             exitTask?.cancel()
             exitTask = nil
-            dragOffset = .zero
+            dragOffsetX = 0
             isExiting = false
         }
         .onDisappear {
@@ -89,20 +57,229 @@ struct ConnectDiscoverDeckView: View {
         }
     }
 
+    // MARK: - Hero
+
+    private var heroCard: some View {
+        DiscoverCardView(user: top)
+            .offset(x: dragOffsetX)
+            .rotationEffect(.degrees(Double(dragOffsetX / 24)))
+            .modifier(HorizontalDragModifier(
+                isEnabled: !reduceMotion && !isExiting,
+                onChanged: { translation in
+                    // Horizontal-only: ignore vertical-dominant moves so ScrollView can scroll.
+                    guard abs(translation.width) >= abs(translation.height) else { return }
+                    dragOffsetX = translation.width
+                },
+                onEnded: { translation in
+                    handleDragEnded(translation)
+                }
+            ))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(top.displayNameWithAge)
+            .accessibilityHint(
+                "Swipe left to pass, swipe right to say hi, or scroll down for more profile info."
+            )
+            .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Profile details (same screen)
+
+    private var profileDetails: some View {
+        VStack(alignment: .leading, spacing: CLSpacing.lg) {
+            if !top.interests.isEmpty {
+                interestsSection(top.interests)
+            }
+
+            aboutSection(top.aboutMe)
+
+            if !communities.isEmpty {
+                communitiesSection
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func interestsSection(_ interests: [String]) -> some View {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+            Text("Interests")
+                .font(CLTypography.title)
+                .foregroundStyle(CLColor.ink)
+
+            FlowLayout(spacing: CLSpacing.sm) {
+                ForEach(interests, id: \.self) { interest in
+                    Text(interest)
+                        .font(CLTypography.footnote)
+                        .foregroundStyle(CLColor.inkSecondary)
+                        .padding(.horizontal, CLSpacing.md)
+                        .padding(.vertical, CLSpacing.xs)
+                        .background(CLColor.surfaceSoft)
+                        .clipShape(Capsule(style: .continuous))
+                }
+            }
+        }
+    }
+
+    private func aboutSection(_ aboutMe: String) -> some View {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+            Text("About")
+                .font(CLTypography.caption)
+                .foregroundStyle(CLColor.inkMuted)
+                .textCase(.uppercase)
+
+            Text(aboutMe.isEmpty ? "No bio yet." : aboutMe)
+                .font(CLTypography.callout)
+                .foregroundStyle(aboutMe.isEmpty ? CLColor.inkMuted : CLColor.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(CLSpacing.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(CLColor.surface)
+                .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous)
+                        .stroke(CLColor.hairline, lineWidth: 1)
+                )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var communitiesSection: some View {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+            Text("Communities")
+                .font(CLTypography.title)
+                .foregroundStyle(CLColor.ink)
+
+            FlowLayout(spacing: CLSpacing.sm) {
+                ForEach(visibleCommunities) { community in
+                    Text(community.name)
+                        .font(CLTypography.footnote)
+                        .foregroundStyle(CLColor.inkSecondary)
+                        .padding(.horizontal, CLSpacing.md)
+                        .padding(.vertical, CLSpacing.xs)
+                        .background(CLColor.surfaceSoft)
+                        .clipShape(Capsule(style: .continuous))
+                }
+
+                if overflowCommunityCount > 0 {
+                    Text("+\(overflowCommunityCount)")
+                        .font(CLTypography.footnote.weight(.semibold))
+                        .foregroundStyle(CLColor.primaryPressed)
+                        .padding(.horizontal, CLSpacing.md)
+                        .padding(.vertical, CLSpacing.xs)
+                        .background(CLColor.primarySoft)
+                        .clipShape(Capsule(style: .continuous))
+                        .accessibilityLabel("\(overflowCommunityCount) more communities")
+                }
+            }
+        }
+    }
+
+    // MARK: - Actions
+
+    private var actionBar: some View {
+        HStack(spacing: CLSpacing.lg) {
+            deckCircleButton(
+                systemImage: "xmark",
+                title: "PASS",
+                isEmphasis: false,
+                size: 64
+            ) {
+                animateExit(direction: -1, then: onPass)
+            }
+            .accessibilityLabel("Pass \(top.displayName)")
+
+            deckCircleButton(
+                systemImage: "heart.fill",
+                title: "SAY HI",
+                isEmphasis: true,
+                size: 72
+            ) {
+                guard !isSendingConnect else { return }
+                animateExit(direction: 1, then: onSayHi)
+            }
+            .disabled(isSendingConnect)
+            .accessibilityLabel("Say Hi to \(top.displayName)")
+
+            deckCircleButton(
+                systemImage: "arrow.counterclockwise",
+                title: "BACK",
+                isEmphasis: false,
+                size: 64
+            ) {
+                onUndo()
+            }
+            .opacity(canUndo ? 1 : 0.35)
+            .disabled(!canUndo)
+            .accessibilityLabel("Undo last pass")
+        }
+        .padding(.vertical, CLSpacing.md)
+        .frame(maxWidth: .infinity)
+        .background(CLColor.canvas)
+    }
+
+    private func deckCircleButton(
+        systemImage: String,
+        title: String,
+        isEmphasis: Bool,
+        size: CGFloat,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: CLSpacing.xs) {
+                ZStack {
+                    if isSendingConnect && isEmphasis {
+                        ProgressView()
+                            .tint(CLColor.onPrimaryStrong)
+                    } else {
+                        Image(systemName: systemImage)
+                            .font(.system(size: size * 0.3, weight: .semibold))
+                            .foregroundStyle(isEmphasis ? CLColor.onPrimaryStrong : CLColor.ink)
+                    }
+                }
+                .frame(width: size, height: size)
+                .background(isEmphasis ? CLColor.primary : CLColor.surface)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(CLColor.hairline, lineWidth: isEmphasis ? 0 : 1)
+                )
+                .shadow(color: CLShadow.cardColor, radius: CLShadow.cardRadius, x: 0, y: CLShadow.cardY)
+
+                Text(title)
+                    .font(CLTypography.caption)
+                    .foregroundStyle(isEmphasis ? CLColor.primary : CLColor.inkSecondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Drag
+
     private func handleDragEnded(_ translation: CGSize) {
         guard !isExiting else { return }
         let dx = translation.width
+        let dy = translation.height
+
+        // Vertical-dominant → treat as scroll, snap card back.
+        guard abs(dx) >= abs(dy) else {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : CLMotion.soft) {
+                dragOffsetX = 0
+            }
+            return
+        }
+
         if dx <= -swipeThreshold {
             animateExit(direction: -1, then: onPass)
         } else if dx >= swipeThreshold {
-            // Profile-first: open sheet, keep card (no Pass).
-            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : CLMotion.soft) {
-                dragOffset = .zero
+            guard !isSendingConnect else {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.15) : CLMotion.soft) {
+                    dragOffsetX = 0
+                }
+                return
             }
-            onViewProfile()
+            animateExit(direction: 1, then: onSayHi)
         } else {
             withAnimation(reduceMotion ? .easeOut(duration: 0.15) : CLMotion.soft) {
-                dragOffset = .zero
+                dragOffsetX = 0
             }
         }
     }
@@ -113,25 +290,18 @@ struct ConnectDiscoverDeckView: View {
         exitTask?.cancel()
         let travel = direction * 480
         withAnimation(reduceMotion ? .easeOut(duration: 0.18) : CLMotion.softLarge) {
-            dragOffset = CGSize(width: travel, height: dragOffset.height * 0.4)
+            dragOffsetX = travel
         }
         let delayNanos: UInt64 = reduceMotion ? 180_000_000 : 280_000_000
         exitTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: delayNanos)
             guard !Task.isCancelled else { return }
-            action()
-            dragOffset = .zero
+            // Reset drag first, then swap candidate — avoids blank flash.
+            dragOffsetX = 0
             isExiting = false
             exitTask = nil
+            action()
         }
-    }
-
-    private func accessibilitySummary(for user: User) -> String {
-        let interests = user.interests.prefix(3).joined(separator: ", ")
-        if interests.isEmpty {
-            return user.displayName
-        }
-        return "\(user.displayName). Interests: \(interests)"
     }
 }
 
@@ -139,68 +309,67 @@ struct ConnectDiscoverDeckView: View {
 
 private struct DiscoverCardView: View {
     let user: User
-    let isTop: Bool
 
     var body: some View {
-        VStack(spacing: CLSpacing.md) {
-            AvatarImageView(
-                localPreview: nil,
-                avatarBase64: user.avatarBase64,
-                avatarURL: user.avatarURL,
-                size: 140
-            )
-            .accessibilityHidden(true)
+        Color.clear
+            .aspectRatio(4 / 5, contentMode: .fit)
+            .overlay {
+                ProfileHeroImageView(
+                    avatarBase64: user.avatarBase64,
+                    avatarURL: user.avatarURL
+                )
+            }
+            .overlay {
+                LinearGradient(
+                    colors: [.clear, Color.black.opacity(0.55)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+            }
+            .overlay(alignment: .bottomLeading) {
+                VStack(alignment: .leading, spacing: CLSpacing.xs) {
+                    Text(user.displayNameWithAge)
+                        .font(CLTypography.title)
+                        .foregroundStyle(.white)
 
-            Text(user.displayName.isEmpty ? "Member" : user.displayName)
-                .font(CLTypography.title)
-                .foregroundStyle(CLColor.ink)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-
-            if !user.interests.isEmpty {
-                FlowLayout(spacing: CLSpacing.xs) {
-                    ForEach(Array(user.interests.prefix(3)), id: \.self) { interest in
-                        Text(interest)
+                    if !user.aboutMe.isEmpty {
+                        Text(user.aboutMe)
                             .font(CLTypography.subheadline)
-                            .foregroundStyle(CLColor.inkSecondary)
-                            .padding(.horizontal, CLSpacing.sm)
-                            .padding(.vertical, CLSpacing.xs)
-                            .background(CLColor.primarySoft.opacity(0.65))
-                            .clipShape(Capsule())
+                            .foregroundStyle(.white.opacity(0.92))
+                            .lineLimit(2)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(CLSpacing.lg)
             }
-        }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 320)
-        .background(CLColor.surface)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
-        .shadow(
-            color: isTop ? CLShadow.cardColor : CLShadow.cardColor.opacity(0.5),
-            radius: CLShadow.cardRadius,
-            x: 0,
-            y: CLShadow.cardY
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous)
-                .stroke(CLColor.hairline, lineWidth: 1)
-        )
+            .clipShape(RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous))
+            .shadow(
+                color: CLShadow.cardColor,
+                radius: CLShadow.cardRadius,
+                x: 0,
+                y: CLShadow.cardY
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous)
+                    .stroke(CLColor.hairline, lineWidth: 1)
+            )
     }
 }
 
-/// Attaches a drag gesture only when enabled (Reduce Motion → buttons only).
-private struct OptionalDragModifier: ViewModifier {
+/// Horizontal-only drag. Vertical moves are ignored so parent ScrollView can scroll.
+private struct HorizontalDragModifier: ViewModifier {
     let isEnabled: Bool
     let onChanged: (CGSize) -> Void
     let onEnded: (CGSize) -> Void
 
     func body(content: Content) -> some View {
         if isEnabled {
-            content.gesture(
-                DragGesture()
-                    .onChanged { value in onChanged(value.translation) }
+            content.highPriorityGesture(
+                DragGesture(minimumDistance: 16)
+                    .onChanged { value in
+                        // Only claim the gesture once it's clearly horizontal.
+                        guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                        onChanged(value.translation)
+                    }
                     .onEnded { value in onEnded(value.translation) }
             )
         } else {

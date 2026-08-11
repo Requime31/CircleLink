@@ -74,7 +74,7 @@ struct ProfileViewModelTests {
                 id: "a_b",
                 fromUserId: "user-1",
                 toUserId: "user-2",
-                communityId: "community-1",
+                communityId: nil,
                 status: .accepted,
                 createdAt: Date()
             )
@@ -187,7 +187,7 @@ struct ProfileViewModelTests {
                 id: "a_b",
                 fromUserId: "user-1",
                 toUserId: "user-2",
-                communityId: "community-1",
+                communityId: nil,
                 status: .accepted,
                 createdAt: Date()
             )

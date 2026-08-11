@@ -33,40 +33,36 @@ enum FirestoreConnectionError: LocalizedError {
 
 final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Sendable {
     private let requestsCollection = "connectionRequests"
-    private let communitiesCollection = "communities"
-    private let membersCollection = "members"
     private let usersCollection = "users"
 
     private var db: Firestore { Firestore.firestore() }
 
-    func fetchCandidates(communityId: String) async throws -> [User] {
+    func fetchCandidates() async throws -> [User] {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
             throw FirestoreConnectionError.notAuthenticated
         }
 
-        let memberSnapshot = try await db.collection(communitiesCollection)
-            .document(communityId)
-            .collection(membersCollection)
-            .getDocuments()
-
-        let memberIds = memberSnapshot.documents.map(\.documentID)
         let excluded = try await connectedOrPendingPeerIds(for: currentUserId)
+        let snapshot = try await db.collection(usersCollection).getDocuments()
 
         var candidates: [User] = []
-        candidates.reserveCapacity(memberIds.count)
+        candidates.reserveCapacity(snapshot.documents.count)
 
-        for memberId in memberIds where memberId != currentUserId && !excluded.contains(memberId) {
-            if let user = try await fetchUser(userId: memberId) {
-                candidates.append(user)
+        for document in snapshot.documents {
+            let userId = document.documentID
+            guard userId != currentUserId, !excluded.contains(userId) else { continue }
+            do {
+                candidates.append(try FirestoreUserMapper.user(from: document))
+            } catch {
+                // Skip corrupt profiles so one bad doc cannot empty Discover.
+                continue
             }
         }
 
-        return candidates.sorted {
-            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-        }
+        return candidates
     }
 
-    func sendConnect(to userId: String, in communityId: String) async throws {
+    func sendConnect(to userId: String) async throws {
         guard let currentUserId = Auth.auth().currentUser?.uid else {
             throw FirestoreConnectionError.notAuthenticated
         }
@@ -81,7 +77,6 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
         let data: [String: Any] = [
             "fromUserId": currentUserId,
             "toUserId": userId,
-            "communityId": communityId,
             "status": ConnectionStatus.pending.rawValue,
             "createdAt": Timestamp(date: Date()),
             "pairKey": pairKey
@@ -277,12 +272,6 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
         }
 
         return peers
-    }
-
-    private func fetchUser(userId: String) async throws -> User? {
-        let document = try await db.collection(usersCollection).document(userId).getDocument()
-        guard document.exists else { return nil }
-        return try FirestoreUserMapper.user(from: document)
     }
 
     static func pairKey(_ userIdA: String, _ userIdB: String) -> String {

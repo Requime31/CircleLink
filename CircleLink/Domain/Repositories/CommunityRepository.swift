@@ -15,4 +15,7 @@ protocol CommunityRepository: Sendable {
 
     /// How many communities the signed-in user has joined (Circles count on Profile).
     func fetchJoinedCommunityCount() async throws -> Int
+
+    /// Communities where `userId` is a member (peer profile / Connect detail).
+    func fetchCommunities(forUserId userId: String) async throws -> [Community]
 }

@@ -264,12 +264,12 @@ final class MockConnectionRepository: ConnectionRepository, @unchecked Sendable 
     var lastSendConnectUserId: String?
     var lastSendConnectCommunityId: String?
 
-    func fetchCandidates(communityId: String) async throws -> [User] { candidates }
+    func fetchCandidates() async throws -> [User] { candidates }
 
-    func sendConnect(to userId: String, in communityId: String) async throws {
+    func sendConnect(to userId: String) async throws {
         sendConnectCallCount += 1
         lastSendConnectUserId = userId
-        lastSendConnectCommunityId = communityId
+        lastSendConnectCommunityId = nil
         if let sendConnectError { throw sendConnectError }
     }
 
@@ -370,9 +370,14 @@ final class MockCommunityRepository: CommunityRepository, @unchecked Sendable {
     }
 
     var joinedCommunityCount = 0
+    var communitiesForUser: [String: [Community]] = [:]
 
     func fetchJoinedCommunityCount() async throws -> Int {
         joinedCommunityCount
+    }
+
+    func fetchCommunities(forUserId userId: String) async throws -> [Community] {
+        communitiesForUser[userId] ?? communities
     }
 }
 

@@ -12,6 +12,8 @@ import UIKit
 ///
 /// Images use a **fixed aspect ratio** so remote images cannot expand to
 /// full pixel height and push the rest of the profile off-screen.
+///
+/// Defined in its own file under Features/Profile (same module as ProfileView).
 struct ProfilePostsListView: View {
     let posts: [ProfilePost]
     let author: User

@@ -3,7 +3,7 @@ import SwiftUI
 struct CommunitiesListView: View {
     @ObservedObject var viewModel: CommunitiesViewModel
     let makeDetailViewModel: (String) -> CommunityDetailViewModel
-    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+    let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
     let onCommunitySelected: (String) -> Void
     let onOpenGroupChat: (String, String) -> Void
 

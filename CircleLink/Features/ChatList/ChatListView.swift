@@ -5,7 +5,7 @@ struct ChatListView: View {
     @Binding var pendingChatRoute: ChatThreadRoute?
     let makeChatViewModel: (String, String) -> ChatViewModel?
     let makeChatInfoViewModel: (String) -> ChatInfoViewModel
-    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+    let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
 
     @State private var path = NavigationPath()
     @State private var previewCache: [String: [ChatMessageItem]] = [:]

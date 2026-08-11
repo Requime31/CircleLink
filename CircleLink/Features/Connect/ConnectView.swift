@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Connect tab root = Discover (community + swipe deck).
-/// Liked you / Matches are push destinations. Connect action lives in PeerProfileSheet.
+/// Connect tab root = Discover (inline profile + swipe).
+/// Liked you / Matches are push destinations.
 struct ConnectView: View {
     @ObservedObject var viewModel: ConnectViewModel
-    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+    let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
 
     @State private var reportTarget: ModerationTarget?
     @State private var blockTarget: ModerationTarget?
@@ -15,25 +15,28 @@ struct ConnectView: View {
             discoverContent
                 .clCanvasBackground()
                 .navigationTitle("Connect")
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        NavigationLink(value: ConnectDestination.likedYou) {
-                            toolbarLabel(
-                                title: "Liked you",
-                                systemImage: "heart",
-                                badge: viewModel.incomingCount
-                            )
-                        }
-                        .accessibilityLabel(likedYouAccessibilityLabel)
+                    ToolbarItem(placement: .topBarTrailing) {
+                        HStack(spacing: CLSpacing.sm) {
+                            NavigationLink(value: ConnectDestination.likedYou) {
+                                toolbarLabel(
+                                    title: "Liked you",
+                                    systemImage: "heart",
+                                    badge: viewModel.incomingCount
+                                )
+                            }
+                            .accessibilityLabel(likedYouAccessibilityLabel)
 
-                        NavigationLink(value: ConnectDestination.matches) {
-                            toolbarLabel(
-                                title: "Matches",
-                                systemImage: "link",
-                                badge: viewModel.matchedCount
-                            )
+                            NavigationLink(value: ConnectDestination.matches) {
+                                toolbarLabel(
+                                    title: "Matches",
+                                    systemImage: "link",
+                                    badge: viewModel.matchedCount
+                                )
+                            }
+                            .accessibilityLabel(matchesAccessibilityLabel)
                         }
-                        .accessibilityLabel(matchesAccessibilityLabel)
                     }
                 }
                 .navigationDestination(for: ConnectDestination.self) { destination in
@@ -41,7 +44,13 @@ struct ConnectView: View {
                     case .likedYou:
                         LikedYouView(
                             viewModel: viewModel,
-                            onSelectPeer: { presentPeer($0) },
+                            onSelectPeer: { item in
+                                presentPeer(
+                                    userId: item.peer.id,
+                                    displayName: item.peer.displayName,
+                                    mode: .likedYou(requestId: item.request.id)
+                                )
+                            },
                             onReport: { userId, name in
                                 reportTarget = ModerationTarget(userId: userId, displayName: name)
                             },
@@ -52,7 +61,7 @@ struct ConnectView: View {
                     case .matches:
                         MatchesView(
                             viewModel: viewModel,
-                            onSelectPeer: { presentPeer($0) },
+                            onSelectPeer: { presentMatchPeer($0) },
                             onReport: { userId, name in
                                 reportTarget = ModerationTarget(userId: userId, displayName: name)
                             },
@@ -63,16 +72,13 @@ struct ConnectView: View {
                     }
                 }
                 .task {
-                    await viewModel.load()
+                    await viewModel.loadIfNeeded()
                 }
                 .refreshable {
                     await viewModel.load()
                 }
                 .sheet(item: $presentedPeer) { peer in
-                    makePeerProfileSheet(peer.userId, viewModel.selectedCommunityId)
-                        .onDisappear {
-                            Task { await viewModel.refreshAfterPeerSheet() }
-                        }
+                    peerSheet(for: peer)
                 }
                 .confirmationDialog(
                     "Why are you reporting this user?",
@@ -120,59 +126,57 @@ struct ConnectView: View {
     // MARK: - Discover
 
     private var discoverContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: CLSpacing.lg) {
-                if let actionErrorMessage = viewModel.actionErrorMessage {
-                    Text(actionErrorMessage)
-                        .font(CLTypography.footnote)
-                        .foregroundStyle(CLColor.error)
-                        .padding(CLSpacing.sm)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(CLColor.errorSoft)
-                        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-                        .accessibilityLabel("Connect error: \(actionErrorMessage)")
-                }
-
-                if let moderationMessage = viewModel.moderationMessage {
-                    Text(moderationMessage)
-                        .font(CLTypography.footnote)
-                        .foregroundStyle(CLColor.inkSecondary)
-                        .padding(CLSpacing.sm)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(CLColor.surfaceSoft)
-                        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-                        .onTapGesture { viewModel.clearModerationFeedback() }
-                }
-
-                communityPickerSection
-                deckSection
+        VStack(spacing: 0) {
+            if let actionErrorMessage = viewModel.actionErrorMessage {
+                Text(actionErrorMessage)
+                    .font(CLTypography.footnote)
+                    .foregroundStyle(CLColor.error)
+                    .padding(CLSpacing.sm)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(CLColor.errorSoft)
+                    .padding(.horizontal, CLSpacing.md)
+                    .padding(.top, CLSpacing.sm)
+                    .accessibilityLabel("Connect error: \(actionErrorMessage)")
             }
-            .padding(.horizontal, CLSpacing.md)
-            .padding(.vertical, CLSpacing.md)
+
+            if let moderationMessage = viewModel.moderationMessage {
+                Text(moderationMessage)
+                    .font(CLTypography.footnote)
+                    .foregroundStyle(CLColor.inkSecondary)
+                    .padding(CLSpacing.sm)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(CLColor.surfaceSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+                    .padding(.horizontal, CLSpacing.md)
+                    .padding(.top, CLSpacing.sm)
+                    .onTapGesture { viewModel.clearModerationFeedback() }
+            }
+
+            deckSection
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
     private func toolbarLabel(title: String, systemImage: String, badge: Int) -> some View {
-        ZStack(alignment: .topTrailing) {
-            Image(systemName: systemImage)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(CLColor.ink)
-                .frame(minWidth: 28, minHeight: AccessibilityHelpers.minimumTouchTarget)
-
-            if badge > 0 {
-                Text(badge > 99 ? "99+" : "\(badge)")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(CLColor.onPrimary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(CLColor.primary)
-                    .clipShape(Capsule())
-                    .offset(x: 8, y: -4)
-                    .accessibilityHidden(true)
+        Image(systemName: systemImage)
+            .font(.system(size: 17, weight: .medium))
+            .foregroundStyle(CLColor.ink)
+            .frame(width: 36, height: 36)
+            .overlay(alignment: .topTrailing) {
+                if badge > 0 {
+                    Text(badge > 99 ? "99+" : "\(badge)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(CLColor.onPrimary)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(CLColor.primary)
+                        .clipShape(Capsule())
+                        .offset(x: 4, y: -2)
+                        .accessibilityHidden(true)
+                }
             }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(title)
     }
 
     private var likedYouAccessibilityLabel: String {
@@ -187,114 +191,49 @@ struct ConnectView: View {
         return "Matches, \(count)"
     }
 
-    // MARK: - Community picker
-
-    @ViewBuilder
-    private var communityPickerSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("Community")
-                .font(CLTypography.headline)
-                .foregroundStyle(CLColor.ink)
-
-            switch viewModel.communitiesState {
-            case .idle, .loading:
-                ProgressView("Loading communities…")
-                    .tint(CLColor.primary)
-                    .foregroundStyle(CLColor.inkMuted)
-            case .empty:
-                Text("Join a community first to find people.")
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkMuted)
-            case let .error(message):
-                sectionError(message) {
-                    Task { await viewModel.load() }
-                }
-            case let .loaded(communities):
-                Menu {
-                    ForEach(communities) { community in
-                        Button(community.name) {
-                            Task { await viewModel.selectCommunity(community.id) }
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Text(selectedCommunityName(from: communities))
-                            .font(CLTypography.body.weight(.medium))
-                            .foregroundStyle(CLColor.ink)
-                        Spacer()
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(CLColor.inkMuted)
-                            .accessibilityHidden(true)
-                    }
-                    .padding(.horizontal, CLSpacing.md)
-                    .frame(height: 48)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(CLColor.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
-                            .stroke(CLColor.hairline, lineWidth: 1)
-                    )
-                }
-                .accessibilityLabel("Select community")
-            }
-        }
-    }
-
     // MARK: - Deck
 
     @ViewBuilder
     private var deckSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("Discover")
-                .font(CLTypography.headline)
-                .foregroundStyle(CLColor.ink)
-
-            if viewModel.selectedCommunityId == nil {
-                Text("Select a community to see people.")
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkMuted)
+        switch viewModel.candidatesState {
+        case .idle, .loading:
+            ProgressView("Loading people…")
+                .tint(CLColor.primary)
+                .foregroundStyle(CLColor.inkMuted)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .empty:
+            deckEmpty(
+                title: "No one new here",
+                message: "Pull to refresh, or check back later."
+            )
+        case let .error(message):
+            sectionError(message) {
+                Task { await viewModel.load() }
+            }
+            .padding(CLSpacing.md)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        case .loaded:
+            if let top = viewModel.topCandidate {
+                ConnectDiscoverDeckView(
+                    top: top,
+                    communities: viewModel.topCandidateCommunities,
+                    canUndo: viewModel.canUndoPass,
+                    isSendingConnect: viewModel.isSendingConnect,
+                    onPass: {
+                        viewModel.passCandidate(userId: top.id)
+                    },
+                    onSayHi: {
+                        Task { await viewModel.sayHi(to: top.id) }
+                    },
+                    onUndo: {
+                        viewModel.undoLastPass()
+                    }
+                )
             } else {
-                switch viewModel.candidatesState {
-                case .idle, .loading:
-                    ProgressView("Loading people…")
-                        .tint(CLColor.primary)
-                        .foregroundStyle(CLColor.inkMuted)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, CLSpacing.xl)
-                case .empty:
-                    deckEmpty(
-                        title: "No one new here",
-                        message: "Check another community, or come back later."
-                    )
-                case let .error(message):
-                    sectionError(message) {
-                        if let communityId = viewModel.selectedCommunityId {
-                            Task { await viewModel.selectCommunity(communityId) }
-                        }
-                    }
-                case .loaded:
-                    if let top = viewModel.topCandidate {
-                        let underlay = viewModel.deckCandidates.dropFirst().first
-                        ConnectDiscoverDeckView(
-                            top: top,
-                            underlay: underlay,
-                            onPass: {
-                                withAnimation(CLMotion.soft) {
-                                    viewModel.passCandidate(userId: top.id)
-                                }
-                            },
-                            onViewProfile: { presentPeer(top) }
-                        )
-                        .clAppear()
-                    } else {
-                        deckEmpty(
-                            title: "You’re all caught up",
-                            message: "Pull to refresh, or pick another community."
-                        )
-                    }
-                }
+                deckEmpty(
+                    title: "You’re all caught up",
+                    message: "Pull to refresh for more people."
+                )
             }
         }
     }
@@ -315,12 +254,18 @@ struct ConnectView: View {
                 .multilineTextAlignment(.center)
         }
         .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity)
-        .background(CLColor.surfaceSoft)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Helpers
+    // MARK: - Presentation (Liked You + Matches only)
+
+    @ViewBuilder
+    private func peerSheet(for peer: PresentedPeer) -> some View {
+        makePeerProfileSheet(peer.userId, peer.profileMode)
+            .onDisappear {
+                Task { await viewModel.refreshAfterPeerSheet() }
+            }
+    }
 
     private var blockConfirmTitle: String {
         if let name = blockTarget?.displayName {
@@ -329,13 +274,21 @@ struct ConnectView: View {
         return "Block this user? They won’t appear in Connect for you."
     }
 
-    private func presentPeer(_ user: User) {
-        presentedPeer = PresentedPeer(userId: user.id, displayName: user.displayName)
+    private func presentPeer(userId: String, displayName: String, mode: PeerProfileMode) {
+        guard case let .likedYou(requestId) = mode else { return }
+        presentedPeer = PresentedPeer(
+            userId: userId,
+            displayName: displayName,
+            mode: .likedYou(requestId: requestId)
+        )
     }
 
-    private func selectedCommunityName(from communities: [Community]) -> String {
-        communities.first(where: { $0.id == viewModel.selectedCommunityId })?.name
-            ?? "Select community"
+    private func presentMatchPeer(_ user: User) {
+        presentedPeer = PresentedPeer(
+            userId: user.id,
+            displayName: user.displayName,
+            mode: .match
+        )
     }
 
     private func sectionError(_ message: String, retry: @escaping () -> Void) -> some View {
@@ -361,10 +314,25 @@ private enum ConnectDestination: Hashable {
 }
 
 private struct PresentedPeer: Identifiable, Equatable {
+    enum Mode: Equatable {
+        case likedYou(requestId: String)
+        case match
+    }
+
     let userId: String
     let displayName: String
+    let mode: Mode
 
     var id: String { userId }
+
+    var profileMode: PeerProfileMode {
+        switch mode {
+        case let .likedYou(requestId):
+            return .likedYou(requestId: requestId)
+        case .match:
+            return .social
+        }
+    }
 }
 
 private struct ModerationTarget: Identifiable, Equatable {

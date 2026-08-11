@@ -3,14 +3,14 @@ import SwiftUI
 /// Pushed chat screen: UIKit thread + SwiftUI toolbar (Chat Info) + Peer Profile sheet.
 struct ChatThreadView: View {
     @StateObject private var viewModel: ChatViewModel
-    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+    let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
     let onOpenChatInfo: () -> Void
 
     @State private var presentedPeer: ChatThreadPeerItem?
 
     init(
         viewModel: @autoclosure @escaping () -> ChatViewModel,
-        makePeerProfileSheet: @escaping (String, String?) -> PeerProfileSheet,
+        makePeerProfileSheet: @escaping (String, PeerProfileMode) -> PeerProfileSheet,
         onOpenChatInfo: @escaping () -> Void
     ) {
         _viewModel = StateObject(wrappedValue: viewModel())
@@ -55,7 +55,7 @@ struct ChatThreadView: View {
             }
         }
         .sheet(item: $presentedPeer) { item in
-            makePeerProfileSheet(item.userId, item.communityId)
+            makePeerProfileSheet(item.userId, .social)
         }
     }
 }

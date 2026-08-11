@@ -45,10 +45,19 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
             throw FirestoreUserError.notAuthenticated
         }
 
+        let trimmedAbout = String(user.aboutMe.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
+
         var data: [String: Any] = [
             "displayName": user.displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-            "interests": user.interests
+            "interests": user.interests,
+            "aboutMe": trimmedAbout
         ]
+
+        if let age = user.age, (18...120).contains(age) {
+            data["age"] = age
+        } else {
+            data["age"] = NSNull()
+        }
 
         if let avatarURL = user.avatarURL?.absoluteString {
             data["avatarURL"] = avatarURL
@@ -71,6 +80,8 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
             var createData = FirestoreUserMapper.defaultProfileData(displayName: user.displayName)
             createData["displayName"] = data["displayName"] as Any
             createData["interests"] = data["interests"] as Any
+            createData["aboutMe"] = data["aboutMe"] as Any
+            createData["age"] = data["age"] as Any
             createData["avatarURL"] = data["avatarURL"] as Any
             createData["avatarBase64"] = data["avatarBase64"] as Any
             try await document.setData(createData)

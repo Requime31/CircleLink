@@ -12,7 +12,7 @@ struct MainTabView: View {
     let makeCommunityDetailViewModel: (String) -> CommunityDetailViewModel
     let makeChatViewModel: (String, String) -> ChatViewModel?
     let makeChatInfoViewModel: (String) -> ChatInfoViewModel
-    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+    let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
     let pushHandler: PushNotificationHandler
     let onCommunitySelected: (String) -> Void
     let onOpenGroupChat: (String, String) -> Void

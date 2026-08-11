@@ -25,6 +25,10 @@ struct AvatarImageView: View {
                 Image(uiImage: remoteImage)
                     .resizable()
                     .scaledToFill()
+            } else if let avatarURL, let cached = ImageLoader.shared.cachedImage(for: avatarURL) {
+                Image(uiImage: cached)
+                    .resizable()
+                    .scaledToFill()
             } else if avatarURL != nil {
                 ZStack {
                     CLColor.surfaceSoft
@@ -55,16 +59,22 @@ struct AvatarImageView: View {
 
     private func loadRemoteImage() async {
         guard localPreview == nil,
-              avatarBase64 == nil,
+              avatarBase64 == nil || avatarBase64?.isEmpty == true,
               let avatarURL else {
-            remoteImage = nil
+            return
+        }
+
+        // Keep current pixels if we already have them (or cache hit).
+        if remoteImage != nil { return }
+        if let cached = ImageLoader.shared.cachedImage(for: avatarURL) {
+            remoteImage = cached
             return
         }
 
         do {
             remoteImage = try await ImageLoader.shared.load(from: avatarURL)
         } catch {
-            remoteImage = nil
+            // Keep placeholder; don't clear a good image on transient failure.
         }
     }
 

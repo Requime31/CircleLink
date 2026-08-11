@@ -10,6 +10,8 @@ struct ProfileFormFields: View {
         VStack(alignment: .leading, spacing: CLSpacing.lg) {
             avatarSection
             displayNameSection
+            ageSection
+            aboutMeSection
             interestsSection
         }
     }
@@ -89,6 +91,34 @@ struct ProfileFormFields: View {
                 .foregroundStyle(CLColor.ink)
                 .clTextFieldChrome()
                 .accessibilityLabel("Display name")
+        }
+    }
+
+    private var ageSection: some View {
+        VStack(alignment: .leading, spacing: CLSpacing.xs) {
+            Text("Age")
+                .font(CLTypography.headline)
+                .foregroundStyle(CLColor.ink)
+
+            TextField("e.g. 28", text: $viewModel.ageText)
+                .keyboardType(.numberPad)
+                .foregroundStyle(CLColor.ink)
+                .clTextFieldChrome()
+                .accessibilityLabel("Age")
+        }
+    }
+
+    private var aboutMeSection: some View {
+        VStack(alignment: .leading, spacing: CLSpacing.xs) {
+            Text("About Me")
+                .font(CLTypography.headline)
+                .foregroundStyle(CLColor.ink)
+
+            TextField("A short intro…", text: $viewModel.aboutMe, axis: .vertical)
+                .lineLimit(3...6)
+                .foregroundStyle(CLColor.ink)
+                .clTextFieldChrome()
+                .accessibilityLabel("About me")
         }
     }
 

@@ -4,62 +4,20 @@ import Testing
 
 @MainActor
 struct ConnectViewModelTests {
-    @Test func acceptCreatesDirectChatAndOpensIt() async {
+    @Test func acceptRefreshesIncomingAndMatchedWithoutOpeningChat() async {
         let connection = MockConnectionRepository()
         connection.incoming = [
             ConnectionRequest(
                 id: "req-1",
                 fromUserId: "peer-1",
                 toUserId: "user-1",
-                communityId: "community-1",
+                communityId: nil,
                 status: .pending,
                 createdAt: Date()
             )
         ]
 
         let chat = MockChatRepository()
-        chat.createDirectChatResult = "chat-peer-1"
-        let auth = MockAuthRepository(currentUser: MockAuthRepository.sampleUser)
-        var openedChatId: String?
-
-        let viewModel = ConnectViewModel(
-            connectionRepository: connection,
-            chatRepository: chat,
-            communityRepository: MockCommunityRepository(),
-            userRepository: MockUserRepository(),
-            authRepository: auth,
-            moderationRepository: MockModerationRepository(),
-            onOpenChat: { openedChatId = $0 }
-        )
-
-        await viewModel.load()
-        await viewModel.accept(requestId: "req-1", fromUserId: "peer-1")
-
-        #expect(connection.acceptCallCount == 1)
-        #expect(chat.createDirectChatCallCount == 1)
-        #expect(chat.lastCreateDirectPeerId == "peer-1")
-        #expect(openedChatId == "chat-peer-1")
-    }
-
-    @Test func acceptStillRefreshesMatchedWhenCreateDirectChatFails() async {
-        struct Boom: Error, LocalizedError {
-            var errorDescription: String? { "Chat create failed" }
-        }
-
-        let connection = MockConnectionRepository()
-        connection.incoming = [
-            ConnectionRequest(
-                id: "req-1",
-                fromUserId: "peer-1",
-                toUserId: "user-1",
-                communityId: "community-1",
-                status: .pending,
-                createdAt: Date()
-            )
-        ]
-
-        let chat = MockChatRepository()
-        chat.createDirectChatError = Boom()
         var openedChatId: String?
 
         let viewModel = ConnectViewModel(
@@ -76,8 +34,8 @@ struct ConnectViewModelTests {
         await viewModel.accept(requestId: "req-1", fromUserId: "peer-1")
 
         #expect(connection.acceptCallCount == 1)
+        #expect(chat.createDirectChatCallCount == 0)
         #expect(openedChatId == nil)
-        #expect(viewModel.actionErrorMessage == "Chat create failed")
         if case let .loaded(matched) = viewModel.matchedState {
             #expect(matched.contains { $0.request.id == "req-1" })
         } else {
@@ -92,7 +50,7 @@ struct ConnectViewModelTests {
                 id: "req-2",
                 fromUserId: "peer-1",
                 toUserId: "user-1",
-                communityId: "community-1",
+                communityId: nil,
                 status: .pending,
                 createdAt: Date()
             )
@@ -142,5 +100,104 @@ struct ConnectViewModelTests {
         #expect(openedChatId == "chat-42")
     }
 
-    // Removed: `sendConnect(to:)` no longer exists on ConnectViewModel (Discover API changed).
+    @Test func loadRanksCandidatesBySharedInterests() async {
+        let connection = MockConnectionRepository()
+        connection.candidates = [
+            User(id: "a", displayName: "No overlap", interests: ["Cooking"]),
+            User(id: "b", displayName: "Two matches", interests: ["Sports", "Music", "Travel"]),
+            User(id: "c", displayName: "One match", interests: ["Music", "Chess"])
+        ]
+
+        let me = User(
+            id: "user-1",
+            displayName: "Test User",
+            interests: ["Sports", "Music", "Art"],
+            ageConfirmedAt: Date()
+        )
+        let users = MockUserRepository()
+        users.profiles = [me.id: me]
+
+        let viewModel = ConnectViewModel(
+            connectionRepository: connection,
+            chatRepository: MockChatRepository(),
+            communityRepository: MockCommunityRepository(),
+            userRepository: users,
+            authRepository: MockAuthRepository(currentUser: me),
+            moderationRepository: MockModerationRepository(),
+            onOpenChat: { _ in }
+        )
+
+        await viewModel.load()
+
+        guard case let .loaded(ranked) = viewModel.candidatesState else {
+            Issue.record("Expected loaded candidates")
+            return
+        }
+        #expect(ranked.map(\.id) == ["b", "c", "a"])
+    }
+
+    @Test func sayHiSendsConnectAndRemovesFromDeck() async {
+        let connection = MockConnectionRepository()
+        connection.candidates = [
+            User(id: "peer-1", displayName: "Peer", interests: ["Music"])
+        ]
+
+        let viewModel = ConnectViewModel(
+            connectionRepository: connection,
+            chatRepository: MockChatRepository(),
+            communityRepository: MockCommunityRepository(),
+            userRepository: MockUserRepository(),
+            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
+            moderationRepository: MockModerationRepository(),
+            onOpenChat: { _ in }
+        )
+
+        await viewModel.load()
+        await viewModel.sayHi(to: "peer-1")
+
+        #expect(connection.sendConnectCallCount == 1)
+        #expect(connection.lastSendConnectUserId == "peer-1")
+        #expect(viewModel.topCandidate?.id != "peer-1")
+    }
+
+    @Test func passAndUndoRestoreCandidate() async {
+        let connection = MockConnectionRepository()
+        connection.candidates = [
+            User(id: "peer-1", displayName: "Peer", interests: ["Music"])
+        ]
+
+        let viewModel = ConnectViewModel(
+            connectionRepository: connection,
+            chatRepository: MockChatRepository(),
+            communityRepository: MockCommunityRepository(),
+            userRepository: MockUserRepository(),
+            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
+            moderationRepository: MockModerationRepository(),
+            onOpenChat: { _ in }
+        )
+
+        await viewModel.load()
+        viewModel.passCandidate(userId: "peer-1")
+        #expect(viewModel.topCandidate == nil)
+        #expect(viewModel.canUndoPass)
+
+        viewModel.undoLastPass()
+        #expect(viewModel.topCandidate?.id == "peer-1")
+    }
+}
+
+@Suite
+struct ConnectCandidateRankerTests {
+    @Test func sharedInterestsSortFirst() {
+        let mine = ["Music", "Art"]
+        let ranked = ConnectCandidateRanker.ranked(
+            [
+                User(id: "1", displayName: "Zed", interests: ["Chess"]),
+                User(id: "2", displayName: "Ann", interests: ["Music", "Art"]),
+                User(id: "3", displayName: "Bob", interests: ["Music"])
+            ],
+            matching: mine
+        )
+        #expect(ranked.map(\.id) == ["2", "3", "1"])
+    }
 }

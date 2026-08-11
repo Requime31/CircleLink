@@ -191,13 +191,16 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
         guard let userId = Auth.auth().currentUser?.uid else {
             throw FirestoreCommunityError.notAuthenticated
         }
+        return try await fetchCommunities(forUserId: userId).count
+    }
 
+    func fetchCommunities(forUserId userId: String) async throws -> [Community] {
         // Membership lives under communities/{id}/members/{uid}. There is no reverse index yet,
         // so we check membership docs in parallel (fine while community count stays small).
         let communities = try await fetchCommunities()
-        guard !communities.isEmpty else { return 0 }
+        guard !communities.isEmpty else { return [] }
 
-        return await withTaskGroup(of: Bool.self, returning: Int.self) { group in
+        return await withTaskGroup(of: Community?.self, returning: [Community].self) { group in
             for community in communities {
                 group.addTask {
                     let memberDoc = try? await self.db
@@ -206,15 +209,19 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
                         .collection(self.membersCollection)
                         .document(userId)
                         .getDocument()
-                    return memberDoc?.exists == true
+                    return memberDoc?.exists == true ? community : nil
                 }
             }
 
-            var count = 0
-            for await isMember in group where isMember {
-                count += 1
+            var joined: [Community] = []
+            for await community in group {
+                if let community {
+                    joined.append(community)
+                }
             }
-            return count
+            return joined.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
         }
     }
 

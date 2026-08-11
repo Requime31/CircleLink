@@ -19,20 +19,23 @@ struct MatchedConnectionItem: Identifiable, Equatable, Sendable {
 
 @MainActor
 final class ConnectViewModel: ObservableObject {
-    @Published private(set) var communitiesState: ViewState<[Community]> = .idle
     @Published private(set) var candidatesState: ViewState<[User]> = .idle
     @Published private(set) var incomingState: ViewState<[ConnectRequestItem]> = .idle
     @Published private(set) var matchedState: ViewState<[MatchedConnectionItem]> = .idle
 
-    @Published private(set) var selectedCommunityId: String?
     @Published private(set) var actionErrorMessage: String?
     @Published private(set) var moderationMessage: String?
     @Published private(set) var respondingRequestId: String?
     @Published private(set) var openingChatPeerId: String?
     @Published private(set) var moderatingUserId: String?
+    @Published private(set) var isSendingConnect = false
 
-    /// Session-only Pass skips — not persisted; cleared on community change / resetForm only.
+    /// Session-only Pass skips — not persisted.
     @Published private(set) var passedCandidateIds: Set<String> = []
+    /// Undo stack for the Back button (Pass only).
+    @Published private(set) var passUndoStack: [String] = []
+    /// Communities for the current Discover top card (inline profile).
+    @Published private(set) var topCandidateCommunities: [Community] = []
 
     private let connectionRepository: ConnectionRepository
     private let chatRepository: ChatRepository
@@ -43,16 +46,21 @@ final class ConnectViewModel: ObservableObject {
     private let onOpenChat: (String) -> Void
 
     private var blockedUserIds = Set<String>()
-    /// Ignores stale candidate responses when the user switches community quickly.
     private var candidatesLoadGeneration = 0
+    private var topCommunitiesLoadGeneration = 0
+    private var myInterests: [String] = []
+    /// Avoid empty→loaded flicker when switching cards.
+    private var communitiesByUserId: [String: [Community]] = [:]
 
-    /// Ranked candidates minus people Pass'd this session.
+    /// Ranked candidates minus people Pass'd / Say Hi'd this session.
     var deckCandidates: [User] {
         guard case let .loaded(candidates) = candidatesState else { return [] }
         return candidates.filter { !passedCandidateIds.contains($0.id) }
     }
 
     var topCandidate: User? { deckCandidates.first }
+
+    var canUndoPass: Bool { !passUndoStack.isEmpty }
 
     var incomingCount: Int {
         guard case let .loaded(items) = incomingState else { return 0 }
@@ -84,27 +92,87 @@ final class ConnectViewModel: ObservableObject {
 
     func load() async {
         await loadBlockedUsers()
-        await loadCommunities()
-        await loadIncoming()
-        await loadMatched()
+        await loadMyInterests()
+        await loadIncoming(showLoading: !hasIncomingContent)
+        await loadMatched(showLoading: !hasMatchedContent)
+        await loadCandidates(showLoading: !hasCandidatesContent)
+    }
 
-        if let selectedCommunityId {
-            await loadCandidates(communityId: selectedCommunityId)
+    /// First open → full load. Returning from Liked You / Matches → quiet refresh (no spinners).
+    func loadIfNeeded() async {
+        let isFirstLoad = !hasCandidatesContent && !hasIncomingContent && !hasMatchedContent
+        if isFirstLoad {
+            await load()
+        } else {
+            await refreshQuietly()
         }
+    }
+
+    /// Refresh lists without flipping UI into `.loading`.
+    func refreshQuietly() async {
+        await loadBlockedUsers()
+        await loadIncoming(showLoading: false)
+        await loadMatched(showLoading: false)
+        await loadCandidates(showLoading: false)
+    }
+
+    private var hasIncomingContent: Bool {
+        if case .loaded = incomingState { return true }
+        if case .empty = incomingState { return true }
+        return false
+    }
+
+    private var hasMatchedContent: Bool {
+        if case .loaded = matchedState { return true }
+        if case .empty = matchedState { return true }
+        return false
+    }
+
+    private var hasCandidatesContent: Bool {
+        if case .loaded = candidatesState { return true }
+        if case .empty = candidatesState { return true }
+        return false
     }
 
     /// Local Pass only — does not hide the peer in Firestore.
-    func passCandidate(userId: String) {
+    func passCandidate(userId: String, undoable: Bool = true) {
         guard !userId.isEmpty else { return }
         passedCandidateIds.insert(userId)
+        if undoable {
+            passUndoStack.append(userId)
+        }
+        Task { await refreshTopCandidateCommunities() }
+    }
+
+    func undoLastPass() {
+        guard let userId = passUndoStack.popLast() else { return }
+        passedCandidateIds.remove(userId)
+        Task { await refreshTopCandidateCommunities() }
+    }
+
+    /// Say Hi from the Discover deck — removes from deck immediately, rolls back on failure.
+    func sayHi(to userId: String) async {
+        guard !userId.isEmpty, !isSendingConnect else { return }
+        isSendingConnect = true
+        actionErrorMessage = nil
+        passedCandidateIds.insert(userId)
+
+        do {
+            try await connectionRepository.sendConnect(to: userId)
+            await loadIncoming(showLoading: false)
+            await loadMatched(showLoading: false)
+            await loadCandidates(showLoading: false)
+            await refreshTopCandidateCommunities()
+        } catch {
+            passedCandidateIds.remove(userId)
+            actionErrorMessage = error.localizedDescription
+        }
+
+        isSendingConnect = false
     }
 
     func refreshAfterPeerSheet() async {
-        await loadIncoming()
-        await loadMatched()
-        if let selectedCommunityId {
-            await loadCandidates(communityId: selectedCommunityId)
-        }
+        await refreshQuietly()
     }
 
     func report(
@@ -122,7 +190,7 @@ final class ConnectViewModel: ObservableObject {
                 userId: userId,
                 reason: reason,
                 chatId: nil,
-                communityId: communityId ?? selectedCommunityId
+                communityId: communityId
             )
             moderationMessage = "Thanks — we’ll review this report."
         } catch {
@@ -154,12 +222,6 @@ final class ConnectViewModel: ObservableObject {
         moderationMessage = nil
     }
 
-    func selectCommunity(_ communityId: String) async {
-        selectedCommunityId = communityId
-        resetPassedCandidates()
-        await loadCandidates(communityId: communityId)
-    }
-
     func accept(requestId: String, fromUserId: String) async {
         _ = fromUserId
         respondingRequestId = requestId
@@ -174,11 +236,9 @@ final class ConnectViewModel: ObservableObject {
         }
 
         // Accept only — user opens chat manually from Matches (no auto-navigation).
-        await loadIncoming()
-        await loadMatched()
-        if let communityId = selectedCommunityId {
-            await loadCandidates(communityId: communityId)
-        }
+        await loadIncoming(showLoading: false)
+        await loadMatched(showLoading: false)
+        await loadCandidates(showLoading: false)
 
         respondingRequestId = nil
     }
@@ -189,7 +249,7 @@ final class ConnectViewModel: ObservableObject {
 
         do {
             try await connectionRepository.respond(to: requestId, accept: false)
-            await loadIncoming()
+            await loadIncoming(showLoading: false)
         } catch {
             actionErrorMessage = error.localizedDescription
         }
@@ -212,18 +272,21 @@ final class ConnectViewModel: ObservableObject {
     }
 
     func resetForm() {
-        communitiesState = .idle
         candidatesState = .idle
         incomingState = .idle
         matchedState = .idle
-        selectedCommunityId = nil
         actionErrorMessage = nil
         moderationMessage = nil
         respondingRequestId = nil
         openingChatPeerId = nil
         moderatingUserId = nil
+        isSendingConnect = false
         blockedUserIds = []
+        myInterests = []
+        topCandidateCommunities = []
+        communitiesByUserId = [:]
         candidatesLoadGeneration += 1
+        topCommunitiesLoadGeneration += 1
         resetPassedCandidates()
     }
 
@@ -231,6 +294,7 @@ final class ConnectViewModel: ObservableObject {
 
     private func resetPassedCandidates() {
         passedCandidateIds = []
+        passUndoStack = []
     }
 
     private func loadBlockedUsers() async {
@@ -239,6 +303,19 @@ final class ConnectViewModel: ObservableObject {
         } catch {
             // Fail closed: keep the last known block set so a refresh blip
             // cannot re-surface people the user already blocked.
+        }
+    }
+
+    private func loadMyInterests() async {
+        guard let userId = authRepository.currentUser?.id else {
+            myInterests = []
+            return
+        }
+        do {
+            let me = try await userRepository.fetchProfile(userId: userId)
+            myInterests = me.interests
+        } catch {
+            myInterests = authRepository.currentUser?.interests ?? []
         }
     }
 
@@ -257,46 +334,64 @@ final class ConnectViewModel: ObservableObject {
         }
     }
 
-    private func loadCommunities() async {
-        communitiesState = .loading
-
-        do {
-            let communities = try await communityRepository.fetchCommunities()
-            communitiesState = communities.isEmpty ? .empty : .loaded(communities)
-
-            if selectedCommunityId == nil, let first = communities.first {
-                selectedCommunityId = first.id
-            }
-        } catch {
-            communitiesState = .error(error.localizedDescription)
-        }
-    }
-
-    private func loadCandidates(communityId: String) async {
+    private func loadCandidates(showLoading: Bool = true) async {
         candidatesLoadGeneration += 1
         let generation = candidatesLoadGeneration
-        candidatesState = .loading
+        if showLoading {
+            candidatesState = .loading
+        }
 
         do {
-            let candidates = try await connectionRepository.fetchCandidates(communityId: communityId)
+            let raw = try await connectionRepository.fetchCandidates()
                 .filter { !blockedUserIds.contains($0.id) }
-            guard generation == candidatesLoadGeneration,
-                  selectedCommunityId == communityId
-            else { return }
+            let ranked = ConnectCandidateRanker.ranked(raw, matching: myInterests)
+            guard generation == candidatesLoadGeneration else { return }
 
             // Drop session Pass ids that are no longer in the fresh list.
-            passedCandidateIds = passedCandidateIds.intersection(Set(candidates.map(\.id)))
-            candidatesState = candidates.isEmpty ? .empty : .loaded(candidates)
+            passedCandidateIds = passedCandidateIds.intersection(Set(ranked.map(\.id)))
+            passUndoStack = passUndoStack.filter { passedCandidateIds.contains($0) }
+            candidatesState = ranked.isEmpty ? .empty : .loaded(ranked)
+            await refreshTopCandidateCommunities()
         } catch {
-            guard generation == candidatesLoadGeneration,
-                  selectedCommunityId == communityId
-            else { return }
+            guard generation == candidatesLoadGeneration else { return }
             candidatesState = .error(error.localizedDescription)
+            topCandidateCommunities = []
         }
     }
 
-    private func loadIncoming() async {
-        incomingState = .loading
+    private func refreshTopCandidateCommunities() async {
+        topCommunitiesLoadGeneration += 1
+        let generation = topCommunitiesLoadGeneration
+        guard let userId = topCandidate?.id else {
+            topCandidateCommunities = []
+            return
+        }
+
+        if let cached = communitiesByUserId[userId] {
+            topCandidateCommunities = cached
+        }
+
+        do {
+            let joined = try await communityRepository.fetchCommunities(forUserId: userId)
+            guard generation == topCommunitiesLoadGeneration,
+                  topCandidate?.id == userId
+            else { return }
+            communitiesByUserId[userId] = joined
+            topCandidateCommunities = joined
+        } catch {
+            guard generation == topCommunitiesLoadGeneration,
+                  topCandidate?.id == userId
+            else { return }
+            if communitiesByUserId[userId] == nil {
+                topCandidateCommunities = []
+            }
+        }
+    }
+
+    private func loadIncoming(showLoading: Bool = true) async {
+        if showLoading {
+            incomingState = .loading
+        }
 
         do {
             let requests = try await connectionRepository.fetchIncomingRequests()
@@ -304,12 +399,16 @@ final class ConnectViewModel: ObservableObject {
                 .filter { !blockedUserIds.contains($0.peer.id) }
             incomingState = items.isEmpty ? .empty : .loaded(items)
         } catch {
-            incomingState = .error(error.localizedDescription)
+            if showLoading || !hasIncomingContent {
+                incomingState = .error(error.localizedDescription)
+            }
         }
     }
 
-    private func loadMatched() async {
-        matchedState = .loading
+    private func loadMatched(showLoading: Bool = true) async {
+        if showLoading {
+            matchedState = .loading
+        }
 
         do {
             let requests = try await connectionRepository.fetchMatchedConnections()
@@ -331,7 +430,9 @@ final class ConnectViewModel: ObservableObject {
 
             matchedState = items.isEmpty ? .empty : .loaded(items)
         } catch {
-            matchedState = .error(error.localizedDescription)
+            if showLoading || !hasMatchedContent {
+                matchedState = .error(error.localizedDescription)
+            }
         }
     }
 
@@ -343,8 +444,13 @@ final class ConnectViewModel: ObservableObject {
         items.reserveCapacity(requests.count)
 
         for request in requests {
-            let peer = try await userRepository.fetchProfile(userId: request[keyPath: peerId])
-            items.append(ConnectRequestItem(request: request, peer: peer))
+            do {
+                let peer = try await userRepository.fetchProfile(userId: request[keyPath: peerId])
+                items.append(ConnectRequestItem(request: request, peer: peer))
+            } catch {
+                // Skip broken peer profiles so one missing user doesn't fail Liked You.
+                continue
+            }
         }
 
         return items

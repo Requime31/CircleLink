@@ -4,7 +4,7 @@ import SwiftUI
 struct ChatParticipantsView: View {
     let info: ChatInfo
     let currentUserId: String
-    let makePeerProfileSheet: (String, String?) -> PeerProfileSheet
+    let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
 
     @State private var presentedPeer: ChatPeerSheetItem?
 
@@ -29,7 +29,7 @@ struct ChatParticipantsView: View {
         .navigationTitle(info.type == .group ? "Participants" : "Person")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $presentedPeer) { item in
-            makePeerProfileSheet(item.userId, item.communityId)
+            makePeerProfileSheet(item.userId, .social)
         }
     }
 

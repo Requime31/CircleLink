@@ -5,8 +5,14 @@ import UIKit
 actor ImageLoader {
     static let shared = ImageLoader()
 
-    private let cache = NSCache<NSURL, UIImage>()
+    /// NSCache is thread-safe; exposed for sync peek from views (avoids LazyVStack flash).
+    nonisolated(unsafe) private let cache = NSCache<NSURL, UIImage>()
     private var inFlight: [URL: Task<UIImage?, Error>] = [:]
+
+    /// Sync peek — avoids ProgressView flash when rows are recycled.
+    nonisolated func cachedImage(for url: URL) -> UIImage? {
+        cache.object(forKey: url as NSURL)
+    }
 
     func load(from url: URL) async throws -> UIImage? {
         if let cached = cache.object(forKey: url as NSURL) {

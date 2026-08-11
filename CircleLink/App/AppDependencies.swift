@@ -143,30 +143,34 @@ final class AppDependencies {
         )
     }
 
-    /// Peer (other user) profile sheet. Pass `communityId` when known so Connect works.
+    /// Peer profile sheet for all modes (social / likedYou).
     /// Sheet owns its ViewModel — prefer this over creating the VM in a `.sheet` closure.
     func makePeerProfileSheet(
         userId: String,
-        communityId: String? = nil
+        mode: PeerProfileMode = .social,
+        onFinished: @escaping () -> Void = {}
     ) -> PeerProfileSheet {
         PeerProfileSheet(
             userId: userId,
-            communityId: communityId,
+            mode: mode,
             userRepository: userRepository,
-            connectionRepository: connectionRepository
+            connectionRepository: connectionRepository,
+            communityRepository: communityRepository,
+            onFinished: onFinished
         )
     }
 
     /// Prefer `makePeerProfileSheet` for presentation. Use this when embedding `PeerProfileView` directly.
     func makePeerProfileViewModel(
         userId: String,
-        communityId: String? = nil
+        mode: PeerProfileMode = .social
     ) -> PeerProfileViewModel {
         PeerProfileViewModel(
             userId: userId,
-            communityId: communityId,
+            mode: mode,
             userRepository: userRepository,
-            connectionRepository: connectionRepository
+            connectionRepository: connectionRepository,
+            communityRepository: communityRepository
         )
     }
 }

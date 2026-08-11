@@ -5,6 +5,8 @@ import UIKit
 @MainActor
 final class ProfileViewModel: ObservableObject {
     @Published var displayName = ""
+    @Published var aboutMe = ""
+    @Published var ageText = ""
     @Published var selectedInterests: Set<String> = []
     @Published private(set) var profile: User?
     @Published private(set) var state: ViewState<User> = .idle
@@ -51,9 +53,12 @@ final class ProfileViewModel: ObservableObject {
 
     var canSave: Bool {
         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedAge = ageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ageOk = trimmedAge.isEmpty || Self.parsedAge(from: trimmedAge) != nil
         return !trimmedName.isEmpty
             && selectedInterests.count >= User.minInterests
             && selectedInterests.count <= User.maxInterests
+            && ageOk
     }
 
     var validationMessage: String? {
@@ -66,6 +71,10 @@ final class ProfileViewModel: ObservableObject {
         }
         if selectedInterests.count > User.maxInterests {
             return "Select at most \(User.maxInterests) interests."
+        }
+        let trimmedAge = ageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedAge.isEmpty, Self.parsedAge(from: trimmedAge) == nil {
+            return "Enter an age between 18 and 120."
         }
         return nil
     }
@@ -141,6 +150,8 @@ final class ProfileViewModel: ObservableObject {
             }
 
             user.displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            user.aboutMe = String(aboutMe.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
+            user.age = Self.parsedAge(from: ageText)
             user.interests = ProfileInterests.presets.filter { selectedInterests.contains($0) }
 
             try await userRepository.updateProfile(user)
@@ -278,10 +289,20 @@ final class ProfileViewModel: ObservableObject {
     private func apply(user: User) {
         profile = user
         displayName = user.displayName
+        aboutMe = user.aboutMe
+        ageText = user.age.map(String.init) ?? ""
         selectedInterests = Set(user.interests)
         if pendingAvatarData == nil {
             localAvatarPreview = nil
         }
+    }
+
+    private static func parsedAge(from text: String) -> Int? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let value = Int(trimmed), (18...120).contains(value) else {
+            return nil
+        }
+        return value
     }
 
     private func refreshStatsAndPosts(userId: String) async {

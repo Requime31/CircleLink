@@ -22,9 +22,9 @@ enum FirestoreConnectionMapper {
         guard let toUserId = data["toUserId"] as? String, !toUserId.isEmpty else {
             throw MapperError.missingRequiredField("toUserId")
         }
-        guard let communityId = data["communityId"] as? String, !communityId.isEmpty else {
-            throw MapperError.missingRequiredField("communityId")
-        }
+
+        let rawCommunityId = data["communityId"] as? String
+        let communityId = rawCommunityId.flatMap { $0.isEmpty ? nil : $0 }
 
         let statusRaw = data["status"] as? String ?? ConnectionStatus.pending.rawValue
 
