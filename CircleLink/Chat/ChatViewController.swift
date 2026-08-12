@@ -197,7 +197,8 @@ final class ChatViewController: UIViewController {
         // Defer until after layout so inverted table has valid frames.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.tableView.scrollToRow(at: indexPath, at: .middle, animated: true)
+            let animated = !UIAccessibility.isReduceMotionEnabled
+            self.tableView.scrollToRow(at: indexPath, at: .middle, animated: animated)
             self.viewModel.clearRevealMessageId()
         }
     }
@@ -258,6 +259,7 @@ extension ChatViewController: UITableViewDataSource {
         let item = viewModel.messages[indexPath.row]
         cell.configure(
             with: item,
+            spacingToOlderNeighbor: spacingToOlderNeighbor(at: indexPath.row),
             onRetry: { [weak self] in
                 guard let self else { return }
                 Task {
@@ -271,6 +273,17 @@ extension ChatViewController: UITableViewDataSource {
                 }
         )
         return cell
+    }
+
+    /// Inverted list: `row + 1` is the older message (visual neighbor above).
+    private func spacingToOlderNeighbor(at row: Int) -> CGFloat {
+        let messages = viewModel.messages
+        guard row + 1 < messages.count else {
+            return ChatAppearance.differentSenderGap
+        }
+        return messages[row].senderId == messages[row + 1].senderId
+            ? ChatAppearance.sameSenderGap
+            : ChatAppearance.differentSenderGap
     }
 }
 

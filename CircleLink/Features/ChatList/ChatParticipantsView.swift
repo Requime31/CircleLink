@@ -82,7 +82,8 @@ struct ChatParticipantRowView: View {
                 localPreview: nil,
                 avatarBase64: user.avatarBase64,
                 avatarURL: user.avatarURL,
-                size: Self.avatarSize
+                size: Self.avatarSize,
+                clip: .chat
             )
 
             VStack(alignment: .leading, spacing: CLSpacing.xxs) {

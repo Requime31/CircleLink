@@ -10,7 +10,7 @@ final class MessageCell: UITableViewCell {
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
         imageView.layer.cornerRadius = MessageCell.avatarSize / 2
-        imageView.backgroundColor = ChatAppearance.primarySoft
+        imageView.backgroundColor = ChatAppearance.surfaceSoft
         imageView.isUserInteractionEnabled = true
         imageView.isHidden = true
         imageView.accessibilityIgnoresInvertColors = true
@@ -74,6 +74,8 @@ final class MessageCell: UITableViewCell {
 
     private var leadingConstraint: NSLayoutConstraint?
     private var trailingConstraint: NSLayoutConstraint?
+    private var bubbleTopConstraint: NSLayoutConstraint?
+    private var bubbleBottomConstraint: NSLayoutConstraint?
     private var imageHeightConstraint: NSLayoutConstraint?
     private var imageWidthConstraint: NSLayoutConstraint?
     private var avatarWidthConstraint: NSLayoutConstraint?
@@ -127,6 +129,7 @@ final class MessageCell: UITableViewCell {
 
     func configure(
         with item: ChatMessageItem,
+        spacingToOlderNeighbor: CGFloat = ChatAppearance.differentSenderGap,
         onRetry: @escaping () -> Void,
         onAvatarTap: (() -> Void)? = nil
     ) {
@@ -147,6 +150,7 @@ final class MessageCell: UITableViewCell {
         configureImage(for: item)
         configureAvatar(for: item)
         configureBubbleStyle(isOutgoing: item.isOutgoing)
+        configureClusterSpacing(spacingToOlderNeighbor)
         configureStatus(item.status, isOutgoing: item.isOutgoing)
 
         let spokenText = item.text ?? (item.imageURL != nil || item.localImageData != nil ? "Image attachment" : "Empty message")
@@ -157,6 +161,12 @@ final class MessageCell: UITableViewCell {
             isFailedOutgoing: item.status == .failed && item.isOutgoing,
             showsAvatar: !item.isOutgoing
         )
+    }
+
+    /// Inverted table + flipped `contentView`: layout bottom faces the older neighbor (visual top).
+    private func configureClusterSpacing(_ spacingToOlderNeighbor: CGFloat) {
+        bubbleTopConstraint?.constant = 0
+        bubbleBottomConstraint?.constant = -spacingToOlderNeighbor
     }
 
     override func accessibilityActivate() -> Bool {
@@ -461,9 +471,13 @@ final class MessageCell: UITableViewCell {
         )
         imageWidthConstraint?.isActive = false
         avatarWidthConstraint = avatarImageView.widthAnchor.constraint(equalToConstant: 0)
+        bubbleTopConstraint = bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor)
+        bubbleBottomConstraint = bubbleView.bottomAnchor.constraint(
+            equalTo: contentView.bottomAnchor,
+            constant: -ChatAppearance.differentSenderGap
+        )
         let padH = ChatAppearance.bubblePaddingH
         let padV = ChatAppearance.bubblePaddingV
-        let spacing = ChatAppearance.bubbleSpacingV
 
         // Keep media from being crushed by the timestamp’s intrinsic width.
         imageAttachmentView.setContentCompressionResistancePriority(.required, for: .horizontal)
@@ -478,8 +492,8 @@ final class MessageCell: UITableViewCell {
             avatarWidthConstraint!,
             avatarImageView.heightAnchor.constraint(equalTo: avatarImageView.widthAnchor),
 
-            bubbleView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: spacing),
-            bubbleView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -spacing),
+            bubbleTopConstraint!,
+            bubbleBottomConstraint!,
 
             imageAttachmentView.topAnchor.constraint(equalTo: bubbleView.topAnchor, constant: padV),
             imageAttachmentView.leadingAnchor.constraint(equalTo: bubbleView.leadingAnchor, constant: padH),
@@ -498,13 +512,13 @@ final class MessageCell: UITableViewCell {
             statusIndicator.centerYAnchor.constraint(equalTo: bubbleView.centerYAnchor),
             statusIndicator.trailingAnchor.constraint(
                 equalTo: bubbleView.leadingAnchor,
-                constant: -ChatAppearance.Spacing.statusGap
+                constant: -ChatAppearance.statusGap
             ),
 
             retryButton.centerYAnchor.constraint(equalTo: bubbleView.centerYAnchor),
             retryButton.trailingAnchor.constraint(
                 equalTo: bubbleView.leadingAnchor,
-                constant: -ChatAppearance.Spacing.statusGap
+                constant: -ChatAppearance.statusGap
             ),
             retryButton.widthAnchor.constraint(equalToConstant: AccessibilityHelpers.minimumTouchTarget),
             retryButton.heightAnchor.constraint(equalToConstant: AccessibilityHelpers.minimumTouchTarget)

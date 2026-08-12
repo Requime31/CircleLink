@@ -8,25 +8,18 @@ struct ChatListRowView: View {
 
     var body: some View {
         HStack(spacing: CLSpacing.md) {
-            ZStack(alignment: .topTrailing) {
-                AvatarImageView(
-                    localPreview: nil,
-                    avatarBase64: chat.avatarBase64,
-                    avatarURL: chat.avatarURL,
-                    size: avatarSize
-                )
-
-                if chat.unreadCount > 0 {
-                    unreadIndicator
-                        .offset(x: 4, y: -2)
-                        .accessibilityHidden(true)
-                }
-            }
+            AvatarImageView(
+                localPreview: nil,
+                avatarBase64: chat.avatarBase64,
+                avatarURL: chat.avatarURL,
+                size: avatarSize,
+                clip: .chat
+            )
 
             VStack(alignment: .leading, spacing: CLSpacing.xxs) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(chat.title)
-                        .font(CLTypography.footnote.weight(.semibold))
+                        .font(CLTypography.headline)
                         .foregroundStyle(CLColor.ink)
                         .lineLimit(1)
 
@@ -48,12 +41,13 @@ struct ChatListRowView: View {
 
                 HStack(alignment: .center, spacing: CLSpacing.xs) {
                     Text(chat.lastMessageText ?? "No messages yet")
-                        .font(CLTypography.callout)
+                        .font(CLTypography.subheadline)
                         .foregroundStyle(CLColor.inkSecondary)
                         .lineLimit(1)
 
                     Spacer(minLength: 0)
 
+                    // Single unread signal (DESIGN.md): trailing clay dot only.
                     if chat.unreadCount > 0 {
                         Circle()
                             .fill(CLColor.primary)
@@ -66,23 +60,6 @@ struct ChatListRowView: View {
         .padding(.vertical, CLSpacing.xs)
         .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         .contentShape(Rectangle())
-    }
-
-    @ViewBuilder
-    private var unreadIndicator: some View {
-        if chat.unreadCount > 1 {
-            Text(unreadBadgeText)
-                .font(CLTypography.caption)
-                .foregroundStyle(CLColor.onPrimaryStrong)
-                .padding(.horizontal, CLSpacing.xs)
-                .padding(.vertical, CLSpacing.xxs)
-                .background(CLColor.primary)
-                .clipShape(Capsule())
-        }
-    }
-
-    private var unreadBadgeText: String {
-        chat.unreadCount > 99 ? "99+" : "\(chat.unreadCount)"
     }
 }
 

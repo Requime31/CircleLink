@@ -97,6 +97,12 @@ enum CLAvatar {
     }
 }
 
+/// Clip style for shared avatar views. Default is squircle; `.chat` is Chats-only.
+enum CLAvatarClip {
+    case squircle
+    case chat
+}
+
 // MARK: - Typography (SF Pro + Dynamic Type)
 
 enum CLTypography {

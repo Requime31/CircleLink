@@ -56,7 +56,7 @@ struct ConversationPeekPreview: View {
                 .foregroundStyle(CLColor.ink)
                 .padding(.horizontal, CLSpacing.sm)
                 .padding(.vertical, CLSpacing.xs)
-                .background(message.isOutgoing ? CLColor.primarySoft : CLColor.surface)
+                .background(message.isOutgoing ? CLColor.primarySoft : CLColor.surfaceSoft)
                 .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
             if !message.isOutgoing { Spacer(minLength: 24) }
         }

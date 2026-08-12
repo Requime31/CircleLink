@@ -296,17 +296,17 @@ struct ChatInfoView: View {
                     localPreview: nil,
                     avatarBase64: peer.avatarBase64,
                     avatarURL: peer.avatarURL,
-                    size: 96
+                    size: 96,
+                    clip: .chat
                 )
             } else {
+                // Chats avatars = circle (DESIGN.md §0), including group placeholder.
                 Image(systemName: "person.3.fill")
                     .font(.system(size: 36))
-                    .foregroundStyle(CLColor.inkMuted)
+                    .foregroundStyle(CLColor.inkSecondary)
                     .frame(width: 96, height: 96)
-                    .background(
-                        RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
-                            .fill(CLColor.primarySoft)
-                    )
+                    .background(Circle().fill(CLColor.surfaceSoft))
+                    .clipShape(Circle())
                     .accessibilityHidden(true)
             }
 

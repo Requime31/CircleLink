@@ -35,15 +35,17 @@ enum ChatAppearance {
     static let primaryPressed = UIColor(red: 0.608, green: 0.267, blue: 0.165, alpha: 1.0)
     /// `#FFDBD1`
     static let primarySoft = UIColor(red: 1.000, green: 0.859, blue: 0.820, alpha: 1.0)
+    /// Label on solid clay / deep fill.
+    static let onPrimaryStrong = UIColor.white
 
     // MARK: Bubbles
 
     /// Mine: soft clay + dark ink
     static let outgoingBubble = primarySoft
-    /// Theirs: white surface on parchment (better contrast than surfaceSoft)
-    static let incomingBubble = surface
+    /// Theirs: muted parchment group (DESIGN.md)
+    static let incomingBubble = surfaceSoft
 
-    // MARK: Geometry
+    // MARK: Geometry (single source of truth)
 
     static let bubbleRadius: CGFloat = 18
     static let bubbleTailRadius: CGFloat = 12
@@ -52,38 +54,26 @@ enum ChatAppearance {
 
     static let bubblePaddingH: CGFloat = 14
     static let bubblePaddingV: CGFloat = 10
-    static let bubbleSpacingV: CGFloat = 6
     static let timestampSpacing: CGFloat = 4
+    static let statusGap: CGFloat = 8
     static let sideGutter: CGFloat = 16
     static let oppositeGutter: CGFloat = 64
+
+    /// Gap between consecutive bubbles from the same sender (DESIGN.md).
+    static let sameSenderGap: CGFloat = 4
+    /// Gap between different senders / thread edges (DESIGN.md).
+    static let differentSenderGap: CGFloat = 16
+
     /// Fixed media width so image-only bubbles don’t collapse to the timestamp width.
     static let bubbleImageWidth: CGFloat = 220
     static let bubbleImageHeight: CGFloat = 180
+
+    static let barEdge: CGFloat = 8
+    static let barMinHeight: CGFloat = 56
 
     // MARK: Typography (Dynamic Type)
 
     static var bodyFont: UIFont { .preferredFont(forTextStyle: .body) }
     static var captionFont: UIFont { .preferredFont(forTextStyle: .caption1) }
     static var titleFont: UIFont { .preferredFont(forTextStyle: .headline) }
-
-    enum Spacing {
-        static let bubbleVertical: CGFloat = 4
-        static let bubbleHorizontalInset: CGFloat = 16
-        static let bubbleOppositeInset: CGFloat = 64
-        static let bubblePaddingH: CGFloat = 12
-        static let bubblePaddingV: CGFloat = 8
-        static let timestampGap: CGFloat = 4
-        static let statusGap: CGFloat = 8
-        static let barEdge: CGFloat = 8
-        static let fieldMinHeight: CGFloat = 36
-        static let barMinHeight: CGFloat = 56
-        static let imageHeight: CGFloat = 180
-    }
-
-    enum Radius {
-        static let bubble: CGFloat = 18
-        static let image: CGFloat = 14
-        static let field: CGFloat = 14
-        static let avatar: CGFloat = 14
-    }
 }

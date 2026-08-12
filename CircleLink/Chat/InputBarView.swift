@@ -81,7 +81,7 @@ final class InputBarView: UIView {
     override var intrinsicContentSize: CGSize {
         CGSize(
             width: UIView.noIntrinsicMetric,
-            height: max(ChatAppearance.Spacing.barMinHeight, AccessibilityHelpers.minimumTouchTarget + 12)
+            height: max(ChatAppearance.barMinHeight, AccessibilityHelpers.minimumTouchTarget + 12)
         )
     }
 
@@ -97,7 +97,7 @@ final class InputBarView: UIView {
         addSubview(sendButton)
 
         let touch = AccessibilityHelpers.minimumTouchTarget
-        let edge = ChatAppearance.Spacing.barEdge
+        let edge = ChatAppearance.barEdge
 
         NSLayoutConstraint.activate([
             topSeparator.topAnchor.constraint(equalTo: topAnchor),
@@ -137,7 +137,8 @@ final class InputBarView: UIView {
         let enabled = canSend
         sendButton.isEnabled = enabled
         if enabled {
-            sendButton.tintColor = ChatAppearance.ink
+            // Solid clay CTA → light label (DESIGN.md onPrimaryStrong).
+            sendButton.tintColor = ChatAppearance.onPrimaryStrong
             sendButton.backgroundColor = ChatAppearance.primary
         } else {
             sendButton.tintColor = ChatAppearance.inkDisabled
