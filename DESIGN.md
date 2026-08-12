@@ -11,6 +11,23 @@ Source brief: `stitch_circlelink_visual_redesign_brief` (Stitch export).
 
 ---
 
+## 0. Design Rules (canonical)
+
+These override local screen habits when in doubt. Intentional exceptions are **not bugs** — do not “fix” them into squircles.
+
+| Rule | Spec |
+|------|------|
+| **Default avatars** | **Squircle** (`radiusMd` / continuous) — Profile, Connect, Communities |
+| **Chats avatars** | **Circle** — intentional exception for Chat list / thread / chat info |
+| **Connect action row** | Pass / Say Hi / Back = **circle** buttons — intentional; do **not** replace with squircle |
+| **Connect Discover hero** | Show **name + age only** on the card; **bio only** in the About section |
+| **Default CTA** | Soft: `accentSoft` + `ink` — or secondary hairline |
+| **Solid clay CTA** | **Rare** high-emphasis only (FAB, Say Hi, unread accents) — not the default button |
+| **Horizontal inset** | `screenHorizontal` = **20** on every screen edge padding |
+| **Shadows** | **Hairline first**; elevated / floating shadow is **rare** (Connect hero deck, FAB) |
+
+---
+
 ## 1. Visual Theme & Atmosphere
 
 | Trait | Direction |
@@ -23,7 +40,7 @@ Source brief: `stitch_circlelink_visual_redesign_brief` (Stitch export).
 | Motion | Soft springs / slight dim on press — never flashy |
 | Mode | Light-first (no dark-first UI in MVP) |
 
-**Brand test:** screens should feel like CircleLink without the logo — parchment canvas + clay accent + soft squircles.
+**Brand test:** screens should feel like CircleLink without the logo — parchment canvas + clay accent + soft squircles (circles only where §0 allows).
 
 ---
 
@@ -56,9 +73,10 @@ Map from Stitch “Sunset Parchment” → CircleLink tokens.
 |-------|-----|-----|
 | `primary` | `#E67E5F` | Brand accent, selected chips text, FAB, active accents (`terracotta` / `primary-container`) |
 | `primaryPressed` | `#9B442A` | Pressed / deep clay (`primary` in Material tokens) |
-| `primarySoft` | `#FFDBD1` | Soft CTA fill, selected backgrounds (`primary-fixed`) |
+| `accentSoft` | `#F8E6E0` | **Default soft CTA** fill (quieter peach; less fatigue) |
+| `primarySoft` | `#FFDBD1` | Selected chips / stronger soft highlight (`primary-fixed`) |
 | `primaryStrong` | `#9B442A` | High-emphasis fill when white label is needed |
-| `onPrimary` | `#1C1B1B` | Label on `primarySoft` / soft CTAs |
+| `onPrimary` | `#1C1B1B` | Label on `accentSoft` / `primarySoft` / soft CTAs |
 | `onPrimaryStrong` | `#FFFFFF` | Label on solid clay / deep fill |
 
 ### Soft tints
@@ -84,8 +102,8 @@ Use lightly — never as full-screen backgrounds.
 ### Rules
 
 - Clay is for **actions and selection**, not decoration everywhere.
-- Default primary CTA = **low-impact**: `primarySoft` + `ink` (less fatigue).
-- Solid `primary` / `primaryStrong` = high-emphasis only (FAB, Say Hi, unread accents).
+- Default primary CTA = **low-impact**: `accentSoft` + `ink` (or secondary hairline).
+- Solid `primary` / `primaryStrong` = **rare** high-emphasis only (FAB, Say Hi, unread accents).
 - Prefer hairline borders over shadows.
 - Never use purple as brand accent.
 - Never use neon / glow accents.
@@ -131,19 +149,19 @@ Use **SF Pro** (system). Do **not** embed Inter (web-only in the brief).
 | `lg` | 24 | Section padding |
 | `xl` | 32 | Large section gaps |
 | `xxl` | 48 | Screen top breathing room |
-| `screenHorizontal` | **20** | Default side margin (mobile) |
+| `screenHorizontal` | **20** | **Everywhere** — default side margin (mobile). Do not invent 16/24 screen gutters. |
 
 ### Corner radius
 
 | Token | Value | Use |
 |-------|-------|-----|
 | `radiusSm` | 8 | Small tags / tight controls |
-| `radiusMd` | 14 | Buttons, inputs, **avatars** |
+| `radiusMd` | 14 | Buttons, inputs, **default avatars (squircle)** |
 | `radiusLg` | 18 | Bubbles, medium cards |
 | `radiusXl` | 24 | Primary cards, sheets, large panels |
 | `radiusFull` | Capsule | Chips, pill filters |
 
-**Rule:** squircle-adjacent (`RoundedRectangle` + `.continuous`). No hard 0° corners on interactive surfaces.
+**Rule:** squircle-adjacent (`RoundedRectangle` + `.continuous`) for most interactive surfaces. Circles are allowed only where §0 lists them (Chats avatars, Connect Pass / Say Hi / Back).
 
 ---
 
@@ -154,9 +172,12 @@ Depth = tonal layering + low-contrast outlines. Not heavy Material shadows.
 | Level | Treatment |
 |-------|-----------|
 | 0 Canvas | `canvas` — no shadow |
-| 1 Card / surface | `surface` + **1px `hairline`** — no shadow by default |
+| 1 Card / surface | `surface` + **1px `hairline`** — **default**; no shadow |
 | 2 Floating | Soft diffused shadow: `0 / 4 / 20`, ~4% of `ink` — FAB / compose only |
+| Elevated (rare) | Soft elevated shadow — Connect Discover hero deck only |
 | Press | Dim or fill → `surfaceSoft` — do **not** lift |
+
+**Rule:** hairline first; elevated shadow is rare. Do not put Level-2 / elevated shadows on ordinary list cards.
 
 Overlay scrim behind modals: ~35–45% black.
 
@@ -167,14 +188,14 @@ Overlay scrim behind modals: ~35–45% black.
 ### Buttons
 
 **Primary (default / low-impact)**
-- Fill: `primarySoft`
+- Fill: `accentSoft`
 - Text: `onPrimary` (`ink`)
 - Radius: `radiusMd` (or Capsule for hero pills)
 - Min height: 48–56
-- Pressed → slightly dim / `primary` at low opacity
+- Pressed → slightly dim
 - Disabled → `surfaceSoft` + `inkDisabled`
 
-**Emphasis (solid clay)** — FAB, Say Hi, rare high-impact CTAs
+**Emphasis (solid clay)** — **rare**: FAB, Say Hi, high-impact CTAs only
 - Fill: `primary`
 - Text: `onPrimaryStrong` (white) **or** deep ink if contrast needs it
 - Pressed → `primaryPressed`
@@ -187,6 +208,8 @@ Overlay scrim behind modals: ~35–45% black.
 **Tertiary / text**
 - No fill
 - Text: `ink` or `primary` for links
+
+**Connect action row exception:** Pass / Say Hi / Back stay **circle** shaped (see §0). Say Hi may use solid clay; Pass / Back stay soft or secondary — shape is circle, not squircle.
 
 **Auth exception:** “Sign in with Apple” stays system black + white (platform guideline).
 
@@ -204,7 +227,7 @@ Overlay scrim behind modals: ~35–45% black.
 - Radius: `radiusXl` (24)
 - Padding: 16
 - Border: 1px `hairline`
-- Shadow: **off** unless floating
+- Shadow: **off** unless floating / rare elevated hero
 - Used for: Connect candidates, community tiles, grouped empty states
 
 **Card rule:** cards are for interaction/grouping. Don't wrap everything in cards.
@@ -218,10 +241,11 @@ Overlay scrim behind modals: ~35–45% black.
 
 ### Avatars
 
-- **Rounded square** — corner radius `radiusMd` (14), continuous
+- **Default (Profile / Connect / Communities):** squircle — corner radius `radiusMd` (14), continuous (`clAvatarClip` / `CLAvatar.shape()`)
+- **Chats (list / thread / info):** **circle** — intentional (`clChatAvatarClip` / `CLAvatar.chatShape()`). Not a bug; do not convert the whole app to one shape.
 - Soft placeholder fill: `surfaceSoft`
 - Initials / icon: `inkSecondary`
-- Do **not** default to circles (design system). Overlapping group stacks may still use the same squircle mask.
+- Overlapping group stacks outside Chats may still use the squircle mask.
 
 ### Tab bar
 
@@ -234,7 +258,7 @@ Overlay scrim behind modals: ~35–45% black.
 
 | Role | Fill | Text |
 |------|------|------|
-| Mine (outbound) | `primarySoft` (or `surface` + hairline) | `ink` |
+| Mine (outbound) | `accentSoft` or `primarySoft` (or `surface` + hairline) | `ink` |
 | Theirs (inbound) | `surfaceSoft` | `ink` |
 
 - Radius: 18; tighter origin corner (~12) instead of comic tails
@@ -245,7 +269,7 @@ Overlay scrim behind modals: ~35–45% black.
 - Size ~56
 - Shape: rounded square (`radiusLg`–`radiusXl`)
 - Fill: `primary`; icon: `onPrimaryStrong`
-- Floating shadow (Level 2)
+- Floating shadow (Level 2) — rare elevated treatment
 
 ### Lists
 
@@ -266,34 +290,39 @@ Overlay scrim behind modals: ~35–45% black.
 - Centered calm composition on parchment
 - One headline, one short supporting line, CTAs stacked
 - Apple = black system button; Email = secondary hairline
+- Side padding: `screenHorizontal` (20)
 
 ### Profile setup
 - Soft progress feel
 - Interest chips with clay soft selection
-- Primary CTA pinned above home indicator
+- Soft CTA (`accentSoft` + ink) pinned above home indicator
 
 ### Communities
 - Soft list or gentle hairline cards
 - Selected / joined uses `primarySoft`, not loud solid blocks
+- Avatars: squircle
 
 ### Connect
 - Large candidate card (`radiusXl`), generous photo area
-- Pass / Say Hi / Back action row — Say Hi = solid clay emphasis
+- **Hero card content:** name + age only — **no bio on the card**; bio lives in About
+- Pass / Say Hi / Back action row — **circle** buttons; Say Hi = solid clay (rare emphasis)
 - Filter chips above tab bar
 - Empty state: warm, short copy, one next step
+- Elevated shadow only on the Discover hero deck (rare)
 
 ### Chat list
 - Clean rows, inset hairline separators
-- Squircle avatars; unread clay dot
+- **Circle** avatars (intentional); unread clay dot
 - Optional FAB compose (floating)
 
 ### Chat thread
 - `canvas` background
 - Soft bubbles + comfortable spacing
+- **Circle** peer avatars where shown
 - Composer: rounded `surface`, clay send when active
 
 ### Profile
-- Calm hierarchy: avatar → name → interests → actions
+- Calm hierarchy: squircle avatar → name → interests → actions
 - Destructive actions quieter until confirmed
 
 ### Community feed (design-ready)
@@ -344,8 +373,11 @@ Respect Reduce Motion: fall back to simple fades.
 ### Do
 - Parchment canvas `#FCF9F8`
 - Sunset Clay `#E67E5F` for accents
-- Soft CTAs (`primarySoft` + ink) by default
-- Hairline cards (24 radius), squircle avatars (14)
+- Soft CTAs (`accentSoft` + ink) by default
+- Hairline cards (24 radius); squircle avatars outside Chats
+- Circle avatars in Chats; circle Connect Pass / Say Hi / Back
+- `screenHorizontal` = 20 everywhere
+- Hairline depth first; elevated shadow rare
 - SF Pro + soft springs
 
 ### Don't
@@ -353,7 +385,10 @@ Respect Reduce Motion: fall back to simple fades.
 - Dark cinematic UI as default
 - Hard corners on buttons/cards
 - Heavy multi-layer shadows on every card
-- Circle avatars as the system default
+- Circle avatars as the **system default** (Chats exception only)
+- Convert Chats circles or Connect action circles to squircle “for consistency”
+- Put bio on the Connect Discover hero card
+- Solid clay as the everyday CTA
 - Giant marketing display type inside app screens
 - Embed Inter font files
 
@@ -361,7 +396,7 @@ Respect Reduce Motion: fall back to simple fades.
 
 ## 10. Accessibility
 
-- Soft CTAs use dark ink on `primarySoft` (not white on light peach)
+- Soft CTAs use dark ink on `accentSoft` / `primarySoft` (not white on light peach)
 - Solid clay: prefer white label (`onPrimaryStrong`) and check contrast
 - Min tap target: 44×44
 - Support Dynamic Type for body/chat text
@@ -374,14 +409,15 @@ Respect Reduce Motion: fall back to simple fades.
 
 When generating or editing UI:
 
-1. Read `DESIGN.md` first.
+1. Read `DESIGN.md` first — especially §0 Design Rules.
 2. Use tokens above (names + hex) via `CLColor` / `CLTheme`.
 3. Prefer SwiftUI system fonts and soft springs.
 4. Map flow: User action → View → ViewModel → … → UI update, without putting design logic in Domain.
 5. Keep screens light-first, parchment + clay, rounded, calmly animated.
+6. Do not unify all avatars/buttons to one shape — respect §0 exceptions.
 
 **Short prompt:**  
-“Build this CircleLink screen using DESIGN.md: parchment canvas `#FCF9F8`, Sunset Clay `#E67E5F`, soft CTA `primarySoft`+ink, cards radius 24 + hairline, squircle avatars radius 14, SF Pro, spring motion.”
+“Build this CircleLink screen using DESIGN.md §0: parchment `#FCF9F8`, clay `#E67E5F`, soft CTA `accentSoft`+ink, cards radius 24 + hairline, squircle avatars (circle only in Chats), Connect Pass/Say Hi/Back = circles, screenHorizontal 20, SF Pro, spring motion.”
 
 ---
 

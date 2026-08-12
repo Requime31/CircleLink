@@ -22,8 +22,12 @@ enum CLColor {
     // Primary (Sunset Clay)
     static let primary = Color(red: 0.902, green: 0.494, blue: 0.373)       // #E67E5F
     static let primaryPressed = Color(red: 0.608, green: 0.267, blue: 0.165) // #9B442A
+    /// Quieter soft CTA fill (DESIGN.md default). Prefer over `primarySoft` for buttons.
+    static let accentSoft = Color(red: 0.973, green: 0.902, blue: 0.878)    // #F8E6E0
+    /// Selected chips / stronger soft highlight (`primary-fixed`).
     static let primarySoft = Color(red: 1.000, green: 0.859, blue: 0.820)   // #FFDBD1
     static let primaryStrong = Color(red: 0.608, green: 0.267, blue: 0.165) // #9B442A
+    /// Label on soft fills (`accentSoft` / `primarySoft`).
     static let onPrimary = Color(red: 0.110, green: 0.106, blue: 0.106)     // #1C1B1B
     static let onPrimaryStrong = Color.white
 
@@ -50,7 +54,7 @@ enum CLSpacing {
     static let lg: CGFloat = 24
     static let xl: CGFloat = 32
     static let xxl: CGFloat = 48
-    /// Default mobile side margin from Sunset Parchment brief.
+    /// Default mobile side margin — use on every screen (DESIGN.md §0).
     static let screenHorizontal: CGFloat = 20
 }
 
@@ -62,12 +66,12 @@ enum CLRadius {
 }
 
 enum CLShadow {
-    /// Level-2 floating only (FAB / compose). ~4% of ink.
+    /// Level-2 floating only (FAB / compose). Rare. ~4% of ink.
     static let floatingColor = CLColor.ink.opacity(0.04)
     static let floatingRadius: CGFloat = 20
     static let floatingY: CGFloat = 4
 
-    /// Stronger elevation for hero cards (Connect deck). Still soft — not Material-heavy.
+    /// Elevated shadow — rare (Connect Discover hero deck only). Prefer hairline cards.
     static let elevatedColor = CLColor.ink.opacity(0.08)
     static let elevatedRadius: CGFloat = 24
     static let elevatedY: CGFloat = 8
@@ -79,11 +83,17 @@ enum CLShadow {
 }
 
 enum CLAvatar {
-    /// Squircle corner radius for avatars (DESIGN.md).
+    /// Squircle corner radius — default for Profile / Connect / Communities (DESIGN.md §0).
     static let cornerRadius: CGFloat = CLRadius.md
 
+    /// Default avatar shape (squircle).
     static func shape() -> RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    /// Chats-only avatar shape (circle). Intentional exception — not a bug.
+    static func chatShape() -> Circle {
+        Circle()
     }
 }
 
@@ -113,7 +123,7 @@ enum CLMotion {
 
 // MARK: - Button styles
 
-/// Low-impact primary: `primarySoft` + ink (default CTA).
+/// Default CTA: quieter `accentSoft` + ink (DESIGN.md). Prefer over solid clay.
 /// - `fillsWidth: true` (default) — full-width CTAs
 /// - `fillsWidth: false` — compact row CTAs
 struct CLPrimaryButtonStyle: ButtonStyle {
@@ -137,11 +147,11 @@ struct CLPrimaryButtonStyle: ButtonStyle {
 
     private func background(_ pressed: Bool) -> Color {
         guard isEnabled else { return CLColor.surfaceSoft }
-        return pressed ? CLColor.primarySoft.opacity(0.85) : CLColor.primarySoft
+        return pressed ? CLColor.accentSoft.opacity(0.85) : CLColor.accentSoft
     }
 }
 
-/// Solid Sunset Clay — FAB / Say Hi / high-emphasis only.
+/// Solid Sunset Clay — rare high-emphasis only (FAB, Say Hi). Not the default CTA.
 struct CLEmphasisButtonStyle: ButtonStyle {
     var fillsWidth: Bool = true
 
@@ -248,7 +258,7 @@ extension View {
             )
     }
 
-    /// Hero / deck card with soft elevated shadow (Connect).
+    /// Rare elevated hero (Connect Discover deck). Prefer `clCardStyle` (hairline) elsewhere.
     func clElevatedCardStyle(padded: Bool = true) -> some View {
         padding(padded ? CLSpacing.md : 0)
             .background(CLColor.surface)
@@ -256,7 +266,7 @@ extension View {
             .shadow(color: CLShadow.elevatedColor, radius: CLShadow.elevatedRadius, x: 0, y: CLShadow.elevatedY)
     }
 
-    /// Level-2 floating shadow (FAB / compose only).
+    /// Level-2 floating shadow — rare (FAB / compose only).
     func clFloatingShadow() -> some View {
         shadow(color: CLShadow.floatingColor, radius: CLShadow.floatingRadius, x: 0, y: CLShadow.floatingY)
     }
@@ -270,9 +280,14 @@ extension View {
         modifier(CLAppearModifier(delay: delay))
     }
 
-    /// Squircle avatar clip (radiusMd continuous).
+    /// Default avatar clip — squircle (Profile / Connect / Communities).
     func clAvatarClip() -> some View {
         clipShape(CLAvatar.shape())
+    }
+
+    /// Chats avatar clip — circle (intentional exception; DESIGN.md §0).
+    func clChatAvatarClip() -> some View {
+        clipShape(CLAvatar.chatShape())
     }
 }
 
