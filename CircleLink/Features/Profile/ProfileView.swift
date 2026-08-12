@@ -100,17 +100,6 @@ struct ProfileView: View {
                 size: 112
             )
             .accessibilityLabel("Profile photo")
-            .overlay(alignment: .bottomTrailing) {
-                Circle()
-                    .fill(CLColor.primary)
-                    .frame(width: 22, height: 22)
-                    .overlay(
-                        Circle()
-                            .stroke(CLColor.surface, lineWidth: 3)
-                    )
-                    .offset(x: -4, y: -4)
-                    .accessibilityHidden(true)
-            }
 
             VStack(spacing: CLSpacing.xxs) {
                 Text(displayName(for: user))

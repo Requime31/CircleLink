@@ -282,6 +282,20 @@ Overlay scrim behind modals: ~35–45% black.
 - System back chevron
 - Avoid heavy custom nav chrome
 
+#### Nav title policy (canonical)
+
+| Mode | When | Where |
+|------|------|--------|
+| **Large** | Tab root that is a calm scroll hub, no crowded trailing toolbar | Communities, Profile |
+| **Inline (system)** | Push / secondary screens, or a tab root with trailing toolbar chrome | Connect + all push destinations (Settings, Edit Profile, Liked You, Matches, Chat Info, Community Detail, …) |
+| **Clay principal** | Branded tab root only — custom `.principal` title in `primary` | **Chats** list root only |
+
+Rules:
+
+- Do **not** invent clay principal titles on other tabs “for brand.”
+- Prefer system `navigationTitle` over custom principal chrome unless this table says otherwise.
+- Auth / Age Gate / Profile Setup stay **inline** (onboarding, not main-tab hubs).
+
 ---
 
 ## 7. Screen Patterns (CircleLink)

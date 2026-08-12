@@ -26,6 +26,7 @@ struct CommunitiesListView: View {
             }
             .clCanvasBackground()
             .navigationTitle("Communities")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

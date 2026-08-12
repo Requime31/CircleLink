@@ -62,7 +62,7 @@ struct MainTabView: View {
                 onSignOut: onSignOut
             )
             .tabItem {
-                Label("Profile", systemImage: "person.circle")
+                Label("Profile", systemImage: "person")
             }
             .accessibilityLabel("Profile tab")
             .tag(AppCoordinator.MainTab.profile)
