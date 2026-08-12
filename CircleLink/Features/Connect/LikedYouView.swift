@@ -21,9 +21,21 @@ struct LikedYouView: View {
                     .foregroundStyle(CLColor.inkMuted)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .empty:
-                emptyState
+                CLEmptyState(
+                    systemImage: "heart",
+                    title: "No pending requests",
+                    message: "When someone wants to connect, they’ll show up here."
+                )
             case let .error(message):
-                errorState(message)
+                CLEmptyState(
+                    systemImage: "exclamationmark.triangle",
+                    title: "Couldn’t load requests",
+                    message: message,
+                    actionTitle: "Retry",
+                    actionAccessibilityLabel: "Retry loading requests"
+                ) {
+                    Task { await viewModel.load() }
+                }
             case let .loaded(items):
                 grid(items)
             }
@@ -31,40 +43,6 @@ struct LikedYouView: View {
         .clCanvasBackground()
         .navigationTitle("Liked You")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: CLSpacing.md) {
-            Image(systemName: "heart")
-                .font(.system(size: 40, weight: .regular))
-                .foregroundStyle(CLColor.inkMuted)
-                .accessibilityHidden(true)
-            Text("No pending requests")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            Text("When someone wants to connect, they’ll show up here.")
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkMuted)
-                .multilineTextAlignment(.center)
-        }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func errorState(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: CLSpacing.xs) {
-            Text(message)
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkSecondary)
-            Button("Retry") {
-                Task { await viewModel.load() }
-            }
-            .font(CLTypography.subheadline.weight(.medium))
-            .foregroundStyle(CLColor.primaryPressed)
-            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-        }
-        .padding(CLSpacing.md)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func grid(_ items: [ConnectRequestItem]) -> some View {
@@ -88,7 +66,7 @@ struct LikedYouView: View {
                     .accessibilityLabel("View profile of \(item.peer.displayNameWithAge)")
                 }
             }
-            .padding(.horizontal, CLSpacing.md)
+            .padding(.horizontal, CLSpacing.screenHorizontal)
             .padding(.vertical, CLSpacing.md)
         }
     }
@@ -123,21 +101,10 @@ private struct LikedYouGridCard: View {
                     .lineLimit(2)
                     .padding(CLSpacing.md)
             }
-            .overlay(alignment: .topTrailing) {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 32, height: 32)
-                    .background(.white.opacity(0.2))
-                    .clipShape(Circle())
-                    .padding(CLSpacing.sm)
-                    .accessibilityHidden(true)
-            }
             .clipShape(RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous)
                     .stroke(CLColor.hairline, lineWidth: 1)
             )
-            .shadow(color: CLShadow.cardColor, radius: CLShadow.cardRadius, x: 0, y: CLShadow.cardY)
     }
 }

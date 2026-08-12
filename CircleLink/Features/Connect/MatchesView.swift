@@ -16,9 +16,21 @@ struct MatchesView: View {
                     .foregroundStyle(CLColor.inkMuted)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .empty:
-                emptyState
+                CLEmptyState(
+                    systemImage: "link",
+                    title: "No matches yet",
+                    message: "Accept someone from Liked you, or connect from Discover."
+                )
             case let .error(message):
-                errorState(message)
+                CLEmptyState(
+                    systemImage: "exclamationmark.triangle",
+                    title: "Couldn’t load matches",
+                    message: message,
+                    actionTitle: "Retry",
+                    actionAccessibilityLabel: "Retry loading matches"
+                ) {
+                    Task { await viewModel.load() }
+                }
             case let .loaded(items):
                 list(items)
             }
@@ -26,40 +38,6 @@ struct MatchesView: View {
         .clCanvasBackground()
         .navigationTitle("Matches")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: CLSpacing.md) {
-            Image(systemName: "link")
-                .font(.system(size: 40, weight: .regular))
-                .foregroundStyle(CLColor.inkMuted)
-                .accessibilityHidden(true)
-            Text("No matches yet")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            Text("Accept someone from Liked you, or connect from Discover.")
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkMuted)
-                .multilineTextAlignment(.center)
-        }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func errorState(_ message: String) -> some View {
-        VStack(alignment: .leading, spacing: CLSpacing.xs) {
-            Text(message)
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkSecondary)
-            Button("Retry") {
-                Task { await viewModel.load() }
-            }
-            .font(CLTypography.subheadline.weight(.medium))
-            .foregroundStyle(CLColor.primaryPressed)
-            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-        }
-        .padding(CLSpacing.md)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func list(_ items: [MatchedConnectionItem]) -> some View {
@@ -84,7 +62,7 @@ struct MatchesView: View {
                     }
                 }
             }
-            .padding(.horizontal, CLSpacing.md)
+            .padding(.horizontal, CLSpacing.screenHorizontal)
             .padding(.vertical, CLSpacing.md)
         }
     }

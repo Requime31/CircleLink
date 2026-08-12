@@ -17,26 +17,25 @@ struct ConnectView: View {
                 .navigationTitle("Connect")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        HStack(spacing: CLSpacing.sm) {
-                            NavigationLink(value: ConnectDestination.likedYou) {
-                                toolbarLabel(
-                                    title: "Liked you",
-                                    systemImage: "heart",
-                                    badge: viewModel.incomingCount
-                                )
-                            }
-                            .accessibilityLabel(likedYouAccessibilityLabel)
-
-                            NavigationLink(value: ConnectDestination.matches) {
-                                toolbarLabel(
-                                    title: "Matches",
-                                    systemImage: "link",
-                                    badge: viewModel.matchedCount
-                                )
-                            }
-                            .accessibilityLabel(matchesAccessibilityLabel)
+                    // Separate items — one HStack of 44pt custom views breaks nav-bar vertical centering.
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        NavigationLink(value: ConnectDestination.likedYou) {
+                            toolbarLabel(
+                                title: "Liked you",
+                                systemImage: "heart",
+                                badge: viewModel.incomingCount
+                            )
                         }
+                        .accessibilityLabel(likedYouAccessibilityLabel)
+
+                        NavigationLink(value: ConnectDestination.matches) {
+                            toolbarLabel(
+                                title: "Matches",
+                                systemImage: "link",
+                                badge: viewModel.matchedCount
+                            )
+                        }
+                        .accessibilityLabel(matchesAccessibilityLabel)
                     }
                 }
                 .navigationDestination(for: ConnectDestination.self) { destination in
@@ -128,28 +127,23 @@ struct ConnectView: View {
     private var discoverContent: some View {
         VStack(spacing: 0) {
             if let actionErrorMessage = viewModel.actionErrorMessage {
-                Text(actionErrorMessage)
-                    .font(CLTypography.footnote)
-                    .foregroundStyle(CLColor.error)
-                    .padding(CLSpacing.sm)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(CLColor.errorSoft)
-                    .padding(.horizontal, CLSpacing.md)
-                    .padding(.top, CLSpacing.sm)
-                    .accessibilityLabel("Connect error: \(actionErrorMessage)")
+                CLStatusBanner(
+                    message: actionErrorMessage,
+                    style: .error,
+                    accessibilityPrefix: "Connect error"
+                )
+                .padding(.horizontal, CLSpacing.screenHorizontal)
+                .padding(.top, CLSpacing.sm)
             }
 
             if let moderationMessage = viewModel.moderationMessage {
-                Text(moderationMessage)
-                    .font(CLTypography.footnote)
-                    .foregroundStyle(CLColor.inkSecondary)
-                    .padding(CLSpacing.sm)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(CLColor.surfaceSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-                    .padding(.horizontal, CLSpacing.md)
-                    .padding(.top, CLSpacing.sm)
-                    .onTapGesture { viewModel.clearModerationFeedback() }
+                CLStatusBanner(
+                    message: moderationMessage,
+                    style: .info
+                )
+                .padding(.horizontal, CLSpacing.screenHorizontal)
+                .padding(.top, CLSpacing.sm)
+                .onTapGesture { viewModel.clearModerationFeedback() }
             }
 
             deckSection
@@ -157,11 +151,13 @@ struct ConnectView: View {
         }
     }
 
+    /// Compact visual for nav bar. Hit target comes from system toolbar item (≥44pt).
+    /// Do not force a 44×44 layout frame here — bar height is also ~44, so it pushes icons up.
     private func toolbarLabel(title: String, systemImage: String, badge: Int) -> some View {
         Image(systemName: systemImage)
             .font(.system(size: 17, weight: .medium))
             .foregroundStyle(CLColor.ink)
-            .frame(width: 36, height: 36)
+            .frame(width: 28, height: 28)
             .overlay(alignment: .topTrailing) {
                 if badge > 0 {
                     Text(badge > 99 ? "99+" : "\(badge)")
@@ -171,7 +167,7 @@ struct ConnectView: View {
                         .padding(.vertical, 1)
                         .background(CLColor.primary)
                         .clipShape(Capsule())
-                        .offset(x: 4, y: -2)
+                        .offset(x: 6, y: -4)
                         .accessibilityHidden(true)
                 }
             }
@@ -202,16 +198,21 @@ struct ConnectView: View {
                 .foregroundStyle(CLColor.inkMuted)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .empty:
-            deckEmpty(
+            CLEmptyState(
+                systemImage: "person.2",
                 title: "No one new here",
                 message: "Pull to refresh, or check back later."
             )
         case let .error(message):
-            sectionError(message) {
+            CLEmptyState(
+                systemImage: "exclamationmark.triangle",
+                title: "Couldn’t load people",
+                message: message,
+                actionTitle: "Retry",
+                actionAccessibilityLabel: "Retry loading section"
+            ) {
                 Task { await viewModel.load() }
             }
-            .padding(CLSpacing.md)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         case .loaded:
             if let top = viewModel.topCandidate {
                 ConnectDiscoverDeckView(
@@ -230,31 +231,13 @@ struct ConnectView: View {
                     }
                 )
             } else {
-                deckEmpty(
+                CLEmptyState(
+                    systemImage: "person.2",
                     title: "You’re all caught up",
                     message: "Pull to refresh for more people."
                 )
             }
         }
-    }
-
-    private func deckEmpty(title: String, message: String) -> some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "person.2")
-                .font(.system(size: 36, weight: .regular))
-                .foregroundStyle(CLColor.inkMuted)
-                .accessibilityHidden(true)
-            Text(title)
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-                .multilineTextAlignment(.center)
-            Text(message)
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkMuted)
-                .multilineTextAlignment(.center)
-        }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Presentation (Liked You + Matches only)
@@ -289,20 +272,6 @@ struct ConnectView: View {
             displayName: user.displayName,
             mode: .match
         )
-    }
-
-    private func sectionError(_ message: String, retry: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: CLSpacing.xs) {
-            Text(message)
-                .font(CLTypography.subheadline)
-                .foregroundStyle(CLColor.inkSecondary)
-                .accessibilityLabel("Error: \(message)")
-            Button("Retry", action: retry)
-                .font(CLTypography.subheadline.weight(.medium))
-                .foregroundStyle(CLColor.primaryPressed)
-                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-                .accessibilityLabel("Retry loading section")
-        }
     }
 }
 

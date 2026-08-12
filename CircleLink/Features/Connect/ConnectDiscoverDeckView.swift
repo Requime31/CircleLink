@@ -36,10 +36,8 @@ struct ConnectDiscoverDeckView: View {
 
                 profileDetails
             }
-            .padding(.horizontal, CLSpacing.md)
+            .padding(.horizontal, CLSpacing.screenHorizontal)
             .padding(.top, CLSpacing.sm)
-            // Keep profile sections clear of the floating Pass / Say Hi / Back bar.
-            .padding(.bottom, 120)
         }
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -99,11 +97,15 @@ struct ConnectDiscoverDeckView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(CLTypography.title)
+            .foregroundStyle(CLColor.ink)
+    }
+
     private func interestsSection(_ interests: [String]) -> some View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("Interests")
-                .font(CLTypography.title)
-                .foregroundStyle(CLColor.ink)
+            sectionHeader("Interests")
 
             FlowLayout(spacing: CLSpacing.sm) {
                 ForEach(interests, id: \.self) { interest in
@@ -121,10 +123,7 @@ struct ConnectDiscoverDeckView: View {
 
     private func aboutSection(_ aboutMe: String) -> some View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("About")
-                .font(CLTypography.caption)
-                .foregroundStyle(CLColor.inkMuted)
-                .textCase(.uppercase)
+            sectionHeader("About")
 
             Text(aboutMe.isEmpty ? "No bio yet." : aboutMe)
                 .font(CLTypography.callout)
@@ -144,9 +143,7 @@ struct ConnectDiscoverDeckView: View {
 
     private var communitiesSection: some View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("Communities")
-                .font(CLTypography.title)
-                .foregroundStyle(CLColor.ink)
+            sectionHeader("Communities")
 
             FlowLayout(spacing: CLSpacing.sm) {
                 ForEach(visibleCommunities) { community in
@@ -179,7 +176,7 @@ struct ConnectDiscoverDeckView: View {
         HStack(spacing: CLSpacing.lg) {
             deckCircleButton(
                 systemImage: "xmark",
-                title: "PASS",
+                title: "Pass",
                 isEmphasis: false,
                 size: 64
             ) {
@@ -189,7 +186,7 @@ struct ConnectDiscoverDeckView: View {
 
             deckCircleButton(
                 systemImage: "heart.fill",
-                title: "SAY HI",
+                title: "Say Hi",
                 isEmphasis: true,
                 size: 72
             ) {
@@ -201,7 +198,7 @@ struct ConnectDiscoverDeckView: View {
 
             deckCircleButton(
                 systemImage: "arrow.counterclockwise",
-                title: "BACK",
+                title: "Back",
                 isEmphasis: false,
                 size: 64
             ) {
@@ -242,14 +239,13 @@ struct ConnectDiscoverDeckView: View {
                     Circle()
                         .stroke(CLColor.hairline, lineWidth: isEmphasis ? 0 : 1)
                 )
-                .shadow(color: CLShadow.cardColor, radius: CLShadow.cardRadius, x: 0, y: CLShadow.cardY)
 
                 Text(title)
                     .font(CLTypography.caption)
                     .foregroundStyle(isEmphasis ? CLColor.primary : CLColor.inkSecondary)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DeckCircleButtonStyle())
     }
 
     // MARK: - Drag
@@ -305,6 +301,22 @@ struct ConnectDiscoverDeckView: View {
     }
 }
 
+// MARK: - Press dim (no lift)
+
+private struct DeckCircleButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed && isEnabled ? 0.92 : 1)
+            .animation(
+                reduceMotion ? .easeOut(duration: 0.15) : CLMotion.micro,
+                value: configuration.isPressed
+            )
+    }
+}
+
 // MARK: - Card
 
 private struct DiscoverCardView: View {
@@ -327,19 +339,10 @@ private struct DiscoverCardView: View {
                 )
             }
             .overlay(alignment: .bottomLeading) {
-                VStack(alignment: .leading, spacing: CLSpacing.xs) {
-                    Text(user.displayNameWithAge)
-                        .font(CLTypography.title)
-                        .foregroundStyle(.white)
-
-                    if !user.aboutMe.isEmpty {
-                        Text(user.aboutMe)
-                            .font(CLTypography.subheadline)
-                            .foregroundStyle(.white.opacity(0.92))
-                            .lineLimit(2)
-                    }
-                }
-                .padding(CLSpacing.lg)
+                Text(user.displayNameWithAge)
+                    .font(CLTypography.title)
+                    .foregroundStyle(.white)
+                    .padding(CLSpacing.lg)
             }
             .clipShape(RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous))
             .shadow(
