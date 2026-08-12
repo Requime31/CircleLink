@@ -13,10 +13,7 @@ struct CommunityDetailView: View {
         Group {
             switch viewModel.communityState {
             case .idle, .loading:
-                ProgressView("Loading community…")
-                    .tint(CLColor.primary)
-                    .foregroundStyle(CLColor.inkMuted)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                CLLoadingState(message: "Loading community…")
             case let .error(message):
                 errorState(message: message)
             case .empty:
@@ -47,7 +44,7 @@ struct CommunityDetailView: View {
                 aboutSection(community: community)
                 membersSection
             }
-            .padding(.horizontal, CLSpacing.md)
+            .padding(.horizontal, CLSpacing.screenHorizontal)
             .padding(.vertical, CLSpacing.lg)
             .clAppear()
         }
@@ -62,14 +59,11 @@ struct CommunityDetailView: View {
                 .foregroundStyle(CLColor.ink)
                 .accessibilityAddTraits(.isHeader)
 
-            Text(community.interestTag)
-                .font(CLTypography.caption)
-                .foregroundStyle(CLColor.ink)
-                .padding(.horizontal, CLSpacing.sm)
-                .padding(.vertical, CLSpacing.xxs)
-                .background(CLColor.primarySoft)
-                .clipShape(Capsule())
-                .accessibilityLabel("Interest: \(community.interestTag)")
+            CLChip(
+                title: community.interestTag,
+                isEmphasized: true,
+                accessibilityLabelText: "Interest: \(community.interestTag)"
+            )
 
             Text(memberCountLabel(for: community.memberCount))
                 .font(CLTypography.footnote)
@@ -216,26 +210,15 @@ struct CommunityDetailView: View {
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.error)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.errorSoft))
-                .accessibilityHidden(true)
-            Text(message)
-                .font(CLTypography.body)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(CLColor.inkSecondary)
-            Button("Retry") {
-                Task { await viewModel.load() }
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .padding(.top, CLSpacing.xs)
-            .accessibilityLabel("Retry loading community")
+        CLEmptyState(
+            systemImage: "exclamationmark.triangle",
+            title: message,
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading community",
+            titleAccessibilityLabel: "Error: \(message)"
+        ) {
+            Task { await viewModel.load() }
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder

@@ -30,7 +30,8 @@ struct ProfileEditView: View {
                         .accessibilityLabel("Error: \(message)")
                 }
             }
-            .padding(CLSpacing.lg)
+            .padding(.horizontal, CLSpacing.screenHorizontal)
+            .padding(.vertical, CLSpacing.lg)
             .clAppear()
         }
         .clCanvasBackground()

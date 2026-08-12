@@ -12,10 +12,7 @@ struct PeerProfileView: View {
         Group {
             switch viewModel.state {
             case .idle, .loading:
-                ProgressView("Loading profile…")
-                    .tint(CLColor.primary)
-                    .foregroundStyle(CLColor.inkMuted)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                CLLoadingState(message: "Loading profile…")
             case .empty:
                 emptyState
             case let .error(message):
@@ -115,13 +112,7 @@ struct PeerProfileView: View {
 
             FlowLayout(spacing: CLSpacing.sm) {
                 ForEach(interests, id: \.self) { interest in
-                    Text(interest)
-                        .font(CLTypography.footnote)
-                        .foregroundStyle(CLColor.inkSecondary)
-                        .padding(.horizontal, CLSpacing.md)
-                        .padding(.vertical, CLSpacing.xs)
-                        .background(CLColor.surfaceSoft)
-                        .clipShape(Capsule(style: .continuous))
+                    CLChip(title: interest)
                 }
             }
         }
@@ -159,24 +150,15 @@ struct PeerProfileView: View {
 
             FlowLayout(spacing: CLSpacing.sm) {
                 ForEach(viewModel.visibleCommunities) { community in
-                    Text(community.name)
-                        .font(CLTypography.footnote)
-                        .foregroundStyle(CLColor.inkSecondary)
-                        .padding(.horizontal, CLSpacing.md)
-                        .padding(.vertical, CLSpacing.xs)
-                        .background(CLColor.surfaceSoft)
-                        .clipShape(Capsule(style: .continuous))
+                    CLChip(title: community.name)
                 }
 
                 if viewModel.overflowCommunityCount > 0 {
-                    Text("+\(viewModel.overflowCommunityCount)")
-                        .font(CLTypography.footnote.weight(.semibold))
-                        .foregroundStyle(CLColor.primaryPressed)
-                        .padding(.horizontal, CLSpacing.md)
-                        .padding(.vertical, CLSpacing.xs)
-                        .background(CLColor.primarySoft)
-                        .clipShape(Capsule(style: .continuous))
-                        .accessibilityLabel("\(viewModel.overflowCommunityCount) more communities")
+                    CLChip(
+                        title: "+\(viewModel.overflowCommunityCount)",
+                        isEmphasized: true,
+                        accessibilityLabelText: "\(viewModel.overflowCommunityCount) more communities"
+                    )
                 }
             }
         }
@@ -334,33 +316,24 @@ struct PeerProfileView: View {
     // MARK: - Empty / error
 
     private var emptyState: some View {
-        VStack(spacing: CLSpacing.sm) {
-            Text("Profile not found")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            if let onClose {
-                Button("Close", action: onClose)
-                    .buttonStyle(CLSecondaryButtonStyle())
-            } else {
-                Button("Retry") {
-                    Task { await viewModel.load() }
-                }
-                .buttonStyle(CLSecondaryButtonStyle())
-            }
-        }
+        CLEmptyState(
+            systemImage: "person.crop.circle.badge.exclamationmark",
+            title: "Profile not found",
+            actionTitle: onClose != nil ? "Close" : "Retry",
+            actionAccessibilityLabel: onClose != nil ? "Close profile" : "Retry loading profile",
+            action: onClose ?? { Task { await viewModel.load() } }
+        )
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: CLSpacing.sm) {
-            Text(message)
-                .font(CLTypography.body)
-                .foregroundStyle(CLColor.inkSecondary)
-                .multilineTextAlignment(.center)
-            Button("Retry") {
-                Task { await viewModel.load() }
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
+        CLEmptyState(
+            systemImage: "exclamationmark.triangle",
+            title: message,
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading profile",
+            titleAccessibilityLabel: "Error: \(message)"
+        ) {
+            Task { await viewModel.load() }
         }
-        .padding(CLSpacing.lg)
     }
 }

@@ -5,6 +5,13 @@ struct ProfileFormFields: View {
     @ObservedObject var viewModel: ProfileViewModel
 
     @State private var selectedPhotoItem: PhotosPickerItem?
+    @FocusState private var focusedField: Field?
+
+    private enum Field: Hashable {
+        case displayName
+        case age
+        case aboutMe
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: CLSpacing.lg) {
@@ -89,7 +96,8 @@ struct ProfileFormFields: View {
                 .textContentType(.name)
                 .autocorrectionDisabled()
                 .foregroundStyle(CLColor.ink)
-                .clTextFieldChrome()
+                .focused($focusedField, equals: .displayName)
+                .clTextFieldChrome(isFocused: focusedField == .displayName)
                 .accessibilityLabel("Display name")
         }
     }
@@ -103,7 +111,8 @@ struct ProfileFormFields: View {
             TextField("e.g. 28", text: $viewModel.ageText)
                 .keyboardType(.numberPad)
                 .foregroundStyle(CLColor.ink)
-                .clTextFieldChrome()
+                .focused($focusedField, equals: .age)
+                .clTextFieldChrome(isFocused: focusedField == .age)
                 .accessibilityLabel("Age")
         }
     }
@@ -117,7 +126,8 @@ struct ProfileFormFields: View {
             TextField("A short intro…", text: $viewModel.aboutMe, axis: .vertical)
                 .lineLimit(3...6)
                 .foregroundStyle(CLColor.ink)
-                .clTextFieldChrome()
+                .focused($focusedField, equals: .aboutMe)
+                .clTextFieldChrome(isFocused: focusedField == .aboutMe)
                 .accessibilityLabel("About me")
         }
     }
@@ -135,50 +145,22 @@ struct ProfileFormFields: View {
 
             FlowLayout(spacing: CLSpacing.xs) {
                 ForEach(ProfileInterests.presets, id: \.self) { interest in
-                    InterestTagButton(
+                    let isSelected = viewModel.selectedInterests.contains(interest)
+                    let isDisabled = !isSelected && viewModel.selectedInterests.count >= User.maxInterests
+                    CLChip(
                         title: interest,
-                        isSelected: viewModel.selectedInterests.contains(interest),
-                        isDisabled: !viewModel.selectedInterests.contains(interest)
-                            && viewModel.selectedInterests.count >= User.maxInterests
+                        isSelected: isSelected,
+                        isDisabled: isDisabled,
+                        accessibilityLabelText: "\(interest) interest",
+                        accessibilityHintText: isDisabled
+                            ? "Maximum interests selected"
+                            : "Double tap to toggle"
                     ) {
                         viewModel.toggleInterest(interest)
                     }
                 }
             }
         }
-    }
-}
-
-private struct InterestTagButton: View {
-    let title: String
-    let isSelected: Bool
-    let isDisabled: Bool
-    let action: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(CLTypography.subheadline)
-                .foregroundStyle(isSelected ? CLColor.ink : CLColor.inkSecondary)
-                .padding(.horizontal, CLSpacing.sm)
-                .padding(.vertical, CLSpacing.xs)
-                .frame(
-                    minWidth: AccessibilityHelpers.minimumTouchTarget,
-                    minHeight: AccessibilityHelpers.minimumTouchTarget
-                )
-                .background(isSelected ? CLColor.primarySoft : CLColor.surfaceSoft)
-                .clipShape(Capsule(style: .continuous))
-                .scaleEffect(isSelected && !reduceMotion ? 1.02 : 1)
-        }
-        .buttonStyle(.plain)
-        .disabled(isDisabled)
-        .opacity(isDisabled && !isSelected ? 0.45 : 1)
-        .clSoftSpring(value: isSelected)
-        .accessibilityLabel("\(title) interest")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityHint(isDisabled ? "Maximum interests selected" : "Double tap to toggle")
     }
 }
 

@@ -193,10 +193,7 @@ struct ConnectView: View {
     private var deckSection: some View {
         switch viewModel.candidatesState {
         case .idle, .loading:
-            ProgressView("Loading people…")
-                .tint(CLColor.primary)
-                .foregroundStyle(CLColor.inkMuted)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            CLLoadingState(message: "Loading people…")
         case .empty:
             CLEmptyState(
                 systemImage: "person.2",

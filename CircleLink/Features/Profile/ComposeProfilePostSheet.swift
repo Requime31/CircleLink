@@ -68,7 +68,7 @@ struct ComposeProfilePostSheet: View {
                     .foregroundStyle(CLColor.ink)
                     .lineLimit(4 ... 12)
                     .focused($isTextFocused)
-                    .clTextFieldChrome()
+                    .clTextFieldChrome(isFocused: isTextFocused)
                     .accessibilityLabel("Post text")
 
                     photoSection

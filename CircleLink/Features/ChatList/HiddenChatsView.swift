@@ -89,35 +89,21 @@ struct HiddenChatsView: View {
         .clAppear()
     }
 
+    @ViewBuilder
     private var emptyState: some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "eye.slash")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.inkMuted)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.surfaceSoft))
-                .accessibilityHidden(true)
-
-            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("No hidden chats")
-                    .font(CLTypography.title2)
-                    .foregroundStyle(CLColor.ink)
-                Text("Chats you hide show up here.")
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkSecondary)
-                    .multilineTextAlignment(.center)
-            } else {
-                Text("No chats found")
-                    .font(CLTypography.title2)
-                    .foregroundStyle(CLColor.ink)
-                Text("Try a different name or message.")
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkSecondary)
-                    .multilineTextAlignment(.center)
-            }
+        if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            CLEmptyState(
+                systemImage: "eye.slash",
+                title: "No hidden chats",
+                message: "Chats you hide show up here."
+            )
+        } else {
+            CLEmptyState(
+                systemImage: "magnifyingglass",
+                title: "No chats found",
+                message: "Try a different name or message."
+            )
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func openThread(_ chat: ChatSummary) {

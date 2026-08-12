@@ -16,10 +16,7 @@ struct ChatListView: View {
             Group {
                 switch viewModel.state {
                 case .idle, .loading:
-                    ProgressView("Loading chats…")
-                        .tint(CLColor.primary)
-                        .foregroundStyle(CLColor.inkMuted)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    CLLoadingState(message: "Loading chats…")
                 case .empty:
                     emptyState
                 case let .error(message):

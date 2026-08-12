@@ -11,10 +11,7 @@ struct MatchesView: View {
         Group {
             switch viewModel.matchedState {
             case .idle, .loading:
-                ProgressView("Loading matches…")
-                    .tint(CLColor.primary)
-                    .foregroundStyle(CLColor.inkMuted)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                CLLoadingState(message: "Loading matches…")
             case .empty:
                 CLEmptyState(
                     systemImage: "link",

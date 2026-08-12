@@ -179,30 +179,47 @@ struct CLEmphasisButtonStyle: ButtonStyle {
 
 /// Surface + hairline border.
 struct CLSecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(CLTypography.button)
-            .foregroundStyle(CLColor.ink)
+            .foregroundStyle(isEnabled ? CLColor.ink : CLColor.inkDisabled)
             .frame(maxWidth: .infinity)
             .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-            .background(configuration.isPressed ? CLColor.surfaceSoft : CLColor.surface)
+            .background(background(configuration.isPressed))
             .overlay(
                 RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
-                    .stroke(CLColor.hairlineStrong, lineWidth: 1)
+                    .stroke(isEnabled ? CLColor.hairlineStrong : CLColor.hairline, lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
             .animation(reduceMotion ? .easeOut(duration: 0.15) : nil, value: configuration.isPressed)
+    }
+
+    private func background(_ pressed: Bool) -> Color {
+        guard isEnabled else { return CLColor.surfaceSoft }
+        return pressed ? CLColor.surfaceSoft : CLColor.surface
     }
 }
 
 // MARK: - Chip
 
+/// Capsule filter / interest / tag.
+/// - Interactive selection: `isSelected` → `accentSoft` + `primary` text + `.isSelected`
+/// - Display accent (tags): `isEmphasized` → same colors, no selected trait
 struct CLChip: View {
     let title: String
     var isSelected: Bool = false
+    /// Visual accent without VoiceOver “selected” (read-only tags).
+    var isEmphasized: Bool = false
+    var isDisabled: Bool = false
+    var accessibilityLabelText: String? = nil
+    var accessibilityHintText: String? = nil
     var action: (() -> Void)? = nil
+
+    private var showsAccent: Bool { isSelected || isEmphasized }
+    private var isInteractive: Bool { action != nil }
 
     var body: some View {
         Group {
@@ -213,18 +230,54 @@ struct CLChip: View {
                 label
             }
         }
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .disabled(isDisabled)
+        .opacity(isDisabled && !showsAccent ? 0.45 : 1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabelText ?? title)
+        .accessibilityAddTraits(combinedTraits)
+        .modifier(CLOptionalAccessibilityHint(hint: accessibilityHintText))
+        .accessibilityRespondsToUserInteraction(isInteractive && !isDisabled)
+    }
+
+    private var combinedTraits: AccessibilityTraits {
+        switch (isInteractive, isSelected) {
+        case (true, true):
+            return [.isButton, .isSelected]
+        case (true, false):
+            return .isButton
+        case (false, true):
+            return .isSelected
+        case (false, false):
+            return []
+        }
     }
 
     private var label: some View {
         Text(title)
             .font(CLTypography.footnote)
-            .foregroundStyle(isSelected ? CLColor.primary : CLColor.inkSecondary)
+            .foregroundStyle(showsAccent ? CLColor.primary : CLColor.inkSecondary)
             .padding(.horizontal, CLSpacing.sm)
             .padding(.vertical, CLSpacing.xs)
-            .background(isSelected ? CLColor.primarySoft : CLColor.surfaceSoft)
+            .frame(
+                minWidth: isInteractive ? AccessibilityHelpers.minimumTouchTarget : nil,
+                minHeight: isInteractive ? AccessibilityHelpers.minimumTouchTarget : nil
+            )
+            .background(showsAccent ? CLColor.accentSoft : CLColor.surfaceSoft)
             .clipShape(Capsule())
-            .clSoftSpring(value: isSelected)
+            .clSoftSpring(value: showsAccent)
+    }
+}
+
+/// Applies VoiceOver hint only when non-nil / non-empty.
+private struct CLOptionalAccessibilityHint: ViewModifier {
+    let hint: String?
+
+    func body(content: Content) -> some View {
+        if let hint, !hint.isEmpty {
+            content.accessibilityHint(hint)
+        } else {
+            content
+        }
     }
 }
 
@@ -236,14 +289,14 @@ extension View {
         background(CLColor.canvas.ignoresSafeArea())
     }
 
-    /// Soft input chrome: surface, hairline, radiusMd.
-    func clTextFieldChrome() -> some View {
+    /// Soft input chrome: surface, hairline → `primary` when focused, radiusMd.
+    func clTextFieldChrome(isFocused: Bool = false) -> some View {
         padding(CLSpacing.sm)
             .background(CLColor.surface)
             .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
-                    .stroke(CLColor.hairline, lineWidth: 1)
+                    .stroke(isFocused ? CLColor.primary : CLColor.hairline, lineWidth: 1)
             )
     }
 

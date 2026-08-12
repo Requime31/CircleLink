@@ -14,9 +14,9 @@ struct CLEmptyState: View {
     var body: some View {
         VStack(spacing: CLSpacing.md) {
             Image(systemName: systemImage)
-                .font(.system(size: 44, weight: .regular))
+                .font(.title.weight(.regular))
                 .foregroundStyle(CLColor.inkMuted)
-                .frame(width: 72, height: 72)
+                .padding(CLSpacing.md)
                 .background(CLColor.surfaceSoft)
                 .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
                 .accessibilityHidden(true)
@@ -44,5 +44,24 @@ struct CLEmptyState: View {
         }
         .padding(CLSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// Calm full-screen loading — one shared pattern for list / hub screens.
+struct CLLoadingState: View {
+    var message: String? = nil
+
+    var body: some View {
+        Group {
+            if let message {
+                ProgressView(message)
+            } else {
+                ProgressView()
+            }
+        }
+        .tint(CLColor.primary)
+        .foregroundStyle(CLColor.inkMuted)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityLabel(message ?? "Loading")
     }
 }

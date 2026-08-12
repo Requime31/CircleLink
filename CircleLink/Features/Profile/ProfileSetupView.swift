@@ -27,14 +27,14 @@ struct ProfileSetupView: View {
                             .accessibilityLabel("Error: \(message)")
                     }
                 }
-                .padding(.horizontal, CLSpacing.lg)
+                .padding(.horizontal, CLSpacing.screenHorizontal)
                 .padding(.top, CLSpacing.lg)
                 .padding(.bottom, CLSpacing.md)
                 .clAppear()
             }
 
             saveButton
-                .padding(.horizontal, CLSpacing.lg)
+                .padding(.horizontal, CLSpacing.screenHorizontal)
                 .padding(.top, CLSpacing.sm)
                 .padding(.bottom, CLSpacing.md)
                 .background(CLColor.canvas.ignoresSafeArea(edges: .bottom))

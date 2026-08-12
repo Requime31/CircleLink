@@ -109,13 +109,7 @@ struct ConnectDiscoverDeckView: View {
 
             FlowLayout(spacing: CLSpacing.sm) {
                 ForEach(interests, id: \.self) { interest in
-                    Text(interest)
-                        .font(CLTypography.footnote)
-                        .foregroundStyle(CLColor.inkSecondary)
-                        .padding(.horizontal, CLSpacing.md)
-                        .padding(.vertical, CLSpacing.xs)
-                        .background(CLColor.surfaceSoft)
-                        .clipShape(Capsule(style: .continuous))
+                    CLChip(title: interest)
                 }
             }
         }
@@ -147,24 +141,15 @@ struct ConnectDiscoverDeckView: View {
 
             FlowLayout(spacing: CLSpacing.sm) {
                 ForEach(visibleCommunities) { community in
-                    Text(community.name)
-                        .font(CLTypography.footnote)
-                        .foregroundStyle(CLColor.inkSecondary)
-                        .padding(.horizontal, CLSpacing.md)
-                        .padding(.vertical, CLSpacing.xs)
-                        .background(CLColor.surfaceSoft)
-                        .clipShape(Capsule(style: .continuous))
+                    CLChip(title: community.name)
                 }
 
                 if overflowCommunityCount > 0 {
-                    Text("+\(overflowCommunityCount)")
-                        .font(CLTypography.footnote.weight(.semibold))
-                        .foregroundStyle(CLColor.primaryPressed)
-                        .padding(.horizontal, CLSpacing.md)
-                        .padding(.vertical, CLSpacing.xs)
-                        .background(CLColor.primarySoft)
-                        .clipShape(Capsule(style: .continuous))
-                        .accessibilityLabel("\(overflowCommunityCount) more communities")
+                    CLChip(
+                        title: "+\(overflowCommunityCount)",
+                        isEmphasized: true,
+                        accessibilityLabelText: "\(overflowCommunityCount) more communities"
+                    )
                 }
             }
         }

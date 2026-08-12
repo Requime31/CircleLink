@@ -3,6 +3,12 @@ import SwiftUI
 struct AuthView: View {
     @ObservedObject var viewModel: AuthViewModel
     @State private var showEmailForm = false
+    @FocusState private var focusedField: AuthField?
+
+    private enum AuthField: Hashable {
+        case email
+        case password
+    }
 
     var body: some View {
         ZStack {
@@ -165,13 +171,15 @@ struct AuthView: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .foregroundStyle(CLColor.ink)
-                .clTextFieldChrome()
+                .focused($focusedField, equals: .email)
+                .clTextFieldChrome(isFocused: focusedField == .email)
                 .accessibilityLabel("Email")
 
             SecureField("Password", text: $viewModel.password)
                 .textContentType(.password)
                 .foregroundStyle(CLColor.ink)
-                .clTextFieldChrome()
+                .focused($focusedField, equals: .password)
+                .clTextFieldChrome(isFocused: focusedField == .password)
                 .accessibilityLabel("Password")
 
             Button {

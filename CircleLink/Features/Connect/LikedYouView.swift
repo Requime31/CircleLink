@@ -16,10 +16,7 @@ struct LikedYouView: View {
         Group {
             switch viewModel.incomingState {
             case .idle, .loading:
-                ProgressView("Loading requests…")
-                    .tint(CLColor.primary)
-                    .foregroundStyle(CLColor.inkMuted)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                CLLoadingState(message: "Loading requests…")
             case .empty:
                 CLEmptyState(
                     systemImage: "heart",

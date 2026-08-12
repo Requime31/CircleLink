@@ -17,10 +17,7 @@ struct ProfileView: View {
             Group {
                 switch viewModel.state {
                 case .idle, .loading:
-                    ProgressView("Loading profile…")
-                        .tint(CLColor.primary)
-                        .foregroundStyle(CLColor.inkMuted)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    CLLoadingState(message: "Loading profile…")
                 case .empty:
                     emptyState
                 case let .error(message):
@@ -72,7 +69,7 @@ struct ProfileView: View {
 
                     accountSection
                 }
-                .padding(.horizontal, CLSpacing.md)
+                .padding(.horizontal, CLSpacing.screenHorizontal)
                 .padding(.top, CLSpacing.lg)
                 .padding(.bottom, CLSpacing.xxl)
             }
@@ -128,7 +125,7 @@ struct ProfileView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, CLSpacing.lg)
+        .padding(.horizontal, CLSpacing.screenHorizontal)
         .padding(.top, CLSpacing.xl)
         .padding(.bottom, CLSpacing.md)
     }
@@ -336,17 +333,7 @@ struct ProfileView: View {
         } else {
             FlowLayout(spacing: CLSpacing.xs) {
                 ForEach(interests, id: \.self) { interest in
-                    Text(interest)
-                        .font(CLTypography.caption)
-                        .foregroundStyle(CLColor.inkSecondary)
-                        .padding(.horizontal, CLSpacing.sm)
-                        .padding(.vertical, CLSpacing.xxs)
-                        .background(CLColor.surfaceSoft)
-                        .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
-                                .stroke(CLColor.hairline, lineWidth: 1)
-                        )
+                    CLChip(title: interest)
                 }
             }
         }
@@ -438,46 +425,25 @@ struct ProfileView: View {
     // MARK: - Empty / error
 
     private var emptyState: some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "person.crop.circle.badge.exclamationmark")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.inkMuted)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.primarySoft))
-                .accessibilityHidden(true)
-            Text("Profile not found")
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.ink)
-            Button("Retry") {
-                Task { await viewModel.loadProfile() }
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .padding(.top, CLSpacing.xs)
-            .accessibilityLabel("Retry loading profile")
+        CLEmptyState(
+            systemImage: "person.crop.circle.badge.exclamationmark",
+            title: "Profile not found",
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading profile"
+        ) {
+            Task { await viewModel.loadProfile() }
         }
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: CLSpacing.sm) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(CLColor.error)
-                .padding(CLSpacing.md)
-                .background(Circle().fill(CLColor.errorSoft))
-                .accessibilityHidden(true)
-            Text(message)
-                .font(CLTypography.body)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(CLColor.inkSecondary)
-                .accessibilityLabel("Error: \(message)")
-            Button("Retry") {
-                Task { await viewModel.loadProfile() }
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .padding(.top, CLSpacing.xs)
-            .accessibilityLabel("Retry loading profile")
+        CLEmptyState(
+            systemImage: "exclamationmark.triangle",
+            title: message,
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading profile",
+            titleAccessibilityLabel: "Error: \(message)"
+        ) {
+            Task { await viewModel.loadProfile() }
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
