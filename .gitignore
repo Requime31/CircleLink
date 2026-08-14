@@ -50,8 +50,10 @@ functions/lib/
 .AppleDouble
 .LSOverride
 
-# Cursor / IDE
-.cursor/
+# Cursor / IDE — keep local junk out of git; commit project skills
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**
 
 # Fastlane
 fastlane/report.xml
