@@ -115,6 +115,7 @@ More detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 | Doc | For |
 |---|---|
+| [AGENTS.md](AGENTS.md) | Short entry for agents and juniors (checklist + where to read) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, realtime, push, rules |
 | [websocket-server/README.md](websocket-server/README.md) | FCM push worker |
 | [CircleLink/App/FIREBASE_SETUP.md](CircleLink/App/FIREBASE_SETUP.md) | Firebase Auth / Firestore / FCM |

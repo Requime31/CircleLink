@@ -78,13 +78,15 @@ Community documents path: `communities/{communityId}`
 
 Fields:
 
-- `name`, `description`, `interestTag`, `memberCount`
+- `name`, `description`, `interestTag`, `memberCount`, `createdBy`
 
 Member documents path: `communities/{communityId}/members/{userId}`
 
 Fields:
 
 - `joinedAt`, `role` (`member` | `admin`)
+
+Signed-in users create a community in the app (`CreateCommunitySheet`). The creator is stored as `createdBy` and joined as `admin` in the same batch write.
 
 `join` / `leave` update the member subcollection and increment/decrement `memberCount` atomically via batch write.
 
@@ -109,10 +111,8 @@ Rules summary:
 | Path | Who | Action |
 |------|-----|--------|
 | `users/{userId}` | signed-in user | read any profile; write own profile |
-| `communities/{id}` | signed-in user | read list/detail; update `memberCount` only |
+| `communities/{id}` | signed-in user | read list/detail; **create** (`createdBy` = self, `memberCount` == 1); update `memberCount` only |
 | `communities/{id}/members/{userId}` | signed-in user | read members; create/delete **own** membership |
-
-Communities are seeded manually in Console (no client-side create in MVP).
 
 ## 6. Verify
 

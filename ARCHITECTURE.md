@@ -40,6 +40,9 @@ View → ViewModel → Repository protocol ← Data implementation
 5. **Domain stays pure** — Domain imports only `Foundation` (no Firebase, UIKit, SwiftUI)
 6. **Single source of truth for messages** — Firestore documents only (no hybrid WebSocket + Firestore delivery for the same messages)
 7. **Every listener has a matching remove** — `addSnapshotListener` registration is removed when the `AsyncStream` terminates
+8. **No UseCase layer** — ViewModel calls the repository protocol directly
+9. **Firebase Spark only** — do not deploy `functions/` or require Blaze; FCM goes through `websocket-server/`
+10. **UI follows DESIGN.md** — read it before any visual work; do not invent colors, spacing, or components
 
 ## Real-Time Model
 
