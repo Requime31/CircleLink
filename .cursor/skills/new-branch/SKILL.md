@@ -25,6 +25,8 @@ git checkout -b feature/<short-name>
 
 Then implement only that concern.
 
+If the work changes a rule, folder, or setup fact, update docs **in the same branch** — see `AGENTS.md` → Keep current.
+
 ## Do not
 
 - commit secrets (`GoogleService-Info.plist`, `SupabaseSecrets.plist`, `.env`)

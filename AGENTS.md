@@ -2,7 +2,24 @@
 
 iOS community messenger (iOS 16+). SwiftUI screens + UIKit chat. Firebase Auth / Firestore. Chat images on Supabase Storage. Spark plan — no Cloud Functions.
 
-This file is a **short checklist**. Canonical explanations live in the docs below. Change a rule in `ARCHITECTURE.md` first, then the matching line here.
+This file is a **short checklist**. Canonical explanations live in the docs below.
+
+## Keep current (same PR as the code)
+
+Wiki dies if you update it “later”. If the diff changes a rule, folder, or setup fact, update docs **in that PR**.
+
+| What you changed | Update |
+|---|---|
+| Layer, folder, realtime, DI, a numbered rule | `ARCHITECTURE.md` first, then the matching **one line** in Do not |
+| Color, spacing, UI component | `DESIGN.md` only — do not grow this checklist |
+| How to run / install | `README.md` |
+| Auth, Firestore, FCM, Spark | `FIREBASE_SETUP.md` |
+| Chat image bucket / policies | `SUPABASE_SETUP.md` |
+| `firebase deploy` / test command | the skill in `.cursor/skills/` — not this file |
+
+**Do not:** add a new Do not item unless it is a real new invariant. Do not copy Architecture into this file. Do not keep a second wiki in Notion.
+
+Quick check before merge: read the 10 Do not lines. If any line is now false, fix Architecture + this file before merging.
 
 ## Must read
 
