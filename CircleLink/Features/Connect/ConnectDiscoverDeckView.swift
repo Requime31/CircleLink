@@ -46,8 +46,7 @@ struct ConnectDiscoverDeckView: View {
         .onChange(of: top.id) { _ in
             exitTask?.cancel()
             exitTask = nil
-            dragOffsetX = 0
-            isExiting = false
+            resetDragWithoutAnimation()
         }
         .onDisappear {
             exitTask?.cancel()
@@ -59,6 +58,7 @@ struct ConnectDiscoverDeckView: View {
 
     private var heroCard: some View {
         DiscoverCardView(user: top)
+            .id(top.id)
             .offset(x: dragOffsetX)
             .rotationEffect(.degrees(Double(dragOffsetX / 24)))
             .modifier(HorizontalDragModifier(
@@ -66,7 +66,11 @@ struct ConnectDiscoverDeckView: View {
                 onChanged: { translation in
                     // Horizontal-only: ignore vertical-dominant moves so ScrollView can scroll.
                     guard abs(translation.width) >= abs(translation.height) else { return }
-                    dragOffsetX = translation.width
+                    // Follow the finger with no animation — interrupting snap-back
+                    // would recreate the "Invalid sample AnimatablePair" crash.
+                    withoutAnimation {
+                        dragOffsetX = translation.width
+                    }
                 },
                 onEnded: { translation in
                     handleDragEnded(translation)
@@ -167,6 +171,7 @@ struct ConnectDiscoverDeckView: View {
             ) {
                 animateExit(direction: -1, then: onPass)
             }
+            .disabled(isExiting)
             .accessibilityLabel("Pass \(top.displayName)")
 
             deckCircleButton(
@@ -178,7 +183,7 @@ struct ConnectDiscoverDeckView: View {
                 guard !isSendingConnect else { return }
                 animateExit(direction: 1, then: onSayHi)
             }
-            .disabled(isSendingConnect)
+            .disabled(isSendingConnect || isExiting)
             .accessibilityLabel("Say Hi to \(top.displayName)")
 
             deckCircleButton(
@@ -190,7 +195,7 @@ struct ConnectDiscoverDeckView: View {
                 onUndo()
             }
             .opacity(canUndo ? 1 : 0.35)
-            .disabled(!canUndo)
+            .disabled(!canUndo || isExiting)
             .accessibilityLabel("Undo last pass")
         }
         .padding(.vertical, CLSpacing.md)
@@ -242,9 +247,7 @@ struct ConnectDiscoverDeckView: View {
 
         // Vertical-dominant → treat as scroll, snap card back.
         guard abs(dx) >= abs(dy) else {
-            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : CLMotion.soft) {
-                dragOffsetX = 0
-            }
+            snapCardBack()
             return
         }
 
@@ -252,16 +255,19 @@ struct ConnectDiscoverDeckView: View {
             animateExit(direction: -1, then: onPass)
         } else if dx >= swipeThreshold {
             guard !isSendingConnect else {
-                withAnimation(reduceMotion ? .easeOut(duration: 0.15) : CLMotion.soft) {
-                    dragOffsetX = 0
-                }
+                snapCardBack()
                 return
             }
             animateExit(direction: 1, then: onSayHi)
         } else {
-            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : CLMotion.soft) {
-                dragOffsetX = 0
-            }
+            snapCardBack()
+        }
+    }
+
+    private func snapCardBack() {
+        // Timed easeOut — never a spring on offset+rotation (same AnimatablePair crash).
+        withAnimation(.easeOut(duration: 0.15)) {
+            dragOffsetX = 0
         }
     }
 
@@ -270,19 +276,35 @@ struct ConnectDiscoverDeckView: View {
         isExiting = true
         exitTask?.cancel()
         let travel = direction * 480
-        withAnimation(reduceMotion ? .easeOut(duration: 0.18) : CLMotion.softLarge) {
+        let duration: Double = reduceMotion ? 0.18 : 0.28
+        // Drop any in-flight snap-back first, then start a new timed animation.
+        withoutAnimation {
+            dragOffsetX = dragOffsetX
+        }
+        withAnimation(.easeOut(duration: duration)) {
             dragOffsetX = travel
         }
-        let delayNanos: UInt64 = reduceMotion ? 180_000_000 : 280_000_000
         exitTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: delayNanos)
+            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
             guard !Task.isCancelled else { return }
-            // Reset drag first, then swap candidate — avoids blank flash.
-            dragOffsetX = 0
-            isExiting = false
+            resetDragWithoutAnimation()
             exitTask = nil
             action()
         }
+    }
+
+    /// Offset + rotation are one AnimatablePair. Instant resets must not animate.
+    private func resetDragWithoutAnimation() {
+        withoutAnimation {
+            dragOffsetX = 0
+            isExiting = false
+        }
+    }
+
+    private func withoutAnimation(_ updates: () -> Void) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction, updates)
     }
 }
 

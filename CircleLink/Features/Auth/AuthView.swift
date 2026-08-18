@@ -4,6 +4,7 @@ struct AuthView: View {
     @ObservedObject var viewModel: AuthViewModel
     @State private var showEmailForm = false
     @FocusState private var focusedField: AuthField?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum AuthField: Hashable {
         case email
@@ -86,6 +87,11 @@ struct AuthView: View {
 
     private var headerCopy: some View {
         VStack(spacing: CLSpacing.xs) {
+            Text("CircleLink")
+                .font(CLTypography.display)
+                .foregroundStyle(CLColor.primaryPressed)
+                .multilineTextAlignment(.center)
+
             Text("Find your circle.")
                 .font(CLTypography.largeTitle)
                 .foregroundStyle(CLColor.ink)
@@ -106,12 +112,10 @@ struct AuthView: View {
 
             if showEmailForm {
                 emailFields
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(emailFormTransition)
             } else {
                 Button {
-                    withAnimation(CLMotion.soft) {
-                        showEmailForm = true
-                    }
+                    setEmailFormVisible(true)
                 } label: {
                     Text("Continue with Email")
                 }
@@ -119,9 +123,7 @@ struct AuthView: View {
                 .accessibilityLabel("Continue with email")
 
                 Button {
-                    withAnimation(CLMotion.soft) {
-                        showEmailForm = true
-                    }
+                    setEmailFormVisible(true)
                 } label: {
                     (
                         Text("Already have an account? ")
@@ -133,6 +135,7 @@ struct AuthView: View {
                     .font(CLTypography.footnote)
                 }
                 .buttonStyle(.plain)
+                .accessibilityMinTouchTarget()
                 .padding(.top, CLSpacing.xxs)
                 .accessibilityLabel("Log in with email")
             }
@@ -187,7 +190,7 @@ struct AuthView: View {
             } label: {
                 Text("Sign In with Email")
             }
-            .buttonStyle(CLEmphasisButtonStyle())
+            .buttonStyle(CLPrimaryButtonStyle())
             .disabled(isBusy)
             .accessibilityLabel("Sign in with email and password")
 
@@ -201,15 +204,14 @@ struct AuthView: View {
             .accessibilityLabel("Create account with email and password")
 
             Button {
-                withAnimation(CLMotion.soft) {
-                    showEmailForm = false
-                }
+                setEmailFormVisible(false)
             } label: {
                 Text("Back")
                     .font(CLTypography.footnote.weight(.medium))
                     .foregroundStyle(CLColor.inkSecondary)
             }
             .buttonStyle(.plain)
+            .accessibilityMinTouchTarget()
             .padding(.top, CLSpacing.xxs)
             .accessibilityLabel("Back to sign-in options")
         }
@@ -244,5 +246,24 @@ struct AuthView: View {
     private var isBusy: Bool {
         if case .loading = viewModel.state { return true }
         return false
+    }
+
+    private var emailFormTransition: AnyTransition {
+        if reduceMotion {
+            return .opacity
+        }
+        return .opacity.combined(with: .move(edge: .top))
+    }
+
+    private func setEmailFormVisible(_ visible: Bool) {
+        if reduceMotion {
+            withAnimation(.easeOut(duration: 0.15)) {
+                showEmailForm = visible
+            }
+        } else {
+            withAnimation(CLMotion.soft) {
+                showEmailForm = visible
+            }
+        }
     }
 }

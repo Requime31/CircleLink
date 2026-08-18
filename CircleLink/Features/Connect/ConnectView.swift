@@ -221,7 +221,7 @@ struct ConnectView: View {
                         viewModel.passCandidate(userId: top.id)
                     },
                     onSayHi: {
-                        Task { await viewModel.sayHi(to: top.id) }
+                        viewModel.sayHi(to: top.id)
                     },
                     onUndo: {
                         viewModel.undoLastPass()

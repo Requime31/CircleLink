@@ -20,8 +20,7 @@ struct AgeGateView: View {
                     contentCard
                         .clAppear(delay: 0.04)
 
-                    progressDots
-                        .accessibilityHidden(true)
+                    CLOnboardingStepIndicator(currentStep: 1)
                 }
                 .padding(.horizontal, CLSpacing.screenHorizontal)
                 .padding(.bottom, CLSpacing.xl)
@@ -110,7 +109,7 @@ struct AgeGateView: View {
             } label: {
                 Text("Continue")
             }
-            .buttonStyle(CLEmphasisButtonStyle())
+            .buttonStyle(CLPrimaryButtonStyle())
             .disabled(!viewModel.canContinue || isBusy)
             .accessibilityLabel("Continue after confirming age")
             .accessibilityHint(viewModel.canContinue ? "Confirms you are 18 or older" : "Enter a valid year of birth first")
@@ -125,17 +124,6 @@ struct AgeGateView: View {
         }
         .padding(CLSpacing.lg)
         .clCardStyle(padded: false)
-    }
-
-    private var progressDots: some View {
-        HStack(spacing: CLSpacing.xs) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(index == 0 ? CLColor.primary : CLColor.primary.opacity(0.25))
-                    .frame(width: 6, height: 6)
-            }
-        }
-        .padding(.top, CLSpacing.xs)
     }
 
     @ViewBuilder

@@ -1,0 +1,222 @@
+<!DOCTYPE html><html class="light" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Suggested for you</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#ffb59f",
+                        "primary-container": "#e67e5f",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "background": "#fcf9f8",
+                        "on-secondary-fixed-variant": "#4e4541",
+                        "on-primary-fixed-variant": "#7c2d15",
+                        "surface-variant": "#e5e2e1",
+                        "secondary-fixed": "#ede0da",
+                        "tertiary": "#5e5e5d",
+                        "inverse-surface": "#313030",
+                        "surface-container-highest": "#e5e2e1",
+                        "inverse-on-surface": "#f3f0ef",
+                        "surface-container-high": "#eae7e7",
+                        "tertiary-container": "#9b9b99",
+                        "tertiary-fixed-dim": "#c7c6c5",
+                        "surface-container-lowest": "#ffffff",
+                        "on-surface-variant": "#55423d",
+                        "on-tertiary-fixed-variant": "#464746",
+                        "on-tertiary-fixed": "#1a1c1b",
+                        "surface-bright": "#fcf9f8",
+                        "on-secondary-container": "#6a615c",
+                        "on-secondary-fixed": "#211a17",
+                        "secondary-fixed-dim": "#d1c4be",
+                        "surface-tint": "#9b442a",
+                        "surface-container-low": "#f6f3f2",
+                        "outline": "#88726c",
+                        "primary": "#9b442a",
+                        "surface-dim": "#dcd9d9",
+                        "inverse-primary": "#ffb59f",
+                        "on-primary-fixed": "#3a0a00",
+                        "primary-fixed": "#ffdbd1",
+                        "on-error": "#ffffff",
+                        "on-primary-container": "#601a03",
+                        "on-tertiary-container": "#323332",
+                        "on-background": "#1c1b1b",
+                        "on-primary": "#ffffff",
+                        "on-surface": "#1c1b1b",
+                        "outline-variant": "#dcc1b9",
+                        "tertiary-fixed": "#e3e2e0",
+                        "secondary": "#665c58",
+                        "secondary-container": "#ebddd7",
+                        "surface-container": "#f0eded",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "on-tertiary": "#ffffff",
+                        "surface": "#fcf9f8"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "margin-desktop": "40px",
+                        "lg": "24px",
+                        "md": "16px",
+                        "sm": "8px",
+                        "margin-mobile": "20px",
+                        "xl": "32px",
+                        "unit": "4px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "display": ["Inter"],
+                        "label-md": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "display": ["34px", { "lineHeight": "41px", "letterSpacing": "-0.4px", "fontWeight": "700" }],
+                        "label-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0px", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "30px", "fontWeight": "700" }],
+                        "body-md": ["15px", { "lineHeight": "20px", "letterSpacing": "-0.2px", "fontWeight": "400" }],
+                        "label-sm": ["11px", { "lineHeight": "13px", "letterSpacing": "0.06px", "fontWeight": "600" }],
+                        "body-lg": ["17px", { "lineHeight": "22px", "letterSpacing": "-0.4px", "fontWeight": "400" }],
+                        "headline-md": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.4px", "fontWeight": "600" }],
+                        "headline-lg": ["28px", { "lineHeight": "34px", "letterSpacing": "-0.4px", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .hairline {
+            border-width: 0.5px;
+            border-color: #dcc1b9; /* outline-variant */
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col pb-[96px] md:pb-0">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-background z-40 border-b border-outline-variant flex justify-between items-center px-margin-mobile py-sm h-[72px]">
+<button aria-label="Go back" class="flex items-center justify-center p-sm rounded-full hover:bg-surface-container-low transition-colors active:opacity-70 text-secondary">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<h1 class="font-display text-headline-md font-bold text-primary">Suggested Communities</h1>
+<button aria-label="Settings" class="flex items-center justify-center p-sm rounded-full hover:bg-surface-container-low transition-colors active:opacity-70 text-secondary">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 w-full max-w-7xl mx-auto px-margin-mobile py-lg">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-md">
+<!-- Card 1 -->
+<article class="bg-surface-container-lowest rounded-lg hairline overflow-hidden flex flex-col group cursor-pointer hover:bg-surface-container transition-colors">
+<div class="h-48 w-full bg-surface-variant relative">
+<img alt="Community image" class="object-cover w-full h-full rounded-t-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9hV_Jaa4orYFRDHzhd5NmfHjo42D2ICrcC4aeS4_mo2DgKZ9o-8rUYmn40p__fPmcaRCvbtSd8Q6AhXqXtz8rcj3YbKFtzvnujYDAwC5CVo9rrIxP7kInoq7EdhFuG3fjdTCQNev8O5xhAmzMvD6FcYgW47EljEqeG1QgqowIwad_IAfuwMaIc-RuHuYfkNStLJUZDAHqoYk7cK75Zz9rpZoAcKiZqWxlNrGuord_srR-vzqnj6k">
+</div>
+<div class="p-md flex flex-col gap-sm flex-1">
+<h2 class="font-headline-md text-headline-md text-on-surface">Mindful Ceramics</h2>
+<p class="font-body-md text-body-md text-on-surface-variant flex-1 line-clamp-2">A space for pottery enthusiasts to share techniques, glaze recipes, and the meditative process of working with clay.</p>
+<div class="flex items-center gap-sm mt-auto pt-sm border-t border-outline-variant/30">
+<span class="material-symbols-outlined text-secondary" data-icon="group" style="font-size: 18px;">group</span>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">1.2k Members</span>
+</div>
+</div>
+</article>
+<!-- Card 2 -->
+<article class="bg-surface-container-lowest rounded-lg hairline overflow-hidden flex flex-col group cursor-pointer hover:bg-surface-container transition-colors">
+<div class="h-48 w-full bg-surface-variant relative">
+<img alt="Community image" class="object-cover w-full h-full rounded-t-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCWPpc29NC2fxD-zNYvJad5mvyVOV3W1BPHsLo-yABXfwBgvCbVgws_GYeF_VwTIuFp9snbICW6KccUUe21XEIfft0GNVeUhFWYAD9BdWsbS7KNVGOm2so_sJffCsU_WLOUHIebWjMbfFGAPiQ15MgrwEJ_wMR37JzPpeBojD8FmXQyhy0ompa4bWMSklK7Ry5pgjIi-eemNm6CNGZbzfy8xjXgHq9rNGxeQNEeidHUdL6hbGuAymA">
+</div>
+<div class="p-md flex flex-col gap-sm flex-1">
+<h2 class="font-headline-md text-headline-md text-on-surface">Analog Explorers</h2>
+<p class="font-body-md text-body-md text-on-surface-variant flex-1 line-clamp-2">For those who appreciate the slow, deliberate process of film photography, vintage maps, and exploring without digital distraction.</p>
+<div class="flex items-center gap-sm mt-auto pt-sm border-t border-outline-variant/30">
+<span class="material-symbols-outlined text-secondary" data-icon="group" style="font-size: 18px;">group</span>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">850 Members</span>
+</div>
+</div>
+</article>
+<!-- Card 3 -->
+<article class="bg-surface-container-lowest rounded-lg hairline overflow-hidden flex flex-col group cursor-pointer hover:bg-surface-container transition-colors">
+<div class="h-48 w-full bg-surface-variant relative">
+<img alt="Community image" class="object-cover w-full h-full rounded-t-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAUmGKVXTihP9GrYojuElvYm3ceF8K8TMDk5BdgdFIYCHGEE8plES1WOB_UqxyxDfQfd771ukKG4hQzB-WEUA61WHMXaA79zj5_Emw1jw0-ajuvsPHkkLrt5_hBYSgg483tNcZ4ag33yUa2J4qLhmU88N6r7-Qmh34GY3CO9zDas8tcamX-NlzoXQJb7zQIGHb44E2aY4STn_EG9-d95HliHh_IXz62tGyH6Ik1_oeoJybCZbZ2PjE">
+</div>
+<div class="p-md flex flex-col gap-sm flex-1">
+<h2 class="font-headline-md text-headline-md text-on-surface">Urban Gardening</h2>
+<p class="font-body-md text-body-md text-on-surface-variant flex-1 line-clamp-2">Tips and tricks for cultivating thriving green spaces in small apartments, balconies, and city environments.</p>
+<div class="flex items-center gap-sm mt-auto pt-sm border-t border-outline-variant/30">
+<span class="material-symbols-outlined text-secondary" data-icon="group" style="font-size: 18px;">group</span>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">3.4k Members</span>
+</div>
+</div>
+</article>
+<!-- Card 4 -->
+<article class="bg-surface-container-lowest rounded-lg hairline overflow-hidden flex flex-col group cursor-pointer hover:bg-surface-container transition-colors">
+<div class="h-48 w-full bg-surface-variant relative">
+<img alt="Community image" class="object-cover w-full h-full rounded-t-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAcKlZqOH9AxgELi3rvcTX5P23txo0aO0dNoCQYbuOc-Hr-8RPYnh_TAJ2uR_rSsQfcbsdrGQp8eDfUbobmbx-yMcH_nqFn5MOuGoUKb92t3nEZg6LovEblIiVdm66ExSWPSuatuNHSFC810DlRgs78bbDqoeU8dLdsAYRqnbNFO41_3_NJ1sufmVIkgOyKmDdEnOHzl9dkr2A8H9qczHO0FPDYaxFeDqwumXkXJmKUeqAeIj9GHs4">
+</div>
+<div class="p-md flex flex-col gap-sm flex-1">
+<h2 class="font-headline-md text-headline-md text-on-surface">Minimalist Living</h2>
+<p class="font-body-md text-body-md text-on-surface-variant flex-1 line-clamp-2">Discussions on decluttering, intentional consumption, and finding joy in owning less while living more fully.</p>
+<div class="flex items-center gap-sm mt-auto pt-sm border-t border-outline-variant/30">
+<span class="material-symbols-outlined text-secondary" data-icon="group" style="font-size: 18px;">group</span>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">5.1k Members</span>
+</div>
+</div>
+</article>
+<!-- Card 5 -->
+<article class="bg-surface-container-lowest rounded-lg hairline overflow-hidden flex flex-col group cursor-pointer hover:bg-surface-container transition-colors">
+<div class="h-48 w-full bg-surface-variant relative">
+<img alt="Community image" class="object-cover w-full h-full rounded-t-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTTYJ95zs0sPiZsSGUhqD9wmIy2CVQu0yVjta0iGK70H_vTdMIrr_cISEJgTIjfARAYKUAIBhJ94g-eTverAjlaX7u6PSa2Z0bcCCbya_d1ke8rXU0VlGHSrPozanw5p_yNBrt9SKhcxLYen7s_Ps3bGF7Xtn2HjLT6-bz2O5vsO7xQxT9YcIiMWGZFmk5m4sb7wOvfV9uxHIFxgozAkYK920bBnDAtDM6Q0MrrBYbIjIAVqPCPaI">
+</div>
+<div class="p-md flex flex-col gap-sm flex-1">
+<h2 class="font-headline-md text-headline-md text-on-surface">Coffee Culture</h2>
+<p class="font-body-md text-body-md text-on-surface-variant flex-1 line-clamp-2">Connect with fellow aficionados to discuss brewing methods, single-origin beans, and the art of the perfect pour-over.</p>
+<div class="flex items-center gap-sm mt-auto pt-sm border-t border-outline-variant/30">
+<span class="material-symbols-outlined text-secondary" data-icon="group" style="font-size: 18px;">group</span>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider">2.8k Members</span>
+</div>
+</div>
+</article>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-margin-mobile pb-8 pt-2 bg-surface-container-lowest border-t border-outline-variant">
+<!-- Active Tab: Communities -->
+<a class="flex flex-col items-center justify-center text-primary font-bold bg-primary-container/10 rounded-xl px-3 py-1 active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="group" data-weight="fill" style="font-variation-settings: 'FILL' 1;">group</span>
+<span class="font-label-md text-label-md mt-1">Communities</span>
+</a>
+<!-- Inactive Tab: Chats -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60 hover:text-primary active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-label-md text-label-md mt-1">Chats</span>
+</a>
+<!-- Inactive Tab: Connect -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60 hover:text-primary active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="diversity_1">diversity_1</span>
+<span class="font-label-md text-label-md mt-1">Connect</span>
+</a>
+<!-- Inactive Tab: Profile -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant opacity-60 hover:text-primary active:scale-95 transition-transform duration-200" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-md text-label-md mt-1">Profile</span>
+</a>
+</nav>
+
+
+</body></html>

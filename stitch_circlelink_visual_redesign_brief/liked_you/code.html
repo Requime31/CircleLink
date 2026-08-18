@@ -1,0 +1,244 @@
+<!DOCTYPE html><html class="light" lang="ru"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport">
+<title>CircleLink - Понравились вам</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed-dim": "#d1c4be",
+                    "surface": "#fcf9f8",
+                    "on-background": "#1c1b1b",
+                    "surface-container-high": "#eae7e7",
+                    "inverse-surface": "#313030",
+                    "on-secondary-fixed": "#211a17",
+                    "primary-fixed-dim": "#ffb59f",
+                    "surface-variant": "#e5e2e1",
+                    "secondary-container": "#ebddd7",
+                    "on-tertiary-fixed-variant": "#464746",
+                    "primary-fixed": "#ffdbd1",
+                    "tertiary": "#5e5e5d",
+                    "surface-container-highest": "#e5e2e1",
+                    "on-secondary": "#ffffff",
+                    "primary": "#9b442a",
+                    "on-surface": "#1c1b1b",
+                    "on-error": "#ffffff",
+                    "surface-container-low": "#f6f3f2",
+                    "background": "#fcf9f8",
+                    "on-surface-variant": "#55423d",
+                    "on-primary": "#ffffff",
+                    "on-tertiary-container": "#323332",
+                    "inverse-on-surface": "#f3f0ef",
+                    "tertiary-fixed-dim": "#c7c6c5",
+                    "on-primary-container": "#601a03",
+                    "secondary-fixed": "#ede0da",
+                    "tertiary-container": "#9b9b99",
+                    "on-error-container": "#93000a",
+                    "surface-container-lowest": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "outline-variant": "#dcc1b9",
+                    "on-primary-fixed": "#3a0a00",
+                    "error": "#ba1a1a",
+                    "surface-bright": "#fcf9f8",
+                    "outline": "#88726c",
+                    "on-primary-fixed-variant": "#7c2d15",
+                    "on-secondary-container": "#6a615c",
+                    "surface-dim": "#dcd9d9",
+                    "on-tertiary-fixed": "#1a1c1b",
+                    "surface-container": "#f0eded",
+                    "secondary": "#665c58",
+                    "inverse-primary": "#ffb59f",
+                    "primary-container": "#e67e5f",
+                    "on-secondary-fixed-variant": "#4e4541",
+                    "on-tertiary": "#ffffff",
+                    "tertiary-fixed": "#e3e2e0",
+                    "surface-tint": "#9b442a"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "unit": "4px",
+                    "margin-desktop": "40px",
+                    "sm": "8px",
+                    "gutter": "16px",
+                    "xs": "4px",
+                    "lg": "24px",
+                    "xl": "32px",
+                    "md": "16px",
+                    "margin-mobile": "20px"
+            },
+            "fontFamily": {
+                    "label-md": ["Inter"],
+                    "display": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "label-md": ["13px", {"lineHeight": "18px", "letterSpacing": "0px", "fontWeight": "500"}],
+                    "display": ["34px", {"lineHeight": "41px", "letterSpacing": "-0.4px", "fontWeight": "700"}],
+                    "label-sm": ["11px", {"lineHeight": "13px", "letterSpacing": "0.06px", "fontWeight": "600"}],
+                    "headline-md": ["22px", {"lineHeight": "28px", "letterSpacing": "-0.4px", "fontWeight": "600"}],
+                    "headline-lg": ["28px", {"lineHeight": "34px", "letterSpacing": "-0.4px", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "30px", "fontWeight": "700"}],
+                    "body-md": ["15px", {"lineHeight": "20px", "letterSpacing": "-0.2px", "fontWeight": "400"}],
+                    "body-lg": ["17px", {"lineHeight": "22px", "letterSpacing": "-0.4px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #FAF9F7; /* Level 0 Canvas from Style Guidance */
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hairline {
+            border: 1px solid rgba(136, 114, 108, 0.15);
+        }
+        .soft-shadow {
+            box-shadow: 0px 4px 20px rgba(49, 48, 48, 0.04);
+        }
+        .blur-overlay {
+            backdrop-filter: blur(12px) saturate(120%);
+            background: rgba(252, 249, 248, 0.6);
+        }
+        .premium-gradient {
+            background: linear-gradient(135deg, #e67e5f 0%, #9b442a 100%);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .filled-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+        /* Mobile-first bottom spacing for the fixed navbar */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
+    </style>
+</head>
+<body class="text-on-surface">
+<!-- TopAppBar -->
+
+<!-- Main Content -->
+<main class="pb-32 px-margin-mobile max-w-2xl mx-auto p-4"><div class="flex justify-center items-center pt-4 pb-8">
+  <h1 class="text-on-surface font-headline-md text-headline-md-mobile">Liked You</h1>
+</div>
+<!-- Welcome/Upsell Section -->
+
+<!-- Grid of Profiles -->
+<div class="grid grid-cols-2 gap-4">
+<!-- Profile 1 (Visible) -->
+<div class="relative aspect-[3/4] rounded-[24px] bg-white hairline overflow-hidden soft-shadow">
+<div class="w-full h-full bg-cover bg-center" data-alt="A vibrant lifestyle photo of a man in his late 20s laughing outdoors. He is surrounded by lush greenery under a golden hour sun. The aesthetic is clean and organic, matching the Soft-Native design language of CircleLink with high clarity and warm tones." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuB0eMDk6vfCnq_XNKRVwFzFVvVJHtNOFj8RPZ_cDSu-XU82Z6h85CaFBD8lkVSanWJr4D_PyY5MSgdwmHSD1P_upd_VAho44hf382cVhCy5JmTIY4viUvWKnOEYfcJk0MKASw-30UYn3Int31C8ie86PMZ1L2evNIE4C7cgqZmNPZ3eS9QxknVWHDbOauGLf2ORs9nREWSOk2TlwnY2VHwfsS7BsRWS-UWlDfmH1m0Su6ld8rhC8bs')"></div>
+<div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
+<div class="flex flex-col">
+<span class="text-white font-headline-md text-headline-md-mobile leading-none">Артем, 26</span>
+<div class="flex items-center gap-1 text-white/80 mt-1">
+<span class="material-symbols-outlined text-[14px] filled-icon">location_on</span>
+<span class="text-[11px] font-medium">2 км от вас</span>
+</div>
+</div>
+</div>
+<div class="absolute top-3 right-3">
+<div class="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
+<span class="material-symbols-outlined filled-icon">favorite</span>
+</div>
+</div>
+</div>
+<!-- Profile 2 (Visible) -->
+<div class="relative aspect-[3/4] rounded-[24px] bg-white hairline overflow-hidden soft-shadow">
+<div class="w-full h-full bg-cover bg-center" data-alt="A stylish young woman sitting in a minimalist cafe with parchment-colored walls and soft wooden textures. She is looking thoughtfully out of a window. The image has a calm, low-stress atmosphere with a high-end stationery feel, perfectly aligned with the app's aesthetic." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuATvmrAHt9gXny3D3rYML1ydl4bEFB4djfC-gfdMarjyONzpawkJvXhbXgfLEeN1ql-vT4Ba2xxPjeW-si5cQ0O0xfFT05ZhuOeL0CD7E5MH_8yG5lBLnAhGSN1PV8WS3hneAPuMcrZefIfzpzFkFb9OW5QqIwHKw6AJb3120ZEG0pKUsYycYDB1h2_zUrgYIRHCw-m-2fTyJwR64DWowSfxzXKIE8RcbeHl4gWeF9F92Rp2YTQj2w')"></div>
+<div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
+<div class="flex flex-col">
+<span class="text-white font-headline-md text-headline-md-mobile leading-none">Елена, 24</span>
+<div class="flex items-center gap-1 text-white/80 mt-1">
+<span class="material-symbols-outlined text-[14px] filled-icon">location_on</span>
+<span class="text-[11px] font-medium">5 км от вас</span>
+</div>
+</div>
+</div>
+<div class="absolute top-3 right-3">
+<div class="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
+<span class="material-symbols-outlined filled-icon">favorite</span>
+</div>
+</div>
+</div>
+<!-- Profile 3 (Blurred) -->
+<div class="relative aspect-[3/4] rounded-[24px] bg-white hairline overflow-hidden soft-shadow"><div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuANAK0Obg_3imKzPOrOeWjgM309E1rqj8ZjN9xOgIAeJV1kaf-V6dY3M2FHqsOCXGodmy3BTpqcu5vcemASP3-CP20rZMwfjNlG9LU9rdfJ8svO-4rCcKfwq-qFXkkWq-HRo4PYVKlBQFhfu4zmfG2cXG1PFD1fA6qSRPOZ41d8sd5m0noAoIspLoddQrjfE-HQEI4K1iZlaqzfg8azKmSrVFgqXAZ3Q-08mRpq7yikaCCS7urpa90')"></div><div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent"><div class="flex flex-col"><span class="text-white font-headline-md text-headline-md-mobile leading-none">Дмитрий, 28</span><div class="flex items-center gap-1 text-white/80 mt-1"><span class="material-symbols-outlined text-[14px] filled-icon">location_on</span><span class="text-[11px] font-medium">3 км от вас</span></div></div></div><div class="absolute top-3 right-3"><div class="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white"><span class="material-symbols-outlined filled-icon">favorite</span></div></div></div>
+<!-- Profile 4 (Blurred) -->
+<div class="relative aspect-[3/4] rounded-[24px] bg-white hairline overflow-hidden soft-shadow"><div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDpUZvl-PdtKDM-ZBitvP3ybZyM4ko7ACUx2sGdrVNvKQ_oufy-ylivZu_tmppXC92IGeOwuAlpKDMRJVVzx6v99XaIPgqcZ2bmYLkf5sWGbPRII6ateTa9qqgUbuatEDBeu7I5FeMcSQvo8MKBkTOLVCacGHxzuCOjkhj6UkgFDKuQQscsQ7zaeADSIjcZ6tr4DbxhtkMRt-k-keFXD0K-dsipTnrk3TBpR2P84cQ57dCMslJgsy0')"></div><div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent"><div class="flex flex-col"><span class="text-white font-headline-md text-headline-md-mobile leading-none">Анна, 25</span><div class="flex items-center gap-1 text-white/80 mt-1"><span class="material-symbols-outlined text-[14px] filled-icon">location_on</span><span class="text-[11px] font-medium">1 км от вас</span></div></div></div><div class="absolute top-3 right-3"><div class="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white"><span class="material-symbols-outlined filled-icon">favorite</span></div></div></div>
+<!-- Profile 5 (Blurred) -->
+<div class="relative aspect-[3/4] rounded-[24px] bg-white hairline overflow-hidden soft-shadow"><div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCWParvsWnjsBRCqZu_LYbs2TJXu75e4Ihy-UBgBDRXvSvuHfleUBve9l_q4na_W6xReetAPZyyKxQdmRM0IMBcUlcd57oyyQB1qqyAKvTU2m3rBVcTBhjCs6v_UOXz_uA8mYxL4sK2rmEhYH3NxsvmoVN-JJ-iEHpXzx6ioItwjkz9TzudeBFq3cd9CGGWNJulb2W1P5ndUBT0gjIY_xs49EmcYnFu0d6I_UizOhga2_4RnP-7u58')"></div><div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent"><div class="flex flex-col"><span class="text-white font-headline-md text-headline-md-mobile leading-none">Максим, 30</span><div class="flex items-center gap-1 text-white/80 mt-1"><span class="material-symbols-outlined text-[14px] filled-icon">location_on</span><span class="text-[11px] font-medium">7 км от вас</span></div></div></div><div class="absolute top-3 right-3"><div class="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white"><span class="material-symbols-outlined filled-icon">favorite</span></div></div></div>
+<!-- Profile 6 (Blurred) -->
+<div class="relative aspect-[3/4] rounded-[24px] bg-white hairline overflow-hidden soft-shadow"><div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC71ge2r9IOmOC1xEvkfQl1O04YG_IPrpAB9UugW1iWUu6XU5_Ez4K3L6thlzeHKZJsM8yE8zG5IyWbitVlpYeMpjfIaCfVptMjc45MW5wwM6NFc057lUnkV1Iamt9I0M1UUL8TVUnBba0LU3x44FmspoBH-QTNHssAu2CeN-GD4nm5ipdrP8wFp_9mifu7D7pZkXlj1d0DOaP1R8oNvebpXK73QKmf6l1jdis64jWAbNtE94MOeao')"></div><div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent"><div class="flex flex-col"><span class="text-white font-headline-md text-headline-md-mobile leading-none">Мария, 23</span><div class="flex items-center gap-1 text-white/80 mt-1"><span class="material-symbols-outlined text-[14px] filled-icon">location_on</span><span class="text-[11px] font-medium">4 км от вас</span></div></div></div><div class="absolute top-3 right-3"><div class="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white"><span class="material-symbols-outlined filled-icon">favorite</span></div></div></div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface/80 backdrop-blur-md border-t border-outline-variant/30 flex justify-around items-center pt-2 pb-safe px-margin-mobile">
+<a class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim opacity-80 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-sm text-label-sm mt-1">Communities</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim opacity-80 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined">chat_bubble</span>
+<span class="font-label-sm text-label-sm mt-1">Chats</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed-dim font-bold active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined filled-icon">diversity_3</span>
+<span class="font-label-sm text-label-sm mt-1">Connect</span>
+</a>
+<a class="flex flex-col items-center justify-center text-secondary dark:text-secondary-fixed-dim opacity-80 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-sm text-label-sm mt-1">Profile</span>
+</a>
+</nav>
+<script>
+        // Micro-interactions for profile cards
+        document.querySelectorAll('.aspect-\\[3\\/4\\]').forEach(card => {
+            card.addEventListener('touchstart', () => {
+                card.classList.add('scale-95');
+            });
+            card.addEventListener('touchend', () => {
+                card.classList.remove('scale-95');
+            });
+        });
+
+        // Simple scroll behavior for header
+        let lastScroll = 0;
+        const header = document.querySelector('header');
+        window.addEventListener('scroll', () => {
+            const currentScroll = window.pageYOffset;
+            if (currentScroll <= 0) {
+                header.classList.remove('shadow-sm');
+                return;
+            }
+            if (currentScroll > lastScroll) {
+                // Downscroll
+                header.classList.add('shadow-sm');
+            }
+            lastScroll = currentScroll;
+        });
+    </script>
+
+
+
+
+
+
+</body></html>

@@ -153,7 +153,7 @@ struct ConnectViewModelTests {
         )
 
         await viewModel.load()
-        await viewModel.sayHi(to: "peer-1")
+        await viewModel.sayHiAndWait(to: "peer-1")
 
         #expect(connection.sendConnectCallCount == 1)
         #expect(connection.lastSendConnectUserId == "peer-1")

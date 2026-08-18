@@ -50,6 +50,9 @@ functions/lib/
 .AppleDouble
 .LSOverride
 
+# SwiftLint
+.swiftlint-cache/
+
 # Cursor / IDE
 .cursor/
 

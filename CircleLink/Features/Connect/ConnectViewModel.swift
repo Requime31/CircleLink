@@ -150,12 +150,30 @@ final class ConnectViewModel: ObservableObject {
         Task { await refreshTopCandidateCommunities() }
     }
 
-    /// Say Hi from the Discover deck — removes from deck immediately, rolls back on failure.
-    func sayHi(to userId: String) async {
-        guard !userId.isEmpty, !isSendingConnect else { return }
+    /// Say Hi from Discover — card leaves the deck in this turn, request goes out after.
+    /// Rolls back onto the deck if the request fails.
+    func sayHi(to userId: String) {
+        guard prepareSayHi(userId: userId) else { return }
+        Task { await completeSayHi(userId: userId) }
+    }
+
+    /// Same as `sayHi`, awaited until the request finishes.
+    func sayHiAndWait(to userId: String) async {
+        guard prepareSayHi(userId: userId) else { return }
+        await completeSayHi(userId: userId)
+    }
+
+    @discardableResult
+    private func prepareSayHi(userId: String) -> Bool {
+        guard !userId.isEmpty, !isSendingConnect else { return false }
         isSendingConnect = true
         actionErrorMessage = nil
         passedCandidateIds.insert(userId)
+        return true
+    }
+
+    private func completeSayHi(userId: String) async {
+        await refreshTopCandidateCommunities()
 
         do {
             try await connectionRepository.sendConnect(to: userId)
@@ -166,6 +184,7 @@ final class ConnectViewModel: ObservableObject {
         } catch {
             passedCandidateIds.remove(userId)
             actionErrorMessage = error.localizedDescription
+            await refreshTopCandidateCommunities()
         }
 
         isSendingConnect = false

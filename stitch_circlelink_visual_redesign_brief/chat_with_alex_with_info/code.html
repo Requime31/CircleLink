@@ -1,0 +1,244 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>CircleLink - Chat with Alex</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "error": "#ba1a1a",
+                "surface-bright": "#fcf9f8",
+                "on-error": "#ffffff",
+                "secondary-fixed-dim": "#d1c4be",
+                "primary-fixed": "#ffdbd1",
+                "surface-dim": "#dcd9d9",
+                "surface-container": "#f0eded",
+                "tertiary-container": "#9b9b99",
+                "outline-variant": "#dcc1b9",
+                "error-container": "#ffdad6",
+                "primary-container": "#e67e5f",
+                "surface": "#fcf9f8",
+                "on-secondary-fixed-variant": "#4e4541",
+                "tertiary": "#5e5e5d",
+                "surface-container-lowest": "#ffffff",
+                "surface-container-low": "#f6f3f2",
+                "secondary-container": "#ebddd7",
+                "on-tertiary": "#ffffff",
+                "on-secondary-container": "#6a615c",
+                "inverse-primary": "#ffb59f",
+                "on-tertiary-fixed-variant": "#464746",
+                "inverse-on-surface": "#f3f0ef",
+                "on-primary-fixed": "#3a0a00",
+                "inverse-surface": "#313030",
+                "on-primary": "#ffffff",
+                "primary": "#9b442a",
+                "on-tertiary-container": "#323332",
+                "on-background": "#1c1b1b",
+                "surface-tint": "#9b442a",
+                "on-error-container": "#93000a",
+                "primary-fixed-dim": "#ffb59f",
+                "on-secondary": "#ffffff",
+                "on-surface-variant": "#55423d",
+                "on-primary-fixed-variant": "#7c2d15",
+                "background": "#fcf9f8",
+                "surface-container-highest": "#e5e2e1",
+                "on-primary-container": "#601a03",
+                "secondary-fixed": "#ede0da",
+                "surface-container-high": "#eae7e7",
+                "surface-variant": "#e5e2e1",
+                "secondary": "#665c58",
+                "on-tertiary-fixed": "#1a1c1b",
+                "on-secondary-fixed": "#211a17",
+                "outline": "#88726c",
+                "on-surface": "#1c1b1b",
+                "tertiary-fixed-dim": "#c7c6c5",
+                "tertiary-fixed": "#e3e2e0"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "xs": "4px",
+                "margin-desktop": "40px",
+                "sm": "8px",
+                "gutter": "16px",
+                "md": "16px",
+                "margin-mobile": "20px",
+                "xl": "32px",
+                "lg": "24px",
+                "unit": "4px"
+        },
+        "fontFamily": {
+                "headline-md": ["Inter"],
+                "display": ["Inter"],
+                "headline-lg-mobile": ["Inter"],
+                "body-lg": ["Inter"],
+                "label-sm": ["Inter"],
+                "label-md": ["Inter"],
+                "headline-lg": ["Inter"],
+                "body-md": ["Inter"]
+        },
+        "fontSize": {
+                "headline-md": ["22px", {"lineHeight": "28px", "letterSpacing": "-0.4px", "fontWeight": "600"}],
+                "display": ["34px", {"lineHeight": "41px", "letterSpacing": "-0.4px", "fontWeight": "700"}],
+                "headline-lg-mobile": ["24px", {"lineHeight": "30px", "fontWeight": "700"}],
+                "body-lg": ["17px", {"lineHeight": "22px", "letterSpacing": "-0.4px", "fontWeight": "400"}],
+                "label-sm": ["11px", {"lineHeight": "13px", "letterSpacing": "0.06px", "fontWeight": "600"}],
+                "label-md": ["13px", {"lineHeight": "18px", "letterSpacing": "0px", "fontWeight": "500"}],
+                "headline-lg": ["28px", {"lineHeight": "34px", "letterSpacing": "-0.4px", "fontWeight": "700"}],
+                "body-md": ["15px", {"lineHeight": "20px", "letterSpacing": "-0.2px", "fontWeight": "400"}]
+        }
+      },
+    },
+  }
+</script>
+<style>
+    body {
+        -webkit-tap-highlight-color: transparent;
+        font-family: 'Inter', sans-serif;
+        background-color: #fcf9f8;
+    }
+    .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .chat-container::-webkit-scrollbar {
+        display: none;
+    }
+    .active-press:active {
+        opacity: 0.7;
+        transform: scale(0.98);
+    }
+    body {
+      min-height: 100dvh;
+    }
+</style>
+</head>
+<body class="bg-background text-on-background flex flex-col h-screen overflow-hidden">
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-outline-variant/30 h-16 flex items-center justify-between px-margin-mobile">
+<div class="flex items-center gap-3">
+<button class="active-press p-1 -ml-2 text-primary">
+<span class="material-symbols-outlined text-[24px]">arrow_back_ios_new</span>
+</button>
+<div class="flex items-center gap-3">
+<div class="relative">
+<img class="w-10 h-10 rounded-xl object-cover border border-outline-variant/20" data-alt="Alex profile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCAgsKxakmmJSp8g4W_uEBn5Ms9RdmsdAFDw6H7oRZVBEsDkkAdjNAjY6tgQE4-W79b4CrEkfFCzWw5G7FX8OXDKyHBkBM-tP3n504-fH18MMcUdcWJwf7x2EQqH0c196aUVmljX_umtH7-5CN5m9frcOhnHwK3DH7U0OcXlQplCRRvr30gMcRs61VKlLhl96FZCC6JKzyfORr1Ob8Rp3v2pBqQ7oV5cfnHGBKm53_f-GcfrQGuE80">
+<div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-background rounded-full"></div>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-[17px] font-semibold text-on-surface leading-tight">Alex</span>
+<span class="text-[12px] text-secondary">Active now</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4 text-primary">
+<button class="active-press p-2 rounded-full hover:bg-surface-container-low transition-colors">
+
+</button>
+<button class="active-press p-2 rounded-full hover:bg-surface-container-low transition-colors">
+
+</button>
+<button class="active-press p-2 rounded-full hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">info</span>
+</button></div>
+</header>
+<!-- Chat History Canvas -->
+<main class="flex-1 overflow-y-auto chat-container px-margin-mobile pt-20 pb-28 space-y-lg">
+<!-- Date Separator -->
+<div class="flex justify-center py-4">
+<div class="bg-surface-container-low px-4 py-1.5 rounded-full">
+<span class="font-label-md text-label-md text-secondary">Today</span>
+</div>
+</div>
+<!-- Alex's Message -->
+<div class="flex items-end gap-2 max-w-[85%]">
+<img class="w-8 h-8 rounded-lg object-cover shrink-0" data-alt="Alex" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC40Vd2bC-K7eCW5Blgt8Mu7mWbX71xFgalddFvBUFU3qdXVfFGZ5ss2FVTU6OJO0Z_RB5chtaJSIH4_aapSgd-pNF1rK3QvCx7kCqbNpp25LKK6ZdfVJf0rPMBDuh3S1kmLZx_1AYXop_FY8MtR9pRYX9omdKlowcZtkwgpKUFxEL9CgrELlud9utIV_bgRz6zaYvbSYFb1tUTzsW4goyCskQFcAfwBv7_JkGsyR65i1x_YTrlQps">
+<div class="flex flex-col gap-1">
+<div class="bg-surface-container text-on-surface px-4 py-3 rounded-2xl rounded-bl-none border border-outline-variant/10">
+<p class="font-body-md text-body-md">Hey! I was thinking about our plan for the weekend. Are you still up for that ceramics workshop? 🏺</p>
+</div>
+<span class="font-label-sm text-label-sm text-secondary/70 ml-1">10:24 AM</span>
+</div>
+</div>
+<!-- User's Message -->
+<div class="flex flex-col items-end gap-1 ml-auto max-w-[85%]">
+<div class="bg-primary-container text-on-primary-container px-4 py-3 rounded-2xl rounded-br-none shadow-sm" style="background-color: #e67e5f; color: #ffffff;">
+<p class="font-body-md text-body-md">Absolutely! I've been looking forward to it all week. I think the studio in the Arts District has a session at 2 PM.</p>
+</div>
+<div class="flex items-center gap-1 mr-1">
+<span class="font-label-sm text-label-sm text-secondary/70">10:26 AM</span>
+<span class="material-symbols-outlined text-[14px] text-primary-container" style="color: #e67e5f; font-variation-settings: 'FILL' 1;">done_all</span>
+</div>
+</div>
+<!-- Alex's Message -->
+<div class="flex items-end gap-2 max-w-[85%]">
+<img class="w-8 h-8 rounded-lg object-cover shrink-0" data-alt="Alex" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVZqPBOcRo964mXv4DVKDu7HULMYgKDwJtEUKBxAdyv5Yjlw12Y_ytMA9Y4Epc-bADuMrRtymN8J0YlUG9du8F8fL1rOPoaXVOKRq-4zUWNWsEt7djnGCzKQ3piqrSn1RDl_j6MKl8RVoGFeHedGXkSOCQ77jlY2KLw847ss8uKH6-SI2KB6iFbKmKeJo15dOQ3KK_7m60PZkr63zD4dixlSmyk0tsiZ3YJRmboICpUd9r2rGVVro">
+<div class="flex flex-col gap-1">
+<div class="bg-surface-container text-on-surface px-4 py-3 rounded-2xl rounded-bl-none border border-outline-variant/10">
+<p class="font-body-md text-body-md">2 PM sounds perfect. We could grab a coffee at that slow-brew spot nearby before we head in? They have the best oat milk lattes. ☕️</p>
+</div>
+<span class="font-label-sm text-label-sm text-secondary/70 ml-1">10:28 AM</span>
+</div>
+</div>
+<!-- User's Message -->
+<div class="flex flex-col items-end gap-1 ml-auto max-w-[85%]">
+<div class="bg-primary-container text-on-primary-container px-4 py-3 rounded-2xl rounded-br-none shadow-sm" style="background-color: #e67e5f; color: #ffffff;">
+<p class="font-body-md text-body-md">That sounds like a lovely afternoon. Let's meet at the coffee shop around 1:15 then?</p>
+</div>
+<div class="flex items-center gap-1 mr-1">
+<span class="font-label-sm text-label-sm text-secondary/70">10:29 AM</span>
+<span class="material-symbols-outlined text-[14px] text-primary-container" style="color: #e67e5f; font-variation-settings: 'FILL' 1;">done_all</span>
+</div>
+</div>
+<!-- Alex is typing -->
+<div class="flex items-center gap-2 max-w-[85%] opacity-60">
+<img class="w-6 h-6 rounded-lg object-cover grayscale shrink-0" data-alt="Alex" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmndCawwqEGckEhmf_5jzb1jrnJoiJZPQciJvWZcOuYhfTLy5gwtgMyP_RYY5wnU3xMVUvG2SI1OsBZgY-sY317jIleVbJrBET42GDRSjJgEfsAEo-7MBeKvuWdjI7ZPGZnEqD3-CZDNh6J2ELVexKFqXDkoCtIFpuKYPdmr0nfsqYVQwUOqshOCb6BJdxSCBoTOQryXSwBEqrGV3ETg4qbbHS3BWytkj7tzn_zIbY24GWqiUuoUM">
+<div class="flex gap-1.5 items-center bg-surface-container/50 px-3 py-2 rounded-full">
+<div class="w-1.5 h-1.5 bg-secondary rounded-full animate-bounce" style="animation-delay: 0s"></div>
+<div class="w-1.5 h-1.5 bg-secondary rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+<div class="w-1.5 h-1.5 bg-secondary rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+</div>
+</div>
+</main>
+<!-- Bottom Input Area -->
+<footer class="fixed bottom-0 w-full bg-background/90 backdrop-blur-xl pb-safe-offset-4 px-margin-mobile pt-3 pb-8 flex items-end gap-3 z-50">
+<button class="active-press flex items-center justify-center w-11 h-11 rounded-xl bg-surface-container-low text-secondary border border-outline-variant/20 mb-0.5">
+<span class="material-symbols-outlined text-[24px]">add</span>
+</button>
+<div class="flex-1 relative flex items-center">
+<textarea class="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-5 py-3 pr-12 font-body-md text-on-surface placeholder:text-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary-container/30 transition-all resize-none overflow-hidden" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'" placeholder="Type a message..." rows="1"></textarea>
+<div class="absolute right-2 bottom-1.5">
+<button class="active-press w-8 h-8 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center" style="background-color: #e67e5f; color: #ffffff;">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'wght' 600;">arrow_upward</span>
+</button>
+</div>
+</div>
+</footer>
+<script>
+    const textarea = document.querySelector('textarea');
+    const sendBtn = document.querySelector('button[style*="#e67e5f"]');
+    
+    textarea.addEventListener('input', (e) => {
+        if (e.target.value.trim().length > 0) {
+            sendBtn.style.opacity = '1';
+        } else {
+            sendBtn.style.opacity = '0.9';
+        }
+    });
+
+    window.onload = () => {
+        const container = document.querySelector('.chat-container');
+        container.scrollTop = container.scrollHeight;
+    };
+</script>
+
+
+</body></html>

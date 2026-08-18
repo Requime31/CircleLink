@@ -62,6 +62,9 @@ struct ProfileSetupView: View {
             Text("Add a display name and pick 3–5 interests to join CircleLink.")
                 .font(CLTypography.body)
                 .foregroundStyle(CLColor.inkSecondary)
+
+            CLOnboardingStepIndicator(currentStep: 2)
+                .frame(maxWidth: .infinity)
         }
     }
 

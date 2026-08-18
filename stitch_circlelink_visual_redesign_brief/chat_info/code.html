@@ -1,0 +1,226 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport">
+<title>CircleLink - Chat Info</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "error": "#ba1a1a",
+                    "surface-bright": "#fcf9f8",
+                    "on-error": "#ffffff",
+                    "secondary-fixed-dim": "#d1c4be",
+                    "primary-fixed": "#ffdbd1",
+                    "surface-dim": "#dcd9d9",
+                    "surface-container": "#f0eded",
+                    "tertiary-container": "#9b9b99",
+                    "outline-variant": "#dcc1b9",
+                    "error-container": "#ffdad6",
+                    "primary-container": "#e67e5f",
+                    "surface": "#fcf9f8",
+                    "on-secondary-fixed-variant": "#4e4541",
+                    "tertiary": "#5e5e5d",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-low": "#f6f3f2",
+                    "secondary-container": "#ebddd7",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-container": "#6a615c",
+                    "inverse-primary": "#ffb59f",
+                    "on-tertiary-fixed-variant": "#464746",
+                    "inverse-on-surface": "#f3f0ef",
+                    "on-primary-fixed": "#3a0a00",
+                    "inverse-surface": "#313030",
+                    "on-primary": "#ffffff",
+                    "primary": "#9b442a",
+                    "on-tertiary-container": "#323332",
+                    "on-background": "#1c1b1b",
+                    "surface-tint": "#9b442a",
+                    "on-error-container": "#93000a",
+                    "primary-fixed-dim": "#ffb59f",
+                    "on-secondary": "#ffffff",
+                    "on-surface-variant": "#55423d",
+                    "on-primary-fixed-variant": "#7c2d15",
+                    "background": "#fcf9f8",
+                    "surface-container-highest": "#e5e2e1",
+                    "on-primary-container": "#601a03",
+                    "secondary-fixed": "#ede0da",
+                    "surface-container-high": "#eae7e7",
+                    "surface-variant": "#e5e2e1",
+                    "secondary": "#665c58",
+                    "on-tertiary-fixed": "#1a1c1b",
+                    "on-secondary-fixed": "#211a17",
+                    "outline": "#88726c",
+                    "on-surface": "#1c1b1b",
+                    "tertiary-fixed-dim": "#c7c6c5",
+                    "tertiary-fixed": "#e3e2e0"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xs": "4px",
+                    "margin-desktop": "40px",
+                    "sm": "8px",
+                    "gutter": "16px",
+                    "md": "16px",
+                    "margin-mobile": "20px",
+                    "xl": "32px",
+                    "lg": "24px",
+                    "unit": "4px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "display": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["22px", {"lineHeight": "28px", "letterSpacing": "-0.4px", "fontWeight": "600"}],
+                    "display": ["34px", {"lineHeight": "41px", "letterSpacing": "-0.4px", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "30px", "fontWeight": "700"}],
+                    "body-lg": ["17px", {"lineHeight": "22px", "letterSpacing": "-0.4px", "fontWeight": "400"}],
+                    "label-sm": ["11px", {"lineHeight": "13px", "letterSpacing": "0.06px", "fontWeight": "600"}],
+                    "label-md": ["13px", {"lineHeight": "18px", "letterSpacing": "0px", "fontWeight": "500"}],
+                    "headline-lg": ["28px", {"lineHeight": "34px", "letterSpacing": "-0.4px", "fontWeight": "700"}],
+                    "body-md": ["15px", {"lineHeight": "20px", "letterSpacing": "-0.2px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #fcf9f8; /* Surface color */
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hairline {
+            border: 0.5px solid rgba(136, 114, 108, 0.2);
+        }
+        .ios-list-item:active {
+            background-color: #f0eded;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .squircle {
+            border-radius: 1.25rem; /* ~20px soft rounding */
+        }
+    </style>
+</head>
+<body class="text-on-background min-h-screen flex flex-col">
+<!-- Top App Bar -->
+<header class="fixed top-0 w-full z-50 bg-surface/80 backdrop-blur-md border-b border-outline-variant/30 flex justify-between items-center px-margin-mobile h-14">
+<button class="hover:bg-surface-container-low p-2 rounded-full transition-colors active:scale-95 transition-all">
+<span class="material-symbols-outlined text-primary-container" style="color: #e67e5f;">arrow_back_ios_new</span>
+</button>
+<h1 class="font-headline-md text-headline-md text-on-surface font-semibold">Info</h1>
+<button class="hover:bg-surface-container-low p-2 rounded-full transition-colors active:scale-95 transition-all">
+<span class="material-symbols-outlined text-primary-container" style="color: #e67e5f;">edit</span>
+</button>
+</header>
+<main class="flex-grow pt-24 pb-12 px-margin-mobile">
+<!-- Profile Section -->
+<section class="flex flex-col items-center mb-10 text-center">
+<div class="relative mb-4">
+<img class="w-32 h-32 object-cover shadow-sm rounded-full" data-alt="A high-end squircle avatar of a creative collective community group." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCZsYQCfrJWXFL14KieG6uR72BxzOpAsP40UNfndqEp8n6d_wbWfXTOj1rVVzyIURRPVfSfUmx-U0_8eplNd2YF-wSguY98umuZ0zJKRkmb_Xe6B5Z9AyzHGy2gXvMYIjXUzEzg9btOG4o0L6cNRIbH1I9m5pm7wqDZ8M_ccWP5VZShCR50AyTezPzwa7lLvGF1nYa1pbe6Hu2hhcv4a3JChdc6XccZe4y7MjYyz-CSUlfeOR5SL9w">
+</div>
+<h2 class="font-display text-display text-on-surface tracking-tight">Design Circle</h2>
+<p class="font-label-md text-label-md text-secondary mt-1">12 Participants</p>
+</section>
+<!-- Action Icons (Quick Settings) -->
+<div class="grid grid-cols-3 gap-4 mb-8">
+<button class="flex flex-col items-center gap-2 p-4 bg-surface-container-lowest hairline rounded-xl active:scale-95 transition-transform">
+<span class="material-symbols-outlined" style="color: #e67e5f;">notifications</span>
+<span class="font-label-md text-label-md text-on-surface">Mute</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-4 bg-surface-container-lowest hairline rounded-xl active:scale-95 transition-transform">
+<span class="material-symbols-outlined" style="color: #e67e5f;">search</span>
+<span class="font-label-md text-label-md text-on-surface">Search</span>
+</button>
+<button class="flex flex-col items-center gap-2 p-4 bg-surface-container-lowest hairline rounded-xl active:scale-95 transition-transform">
+<span class="material-symbols-outlined" style="color: #e67e5f;">add_circle</span>
+<span class="font-label-md text-label-md text-on-surface">Add</span>
+</button>
+</div>
+<!-- Grouped List (iOS Style) -->
+<div class="bg-surface-container-lowest hairline rounded-2xl overflow-hidden mb-8">
+<div class="ios-list-item flex items-center justify-between p-md border-b border-outline-variant/10 cursor-pointer">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-secondary">notifications_off</span>
+<span class="font-body-md text-body-md text-on-surface">Mute Notifications</span>
+</div>
+<div class="flex items-center">
+<span class="font-label-md text-label-md text-secondary mr-2">No</span>
+<span class="material-symbols-outlined text-outline-variant text-[20px]">chevron_right</span>
+</div>
+</div>
+<div class="ios-list-item flex items-center justify-between p-md border-b border-outline-variant/10 cursor-pointer">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-secondary">group</span>
+<span class="font-body-md text-body-md text-on-surface">View Participants</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-[20px]">chevron_right</span>
+</div>
+<div class="ios-list-item flex items-center justify-between p-md cursor-pointer">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-secondary">history</span>
+<span class="font-body-md text-body-md text-on-surface">Clear History</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-[20px]">chevron_right</span>
+</div>
+</div>
+<!-- Media & Files Preview -->
+<div class="mb-8">
+<div class="flex justify-between items-center mb-3">
+<h3 class="font-label-md text-label-md text-secondary uppercase tracking-wider">Shared Media</h3>
+<button class="font-label-md text-label-md font-semibold" style="color: #e67e5f;">See All</button>
+</div>
+<div class="grid grid-cols-4 gap-2">
+<div class="aspect-square hairline rounded-lg bg-surface-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A minimalist architectural photograph of a curved concrete wall." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7TkQBAJU9cz-VwUq6xNTo6pJsSfdBm_OW3WgcdJb0ChNCKPTkN_Brqt5RvbfFDn7nVcc0pZP0kYwN-cvzlnTUJ6VY_uvxKwnpfb639FGNx8nVZjXxLDQuBdAUy9KL5eSH8fikr4pMGpKm80skaxN-53A_ctqbJmYE--hQwfHgC58tiOEX5PZRQQ-7kUEhCElaDdqQhF7fS-7stNRd9ls1SlaVDzNOOjwBA68otIzT4ESNv3CIepk">
+</div>
+<div class="aspect-square hairline rounded-lg bg-surface-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A close-up shot of hand-crafted Japanese stationery paper." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBGkrqRkc_X0PNNSKWNoLosnwHig2NBpFAXyDZyqiacuiCNcM_gbx4FAAtEgkRFi-xbUoQ0Ysb7Ot0BRasC_kZ6wR185ASkH_sGJzc0aWbM8_BmhuB13G5pMm7J7nEddtsyMv8U7xuynl6_9G8ZyvegbU83nrc1FLW5_43lfSimSph-gqBTbNQ6u6rH5DUMQk6-qfdINbqZjIGct9RZW8R5c1xus8y8BMnB20-LyKz3wvuyuglvriw">
+</div>
+<div class="aspect-square hairline rounded-lg bg-surface-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Macro photography of a single green leaf with dew drops." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1DxBBOkOQb793a_cN7GITNR0DsOtjGKaU1bDXM0EJw1uQTCIrVHFsn6UiHqk28PXwygslNp7C1l0Gq5Fc2xsQm5JD_dWh-csoWDDO6s3ZGDnpTSBrjXfdCahivWORCAmQ1aUnGf7c4gV7B7Js6YPaOanWrQVLUgQhfuJW820947IV0TdfBTJ6bsfq_Yea61epfGfE64JjhHDB3QSOO_Oxc61Zd_R9CLwyS8GGj8efPecXppMwhnk">
+</div>
+<div class="aspect-square hairline rounded-lg bg-surface-container-low flex items-center justify-center">
+<span class="font-label-sm text-label-sm text-secondary">+12</span>
+</div>
+</div>
+</div>
+<!-- Danger Zone Section -->
+<div class="bg-surface-container-lowest hairline rounded-2xl overflow-hidden">
+<button class="ios-list-item w-full flex items-center justify-center p-md cursor-pointer active:scale-[0.98] transition-transform">
+<span class="font-body-md text-body-md font-semibold text-error">Leave Chat</span>
+</button>
+</div>
+</main>
+<script>
+        // Micro-interaction for list items
+        document.querySelectorAll('.ios-list-item').forEach(item => {
+            item.addEventListener('touchstart', () => {
+                item.style.backgroundColor = '#f0eded';
+            });
+            item.addEventListener('touchend', () => {
+                setTimeout(() => {
+                    item.style.backgroundColor = '';
+                }, 100);
+            });
+        });
+    </script>
+</body></html>

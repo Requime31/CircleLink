@@ -1,12 +1,10 @@
 import SwiftUI
 
-/// Destinations pushed from Chat Info (one at a time — avoids List NavigationLink bugs).
-private enum ChatInfoDestination: Hashable, Identifiable {
+/// Destinations pushed from Chat Info one at a time (buttons + `navigationDestination`).
+private enum ChatInfoDestination: Hashable {
     case search
     case participants
     case media
-
-    var id: Self { self }
 }
 
 private enum ChatInfoAlert: Identifiable {
@@ -73,7 +71,16 @@ struct ChatInfoView: View {
         .clCanvasBackground()
         .navigationTitle(viewModel.navigationTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .background(hiddenNavigationLinks)
+        .navigationDestination(
+            isPresented: Binding(
+                get: { destination != nil },
+                set: { if !$0 { destination = nil } }
+            )
+        ) {
+            if let route = destination {
+                chatInfoDestination(route)
+            }
+        }
         .task {
             viewModel.load()
         }
@@ -107,49 +114,36 @@ struct ChatInfoView: View {
         }
     }
 
-    /// Programmatic pushes — one selection at a time (no List NavigationLink collisions).
+    /// Pushes Search / Participants / Media on the parent `NavigationStack` (iOS 16+).
+    /// Prefer this over deprecated `NavigationLink(destination:tag:selection:)`.
     @ViewBuilder
-    private var hiddenNavigationLinks: some View {
-        NavigationLink(
-            destination: ChatMessageSearchView(
+    private func chatInfoDestination(_ route: ChatInfoDestination) -> some View {
+        switch route {
+        case .search:
+            ChatMessageSearchView(
                 chatId: viewModel.chatId,
                 chatRepository: viewModel.chatRepository
             ) { message in
                 destination = nil
                 onOpenMessage(message)
-            },
-            tag: ChatInfoDestination.search,
-            selection: $destination
-        ) { EmptyView() }
-        .hidden()
-
-        NavigationLink(
-            destination: Group {
-                if case let .loaded(info) = viewModel.state {
-                    ChatParticipantsView(
-                        info: info,
-                        currentUserId: viewModel.currentUserId,
-                        makePeerProfileSheet: makePeerProfileSheet
-                    )
-                } else {
-                    ProgressView()
-                        .tint(CLColor.primary)
-                }
-            },
-            tag: ChatInfoDestination.participants,
-            selection: $destination
-        ) { EmptyView() }
-        .hidden()
-
-        NavigationLink(
-            destination: ChatMediaGalleryView(
+            }
+        case .participants:
+            if case let .loaded(info) = viewModel.state {
+                ChatParticipantsView(
+                    info: info,
+                    currentUserId: viewModel.currentUserId,
+                    makePeerProfileSheet: makePeerProfileSheet
+                )
+            } else {
+                ProgressView()
+                    .tint(CLColor.primary)
+            }
+        case .media:
+            ChatMediaGalleryView(
                 chatId: viewModel.chatId,
                 chatRepository: viewModel.chatRepository
-            ),
-            tag: ChatInfoDestination.media,
-            selection: $destination
-        ) { EmptyView() }
-        .hidden()
+            )
+        }
     }
 
     private var alertTitle: String {

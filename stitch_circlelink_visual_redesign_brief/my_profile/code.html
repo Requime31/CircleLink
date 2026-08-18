@@ -1,0 +1,279 @@
+<!DOCTYPE html><html class="light" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport">
+<title>CircleLink Profile</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "error": "#ba1a1a",
+                    "surface-bright": "#fcf9f8",
+                    "on-error": "#ffffff",
+                    "secondary-fixed-dim": "#d1c4be",
+                    "primary-fixed": "#ffdbd1",
+                    "surface-dim": "#dcd9d9",
+                    "surface-container": "#f0eded",
+                    "tertiary-container": "#9b9b99",
+                    "outline-variant": "#dcc1b9",
+                    "error-container": "#ffdad6",
+                    "primary-container": "#e67e5f",
+                    "surface": "#fcf9f8",
+                    "on-secondary-fixed-variant": "#4e4541",
+                    "tertiary": "#5e5e5d",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-low": "#f6f3f2",
+                    "secondary-container": "#ebddd7",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-container": "#6a615c",
+                    "inverse-primary": "#ffb59f",
+                    "on-tertiary-fixed-variant": "#464746",
+                    "inverse-on-surface": "#f3f0ef",
+                    "on-primary-fixed": "#3a0a00",
+                    "inverse-surface": "#313030",
+                    "on-primary": "#ffffff",
+                    "primary": "#9b442a",
+                    "on-tertiary-container": "#323332",
+                    "on-background": "#1c1b1b",
+                    "surface-tint": "#9b442a",
+                    "on-error-container": "#93000a",
+                    "primary-fixed-dim": "#ffb59f",
+                    "on-secondary": "#ffffff",
+                    "on-surface-variant": "#55423d",
+                    "on-primary-fixed-variant": "#7c2d15",
+                    "background": "#fcf9f8",
+                    "surface-container-highest": "#e5e2e1",
+                    "on-primary-container": "#601a03",
+                    "secondary-fixed": "#ede0da",
+                    "surface-container-high": "#eae7e7",
+                    "surface-variant": "#e5e2e1",
+                    "secondary": "#665c58",
+                    "on-tertiary-fixed": "#1a1c1b",
+                    "on-secondary-fixed": "#211a17",
+                    "outline": "#88726c",
+                    "on-surface": "#1c1b1b",
+                    "tertiary-fixed-dim": "#c7c6c5",
+                    "tertiary-fixed": "#e3e2e0"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xs": "4px",
+                    "margin-desktop": "40px",
+                    "sm": "8px",
+                    "gutter": "16px",
+                    "md": "16px",
+                    "margin-mobile": "20px",
+                    "xl": "32px",
+                    "lg": "24px",
+                    "unit": "4px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "display": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "label-md": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["22px", {"lineHeight": "28px", "letterSpacing": "-0.4px", "fontWeight": "600"}],
+                    "display": ["34px", {"lineHeight": "41px", "letterSpacing": "-0.4px", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "30px", "fontWeight": "700"}],
+                    "body-lg": ["17px", {"lineHeight": "22px", "letterSpacing": "-0.4px", "fontWeight": "400"}],
+                    "label-sm": ["11px", {"lineHeight": "13px", "letterSpacing": "0.06px", "fontWeight": "600"}],
+                    "label-md": ["13px", {"lineHeight": "18px", "letterSpacing": "0px", "fontWeight": "500"}],
+                    "headline-lg": ["28px", {"lineHeight": "34px", "letterSpacing": "-0.4px", "fontWeight": "700"}],
+                    "body-md": ["15px", {"lineHeight": "20px", "letterSpacing": "-0.2px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #fcf9f8;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hairline {
+            border: 1px solid rgba(136, 114, 108, 0.15);
+        }
+        .squircle {
+            border-radius: 1rem; /* 16px */
+        }
+        .profile-shadow {
+            box-shadow: 0px 4px 20px rgba(28, 27, 27, 0.04);
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="antialiased text-on-surface">
+<!-- TopAppBar -->
+
+<main class="pt-14 pb-24 max-w-2xl mx-auto">
+<!-- Hero Profile Section -->
+<section class="px-margin-mobile pt-8 pb-6 flex flex-col items-center text-center">
+<div class="relative mb-4">
+<div class="rounded-full w-28 h-28 overflow-hidden hairline profile-shadow bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Julian Thorne" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtZ94lCXmQk12OuzMMXTuXdPX5AHNdfBzrYxTAQBIfSffvsSURosuGFO0zENOwLuVOIldY2zITNSrYYf0cICujCfrtpGXq6bC4JhFJvQl4EK5vXkAU1BH8t16vvracRYz3x1NPma6R2IReh18UiwOdSEUFPoBY2FRw3EjKIybRSUa6Zj-4o_fMezUsqU1PQyXV9XmbIzFqU6kabVOba2AEcfUfCY-omtKsRjUXWnzmC9YrRqrIFCY">
+</div>
+<div class="absolute bottom-0 right-0 bg-primary-container text-on-primary-container w-8 h-8 rounded-full flex items-center justify-center border-4 border-background">
+<span class="material-symbols-outlined text-[18px]" data-icon="verified" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+</div>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-1">Julian Thorne</h2>
+<p class="font-label-md text-label-md text-on-surface-variant mb-6">Member since October 2023</p>
+<div class="flex gap-3 w-full max-w-sm">
+<button class="flex-1 h-12 bg-primary-container text-on-primary-container font-label-md text-label-md rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-[18px]" data-icon="edit">edit</span>
+                    Edit Profile
+                </button>
+<button class="h-12 px-8 hairline bg-surface-container-lowest font-label-md text-label-md rounded-xl active:scale-95 transition-transform text-on-surface shadow-sm">
+                    Share
+                </button>
+</div>
+</section>
+<!-- Stats Row -->
+<section class="px-margin-mobile mb-8">
+<div class="grid grid-cols-3 bg-surface-container-lowest hairline squircle p-4 text-center">
+<div>
+<div class="font-headline-md text-headline-md text-primary">124</div>
+<div class="font-label-sm text-label-sm text-secondary uppercase tracking-widest">Circles</div>
+</div>
+<div class="border-x border-outline-variant/30">
+<div class="font-headline-md text-headline-md text-primary">8.2k</div>
+<div class="font-label-sm text-label-sm text-secondary uppercase tracking-widest">Connects</div>
+</div>
+<div>
+<div class="font-headline-md text-headline-md text-primary">45</div>
+<div class="font-label-sm text-label-sm text-secondary uppercase tracking-widest">Posts</div>
+</div>
+</div>
+</section>
+<!-- My Interests Section -->
+<section class="px-margin-mobile mb-8">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-headline-md text-headline-lg-mobile text-on-surface">My Interests</h3>
+<button class="text-primary font-label-md text-label-md px-3 py-1 rounded-full hover:bg-primary/5">Edit</button>
+</div>
+<div class="flex flex-wrap gap-2">
+<span class="px-4 py-2 bg-secondary-container/40 text-on-secondary-container border border-outline-variant/30 rounded-xl font-label-md text-label-md cursor-pointer hover:bg-secondary-container transition-colors">Sunset Photography</span>
+<span class="px-4 py-2 bg-secondary-container/40 text-on-secondary-container border border-outline-variant/30 rounded-xl font-label-md text-label-md cursor-pointer hover:bg-secondary-container transition-colors">Clay Pottery</span>
+<span class="px-4 py-2 bg-secondary-container/40 text-on-secondary-container border border-outline-variant/30 rounded-xl font-label-md text-label-md cursor-pointer hover:bg-secondary-container transition-colors">Minimal Design</span>
+<span class="px-4 py-2 bg-secondary-container/40 text-on-secondary-container border border-outline-variant/30 rounded-xl font-label-md text-label-md cursor-pointer hover:bg-secondary-container transition-colors">Slow Living</span>
+<span class="px-4 py-2 bg-secondary-container/40 text-on-secondary-container border border-outline-variant/30 rounded-xl font-label-md text-label-md cursor-pointer hover:bg-secondary-container transition-colors">Architecture</span>
+</div>
+</section>
+<!-- My Posts Bento Grid -->
+<section class="px-margin-mobile mb-8">
+<h3 class="font-headline-md text-headline-lg-mobile text-on-surface mb-4">My Posts</h3>
+<div class="grid grid-cols-6 grid-rows-2 gap-3 aspect-square sm:aspect-video">
+<!-- Large Featured Post -->
+<div class="col-span-4 row-span-2 relative group overflow-hidden squircle hairline cursor-pointer">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="Landscape post" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCxVYa3ZMmA0JO9nFLOVgNdFoL7Zc_Nyc2TqSxPqJvmUiqvpwkA_3hqNopM3GYAskIorK7QlIdIJ5hGR94Sq7P3z047xlZrYXefHPkfmsb4me9eJ4u6MuVnXLSBm_C0ayl7zXCvd_PUEQaH_BQRGvWKoe44k8pExnHcCdEaa42aRX9lceNVoTbOo3IjYU-9L4McIjxc4HQkDvEs_6qSEdxpqAwQ7Ygrk5BpEbn0UQsd8vzqzWNNIw">
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
+<span class="text-white font-label-md text-label-md">Coastal Solitude</span>
+</div>
+</div>
+<!-- Top Small Post -->
+<div class="col-span-2 row-span-1 relative group overflow-hidden squircle hairline cursor-pointer">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="Pottery post" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9OndOWxMfc6jcwM06f--G__kLyg639wBPJ1huVtI1uVBg8ASm4ktpxi4Dhda9Y94-1SAMYzGhmgiJXzd-mvxsLJKV_sjxr3oTi2kL01SteN23hNEYj9qeWaABKLsI6Wf8lUdJDx93WP-WT83vdslnMwaqFUF8VxkHTwm_zaiPYlOOmLhlY_olDUDtpcX7d58co419GsA_RMOmLvUIOQwRr5OmQAzdsdWn0yIm5QL26BbcM_CLFro">
+</div>
+<!-- Bottom Small Post -->
+<div class="col-span-2 row-span-1 relative group overflow-hidden squircle hairline cursor-pointer">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="Architecture post" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLwEemJgEqcCOSGdAE1PagbbVSTOUR1C_ZGsfLlz7Rou8i6esKQCa54sI05NmBG-m6Ac68BhzYmNQBjZpI3N1tyccfqYxw0iwn2bStWw2tmny5zFtcLPHmWpGrejIKhq97jRoHPuqMKbjMUZ5bzUB58cpr1UJ7AqGLL2DBZO4_0t_3GYcImuQthZnTypCbafzFAS-lgXDcW4Dl3-tlnWLLiwu6DdDLJGRfC6MGdwGDkzkEag-8H_g">
+</div>
+</div>
+</section>
+<!-- Activity Feed -->
+<section class="px-margin-mobile">
+<h3 class="font-headline-md text-headline-lg-mobile text-on-surface mb-4">Recent Activity</h3>
+<div class="space-y-3">
+<div class="bg-surface-container-lowest hairline squircle p-4 flex items-start gap-4 active:bg-surface-container-low transition-colors cursor-pointer">
+<div class="w-10 h-10 squircle bg-secondary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary" data-icon="diversity_3">diversity_3</span>
+</div>
+<div class="flex-1">
+<p class="font-body-md text-body-md text-on-surface">Joined the <span class="font-semibold text-primary">Urban Potters Circle</span></p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">2 hours ago</p>
+</div>
+</div>
+<div class="bg-surface-container-lowest hairline squircle p-4 flex items-start gap-4 active:bg-surface-container-low transition-colors cursor-pointer">
+<div class="w-10 h-10 squircle bg-primary-container/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary" data-icon="favorite" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</div>
+<div class="flex-1">
+<p class="font-body-md text-body-md text-on-surface">Liked Sarah's post in <span class="font-semibold text-primary">Minimalist Homes</span></p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Yesterday</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center pt-2 pb-6 px-margin-mobile bg-surface/90 backdrop-blur-md border-t border-outline-variant/30">
+<a class="flex flex-col items-center justify-center text-on-surface-variant/70 active:scale-90 transition-transform px-4 py-1" href="#">
+<span class="material-symbols-outlined text-[24px]" data-icon="group">group</span>
+<span class="font-label-sm text-label-sm mt-1">Circles</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant/70 active:scale-90 transition-transform px-4 py-1" href="#">
+<span class="material-symbols-outlined text-[24px]" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-label-sm text-label-sm mt-1">Chats</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant/70 active:scale-90 transition-transform px-4 py-1" href="#">
+<span class="material-symbols-outlined text-[24px]" data-icon="diversity_3">diversity_3</span>
+<span class="font-label-sm text-label-sm mt-1">Connect</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary active:scale-90 transition-transform px-4 py-1" href="#">
+<span class="material-symbols-outlined text-[24px]" data-icon="person" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-label-sm text-label-sm mt-1 font-semibold">Profile</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for interest chips
+        document.querySelectorAll('.rounded-xl.font-label-md').forEach(chip => {
+            chip.addEventListener('click', function() {
+                const isActive = this.classList.contains('bg-primary-container');
+                if (isActive) {
+                    this.classList.remove('bg-primary-container', 'text-on-primary-container');
+                    this.classList.add('bg-secondary-container/40', 'text-on-secondary-container');
+                } else {
+                    this.classList.add('bg-primary-container', 'text-on-primary-container');
+                    this.classList.remove('bg-secondary-container/40', 'text-on-secondary-container');
+                }
+                this.style.transform = 'scale(0.95)';
+                setTimeout(() => { this.style.transform = 'scale(1)'; }, 100);
+            });
+        });
+
+        // Scroll logic for header
+        window.addEventListener('scroll', () => {
+            const header = document.querySelector('header');
+            if (window.scrollY > 10) {
+                header.classList.add('shadow-sm');
+                header.style.backgroundColor = 'rgba(252, 249, 248, 0.95)';
+            } else {
+                header.classList.remove('shadow-sm');
+                header.style.backgroundColor = 'rgba(252, 249, 248, 0.8)';
+            }
+        });
+    </script>
+
+
+</body></html>
