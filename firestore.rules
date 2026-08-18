@@ -44,6 +44,21 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid));
     }
 
+    function isCommunityCreator(communityId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/communities/$(communityId))
+        && get(/databases/$(database)/documents/communities/$(communityId)).data.createdBy == request.auth.uid;
+    }
+
+    function isValidCommunityPost() {
+      return request.resource.data.keys().hasAll(['authorId', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['authorId', 'text', 'imageURL', 'createdAt'])
+        && request.resource.data.authorId is string
+        && request.resource.data.createdAt is timestamp
+        && ((request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000)
+          || (request.resource.data.imageURL is string && request.resource.data.imageURL.size() > 0 && request.resource.data.imageURL.size() <= 2048));
+    }
+
     // Group chats require community membership — blocks self-join via knowing group_{id}.
     function canWriteGroupChat() {
       return request.resource.data.get('type', '') != 'group'
@@ -195,7 +210,8 @@ service cloud.firestore {
 
       allow create: if isSignedIn()
         && request.resource.data.keys().hasOnly([
-          'name', 'description', 'interestTag', 'memberCount', 'createdBy'
+          'name', 'description', 'interestTag', 'memberCount', 'createdBy',
+          'createdAt', 'coverImageURL'
         ])
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.createdBy is string
@@ -207,10 +223,39 @@ service cloud.firestore {
         && request.resource.data.description.size() <= 280
         && request.resource.data.interestTag is string
         && request.resource.data.interestTag.size() > 0
-        && request.resource.data.interestTag.size() <= 40;
+        && request.resource.data.interestTag.size() <= 40
+        && request.resource.data.createdAt is timestamp
+        && (
+          !('coverImageURL' in request.resource.data)
+          || (
+            request.resource.data.coverImageURL is string
+            && request.resource.data.coverImageURL.size() > 0
+            && request.resource.data.coverImageURL.size() <= 2048
+          )
+        );
 
       allow update: if isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount']);
+        && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount'])
+          || (
+            request.auth.uid == resource.data.createdBy
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coverImageURL'])
+          )
+        );
+
+      match /posts/{postId} {
+        allow read: if isSignedIn();
+        allow create: if isCommunityMember(communityId)
+          && request.auth.uid == request.resource.data.authorId
+          && isValidCommunityPost();
+        allow update: if isCommunityMember(communityId)
+          && (request.auth.uid == resource.data.authorId || isCommunityCreator(communityId))
+          && request.resource.data.authorId == resource.data.authorId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && isValidCommunityPost();
+        allow delete: if isCommunityMember(communityId)
+          && (request.auth.uid == resource.data.authorId || isCommunityCreator(communityId));
+      }
 
       match /members/{userId} {
         allow read: if isSignedIn();

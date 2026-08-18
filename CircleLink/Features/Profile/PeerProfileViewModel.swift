@@ -5,7 +5,7 @@ import Foundation
 enum PeerProfileMode: Equatable, Sendable {
     /// Liked You — Like accepts, Skip declines the incoming request.
     case likedYou(requestId: String)
-    /// Chats / Communities / Matches — Connect / Pending / Remove.
+    /// Chats / Communities / Matches — Connect / Pending / Message.
     case social
 }
 
@@ -15,18 +15,20 @@ enum PeerRelationship: Equatable, Sendable {
     case none
     /// Outgoing or incoming pending request.
     case pending
-    /// Accepted match — show Remove, never Connect.
+    /// Accepted match — show Message, never Connect.
     case matched
 }
 
 /// Loads another user's public profile and owns mode-specific actions.
-/// Does **not** open chat. Owner Profile is separate (`ProfileView`).
+/// Opens chat only after an explicit matched-profile action. Owner Profile is separate (`ProfileView`).
 @MainActor
 final class PeerProfileViewModel: ObservableObject {
     @Published private(set) var state: ViewState<User> = .idle
     @Published private(set) var communities: [Community] = []
+    @Published private(set) var posts: [ProfilePost] = []
     @Published private(set) var relationship: PeerRelationship = .none
     @Published private(set) var isActing = false
+    @Published private(set) var isOpeningChat = false
     @Published private(set) var actionErrorMessage: String?
     /// Set after a successful like/skip so the sheet can dismiss.
     @Published private(set) var didCompleteAction = false
@@ -37,6 +39,8 @@ final class PeerProfileViewModel: ObservableObject {
     private let userRepository: UserRepository
     private let connectionRepository: ConnectionRepository
     private let communityRepository: CommunityRepository
+    private let profilePostRepository: ProfilePostRepository
+    private let chatRepository: ChatRepository
 
     /// How many community chips to show before “+N”.
     static let visibleCommunityLimit = 3
@@ -46,13 +50,17 @@ final class PeerProfileViewModel: ObservableObject {
         mode: PeerProfileMode = .social,
         userRepository: UserRepository,
         connectionRepository: ConnectionRepository,
-        communityRepository: CommunityRepository
+        communityRepository: CommunityRepository,
+        profilePostRepository: ProfilePostRepository,
+        chatRepository: ChatRepository
     ) {
         self.userId = userId
         self.mode = mode
         self.userRepository = userRepository
         self.connectionRepository = connectionRepository
         self.communityRepository = communityRepository
+        self.profilePostRepository = profilePostRepository
+        self.chatRepository = chatRepository
     }
 
     var visibleCommunities: [Community] {
@@ -87,12 +95,18 @@ final class PeerProfileViewModel: ObservableObject {
             state = .loaded(user)
             relationship = nextRelationship
 
-            // Soft-fail communities so a membership glitch still shows the profile.
-            do {
-                communities = try await communityRepository.fetchCommunities(forUserId: userId)
-            } catch {
-                communities = []
-            }
+            // Secondary public content soft-fails so one unavailable collection
+            // never prevents the core profile from being viewed.
+            async let loadedCommunities = try? communityRepository.fetchCommunities(forUserId: userId)
+            async let loadedPosts = try? profilePostRepository.fetchPosts(
+                userId: userId,
+                limit: 30,
+                before: nil
+            )
+            let (nextCommunities, nextPosts) = await (loadedCommunities, loadedPosts)
+            guard !Task.isCancelled else { return }
+            communities = nextCommunities ?? []
+            posts = nextPosts ?? []
         } catch {
             guard !Task.isCancelled else { return }
             state = .error(error.localizedDescription)
@@ -133,6 +147,22 @@ final class PeerProfileViewModel: ObservableObject {
             if !Task.isCancelled {
                 actionErrorMessage = error.localizedDescription
             }
+        }
+    }
+
+    func openChat() async -> (chatId: String, title: String)? {
+        guard mode == .social, relationship == .matched, !isOpeningChat else { return nil }
+        isOpeningChat = true
+        actionErrorMessage = nil
+        defer { isOpeningChat = false }
+
+        do {
+            let chatId = try await chatRepository.createDirectChat(with: userId)
+            let title = state.loadedValue?.displayName ?? "Chat"
+            return (chatId, title)
+        } catch {
+            if !Task.isCancelled { actionErrorMessage = error.localizedDescription }
+            return nil
         }
     }
 
@@ -184,5 +214,12 @@ final class PeerProfileViewModel: ObservableObject {
         case .declined:
             return .none
         }
+    }
+}
+
+private extension ViewState {
+    var loadedValue: T? {
+        if case let .loaded(value) = self { return value }
+        return nil
     }
 }

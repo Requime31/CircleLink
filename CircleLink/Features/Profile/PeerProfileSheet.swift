@@ -12,10 +12,11 @@ import SwiftUI
 /// }
 /// ```
 /// Sheet owns its ViewModel via `@StateObject` (stable across re-renders).
-/// Never auto-opens chat.
+/// Chat opens only after an explicit Message tap on a matched profile.
 struct PeerProfileSheet: View {
     @StateObject private var viewModel: PeerProfileViewModel
     let onFinished: () -> Void
+    let onOpenChat: (String, String) -> Void
     @Environment(\.dismiss) private var dismiss
 
     init(
@@ -24,6 +25,9 @@ struct PeerProfileSheet: View {
         userRepository: UserRepository,
         connectionRepository: ConnectionRepository,
         communityRepository: CommunityRepository,
+        profilePostRepository: ProfilePostRepository,
+        chatRepository: ChatRepository,
+        onOpenChat: @escaping (String, String) -> Void = { _, _ in },
         onFinished: @escaping () -> Void = {}
     ) {
         _viewModel = StateObject(
@@ -32,10 +36,13 @@ struct PeerProfileSheet: View {
                 mode: mode,
                 userRepository: userRepository,
                 connectionRepository: connectionRepository,
-                communityRepository: communityRepository
+                communityRepository: communityRepository,
+                profilePostRepository: profilePostRepository,
+                chatRepository: chatRepository
             )
         )
         self.onFinished = onFinished
+        self.onOpenChat = onOpenChat
     }
 
     /// Preview / tests — inject a preconfigured ViewModel.
@@ -45,12 +52,15 @@ struct PeerProfileSheet: View {
     ) {
         _viewModel = StateObject(wrappedValue: previewViewModel)
         self.onFinished = onFinished
+        self.onOpenChat = { _, _ in }
     }
 
     var body: some View {
-        PeerProfileView(viewModel: viewModel) {
-            handleClose()
-        }
+        PeerProfileView(
+            viewModel: viewModel,
+            onClose: handleClose,
+            onOpenChat: handleOpenChat
+        )
         .modifier(PeerProfileSheetChrome(mode: viewModel.mode))
         .task {
             await viewModel.load()
@@ -65,6 +75,11 @@ struct PeerProfileSheet: View {
     private func handleClose() {
         onFinished()
         dismiss()
+    }
+
+    private func handleOpenChat(chatId: String, title: String) {
+        dismiss()
+        onOpenChat(chatId, title)
     }
 }
 
@@ -147,7 +162,9 @@ private enum PeerProfilePreviewData {
             mode: mode,
             userRepository: users,
             connectionRepository: connections,
-            communityRepository: communities
+            communityRepository: communities,
+            profilePostRepository: StubProfilePostRepository(),
+            chatRepository: StubChatRepository()
         )
     }
 }

@@ -39,7 +39,7 @@ ON storage.objects FOR INSERT
 TO anon
 WITH CHECK (
   bucket_id = 'chat-images'
-  AND (storage.foldername(name))[1] IN ('chats', 'profilePosts')
+  AND (storage.foldername(name))[1] IN ('chats', 'profilePosts', 'communities', 'communityPosts')
 );
 
 -- Best-effort cleanup when a chat/profile image is deleted
@@ -48,7 +48,7 @@ ON storage.objects FOR DELETE
 TO anon
 USING (
   bucket_id = 'chat-images'
-  AND (storage.foldername(name))[1] IN ('chats', 'profilePosts')
+  AND (storage.foldername(name))[1] IN ('chats', 'profilePosts', 'communities', 'communityPosts')
 );
 ```
 
@@ -86,6 +86,12 @@ chat-images/
       {clientMessageId}.jpg
   profilePosts/
     {userId}/
+      {postId}.jpg
+  communities/
+    {communityId}/
+      cover.jpg
+  communityPosts/
+    {communityId}/
       {postId}.jpg
 ```
 

@@ -15,7 +15,10 @@ enum FirestoreCommunityMapper {
             name: name,
             description: description,
             interestTag: interestTag,
-            memberCount: memberCount(from: data)
+            memberCount: memberCount(from: data),
+            coverImageURL: (data["coverImageURL"] as? String).flatMap(URL.init(string:)),
+            createdAt: (data["createdAt"] as? Timestamp)?.dateValue(),
+            creatorId: data["createdBy"] as? String
         )
     }
 
@@ -59,7 +62,8 @@ enum FirestoreCommunityMapper {
             "description": description,
             "interestTag": interestTag,
             "memberCount": 1,
-            "createdBy": createdBy
+            "createdBy": createdBy,
+            "createdAt": FieldValue.serverTimestamp()
         ]
     }
 }

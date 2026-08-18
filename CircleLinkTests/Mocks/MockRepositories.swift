@@ -357,6 +357,16 @@ final class MockCommunityRepository: CommunityRepository, @unchecked Sendable {
         membersByCommunity[communityId]?.removeAll { $0.id == MockAuthRepository.sampleUser.id }
     }
 
+    func updateCoverURL(communityId: String, url: URL?) async throws {
+        guard let index = communities.firstIndex(where: { $0.id == communityId }) else { return }
+        let community = communities[index]
+        communities[index] = Community(
+            id: community.id, name: community.name, description: community.description,
+            interestTag: community.interestTag, memberCount: community.memberCount,
+            coverImageURL: url, createdAt: community.createdAt, creatorId: community.creatorId
+        )
+    }
+
     func createCommunity(name: String, description: String, interestTag: String) async throws -> Community {
         let community = Community(
             id: "community-new",

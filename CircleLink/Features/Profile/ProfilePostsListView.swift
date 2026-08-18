@@ -18,7 +18,7 @@ struct ProfilePostsListView: View {
     let posts: [ProfilePost]
     let author: User
     let localAvatarPreview: UIImage?
-    let onDelete: (ProfilePost) -> Void
+    var onDelete: ((ProfilePost) -> Void)? = nil
     var onEdit: ((ProfilePost) -> Void)? = nil
 
     @State private var postPendingDelete: ProfilePost?
@@ -38,7 +38,7 @@ struct ProfilePostsListView: View {
                     author: author,
                     localAvatarPreview: localAvatarPreview,
                     onEdit: onEdit,
-                    onDeleteRequest: { postPendingDelete = post }
+                    onDeleteRequest: onDelete == nil ? nil : { postPendingDelete = post }
                 )
             }
         }
@@ -53,7 +53,7 @@ struct ProfilePostsListView: View {
             presenting: postPendingDelete
         ) { post in
             Button("Delete Post", role: .destructive) {
-                onDelete(post)
+                onDelete?(post)
                 postPendingDelete = nil
             }
             Button("Cancel", role: .cancel) {
@@ -72,7 +72,7 @@ private struct ProfilePostCardView: View {
     let author: User
     let localAvatarPreview: UIImage?
     var onEdit: ((ProfilePost) -> Void)?
-    let onDeleteRequest: () -> Void
+    var onDeleteRequest: (() -> Void)?
 
     private var trimmedText: String? {
         guard let text = post.text?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -145,25 +145,29 @@ private struct ProfilePostCardView: View {
 
             Spacer(minLength: CLSpacing.xs)
 
-            Menu {
-                if let onEdit {
-                    Button("Edit Post") {
-                        onEdit(post)
+            if onEdit != nil || onDeleteRequest != nil {
+                Menu {
+                    if let onEdit {
+                        Button("Edit Post") {
+                            onEdit(post)
+                        }
                     }
-                }
 
-                Button("Delete Post", role: .destructive) {
-                    onDeleteRequest()
+                    if let onDeleteRequest {
+                        Button("Delete Post", role: .destructive) {
+                            onDeleteRequest()
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(CLColor.inkSecondary)
+                        .frame(minWidth: AccessibilityHelpers.minimumTouchTarget,
+                               minHeight: AccessibilityHelpers.minimumTouchTarget)
+                        .contentShape(Rectangle())
                 }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(CLColor.inkSecondary)
-                    .frame(minWidth: AccessibilityHelpers.minimumTouchTarget,
-                           minHeight: AccessibilityHelpers.minimumTouchTarget)
-                    .contentShape(Rectangle())
+                .accessibilityLabel("Post actions")
             }
-            .accessibilityLabel("Post actions")
         }
     }
 

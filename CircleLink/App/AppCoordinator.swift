@@ -117,7 +117,8 @@ final class AppCoordinator: ObservableObject {
                     makePeerProfileSheet: { userId, mode in
                         self.dependencies.makePeerProfileSheet(
                             userId: userId,
-                            mode: mode
+                            mode: mode,
+                            onOpenChat: self.openChat
                         )
                     },
                     pushHandler: dependencies.pushNotificationHandler,

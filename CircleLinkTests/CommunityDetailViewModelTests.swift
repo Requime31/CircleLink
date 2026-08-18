@@ -13,7 +13,10 @@ struct CommunityDetailViewModelTests {
             communityId: "community-1",
             communityRepository: community,
             chatRepository: chat,
-            authRepository: auth
+            authRepository: auth,
+            communityPostRepository: StubCommunityPostRepository(),
+            communityImageStorage: StubCommunityImageStorage(),
+            userRepository: MockUserRepository()
         )
         return (viewModel, community, chat)
     }

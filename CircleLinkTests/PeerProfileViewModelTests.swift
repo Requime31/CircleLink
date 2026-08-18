@@ -119,18 +119,80 @@ struct PeerProfileViewModelTests {
         #expect(viewModel.relationship == .pending)
     }
 
+    @Test func loadIncludesPeerPosts() async {
+        let posts = MockProfilePostRepository()
+        posts.posts = [
+            ProfilePost(
+                id: "post-1",
+                authorId: "peer-1",
+                text: "Hello from my profile",
+                imageURL: nil,
+                createdAt: Date()
+            )
+        ]
+        let viewModel = makeViewModel(mode: .social, profilePostRepository: posts)
+
+        await viewModel.load()
+
+        #expect(viewModel.posts.map(\.id) == ["post-1"])
+    }
+
+    @Test func postFailureStillLoadsCoreProfile() async {
+        let posts = MockProfilePostRepository()
+        posts.fetchError = NSError(domain: "test", code: 2)
+        let viewModel = makeViewModel(mode: .social, profilePostRepository: posts)
+
+        await viewModel.load()
+
+        if case .loaded = viewModel.state {
+            #expect(viewModel.posts.isEmpty)
+        } else {
+            Issue.record("Expected profile to load when posts fail")
+        }
+    }
+
+    @Test func matchedPeerCanOpenDirectChat() async {
+        let connections = MockConnectionRepository()
+        connections.matched = [
+            ConnectionRequest(
+                id: "match-1",
+                fromUserId: "user-1",
+                toUserId: "peer-1",
+                communityId: nil,
+                status: .accepted,
+                createdAt: Date()
+            )
+        ]
+        let chats = MockChatRepository()
+        let viewModel = makeViewModel(
+            mode: .social,
+            connectionRepository: connections,
+            chatRepository: chats
+        )
+
+        await viewModel.load()
+        let route = await viewModel.openChat()
+
+        #expect(route?.chatId == "direct-chat-1")
+        #expect(chats.createDirectChatCallCount == 1)
+    }
+
     private func makeViewModel(
         mode: PeerProfileMode,
         connectionRepository: MockConnectionRepository = MockConnectionRepository(),
         userRepository: MockUserRepository = MockUserRepository(),
-        communityRepository: MockCommunityRepository = MockCommunityRepository()
+        communityRepository: MockCommunityRepository = MockCommunityRepository(),
+        profilePostRepository: MockProfilePostRepository = MockProfilePostRepository(),
+        chatRepository: MockChatRepository = MockChatRepository()
     ) -> PeerProfileViewModel {
         PeerProfileViewModel(
             userId: "peer-1",
             mode: mode,
             userRepository: userRepository,
             connectionRepository: connectionRepository,
-            communityRepository: communityRepository
+            communityRepository: communityRepository,
+            profilePostRepository: profilePostRepository,
+            chatRepository: chatRepository
         )
     }
 }

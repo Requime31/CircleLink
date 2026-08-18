@@ -40,6 +40,29 @@ final class CommunitiesViewModel: ObservableObject {
         )
     }
 
+    /// Most active circles first. The list screen caps this visually unless See all is selected.
+    var suggestedCommunities: [Community] {
+        filteredCommunities.sorted {
+            if $0.memberCount == $1.memberCount {
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+            return $0.memberCount > $1.memberCount
+        }
+    }
+
+    /// Newly created circles first. Legacy records without `createdAt` remain visible after dated ones.
+    var newCommunities: [Community] {
+        filteredCommunities.sorted {
+            switch ($0.createdAt, $1.createdAt) {
+            case let (lhs?, rhs?): return lhs > rhs
+            case (.some, .none): return true
+            case (.none, .some): return false
+            case (.none, .none):
+                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+        }
+    }
+
     /// Cancels any in-flight refresh, then reloads with a spinner.
     func loadCommunities() async {
         refreshTask?.cancel()

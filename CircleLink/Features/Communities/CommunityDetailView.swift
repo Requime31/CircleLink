@@ -1,13 +1,17 @@
+import PhotosUI
 import SwiftUI
 
 struct CommunityDetailView: View {
     @ObservedObject var viewModel: CommunityDetailViewModel
-    /// Called with `(chatId, title)` after group chat is created or opened.
     let onOpenGroupChat: (String, String) -> Void
-    /// Builds Phase 2 peer profile sheet. Pass `communityId` so Connect works.
     let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
 
     @State private var presentedPeer: PeerSheetItem?
+    @State private var selectedTab: CommunityDetailTab = .feed
+    @State private var showLeaveConfirmation = false
+    @State private var composeMode: CommunityPost?
+    @State private var isCreatingPost = false
+    @State private var selectedCover: PhotosPickerItem?
 
     var body: some View {
         Group {
@@ -25,155 +29,270 @@ struct CommunityDetailView: View {
         .clCanvasBackground()
         .navigationTitle(viewModel.communityState.loadedValue?.name ?? "Community")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(CLColor.canvas.opacity(0.92), for: .navigationBar)
+        .toolbar {
+            if viewModel.canEditCover {
+                ToolbarItem(placement: .topBarTrailing) {
+                    PhotosPicker(selection: $selectedCover, matching: .images) {
+                        Image(systemName: "photo")
+                    }
+                    .accessibilityLabel("Change community cover")
+                }
+            }
+        }
         .sheet(item: $presentedPeer) { peer in
             makePeerProfileSheet(peer.userId, .social)
         }
-        .task {
-            await viewModel.load()
+        .task { await viewModel.load() }
+        .onChange(of: selectedCover) { item in
+            Task {
+                guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return }
+                await viewModel.updateCover(image: data)
+                selectedCover = nil
+            }
+        }
+        .sheet(isPresented: $isCreatingPost) {
+            CommunityComposePostSheet(viewModel: viewModel, post: nil) { isCreatingPost = false }
+        }
+        .sheet(item: $composeMode) { post in
+            CommunityComposePostSheet(viewModel: viewModel, post: post) { composeMode = nil }
+        }
+        .confirmationDialog(
+            "Leave this community?",
+            isPresented: $showLeaveConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Leave Community", role: .destructive) {
+                Task { await viewModel.leave() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You’ll lose access to the group chat until you join again.")
         }
     }
 
-    // MARK: - Club hub
-
-    @ViewBuilder
     private func detailContent(community: Community) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: CLSpacing.xl) {
-                headerSection(community: community)
-                membershipSection
-                aboutSection(community: community)
-                membersSection
+            VStack(alignment: .leading, spacing: 0) {
+                CommunityArtworkView(community: community, cornerRadius: 0)
+                    .frame(height: 280)
+
+                VStack(alignment: .leading, spacing: CLSpacing.lg) {
+                    headerSection(community: community)
+                    aboutSection(community: community)
+                    groupChatButton
+                    membershipError
+                }
+                .padding(.horizontal, CLSpacing.screenHorizontal)
+                .padding(.vertical, CLSpacing.lg)
+
+                tabs
+                tabContent
+                    .padding(.horizontal, CLSpacing.screenHorizontal)
+                    .padding(.top, CLSpacing.lg)
+                    .padding(.bottom, CLSpacing.xxl)
             }
-            .padding(.horizontal, CLSpacing.screenHorizontal)
-            .padding(.vertical, CLSpacing.lg)
             .clAppear()
         }
     }
 
-    /// Name + interest + count — soft hub anchor (not a dashboard).
-    @ViewBuilder
     private func headerSection(community: Community) -> some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text(community.name)
-                .font(CLTypography.title)
-                .foregroundStyle(CLColor.ink)
-                .accessibilityAddTraits(.isHeader)
+        VStack(alignment: .leading, spacing: CLSpacing.xs) {
+            HStack(alignment: .center, spacing: CLSpacing.md) {
+                Text(community.name)
+                    .font(CLTypography.title)
+                    .foregroundStyle(CLColor.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
 
-            CLChip(
-                title: community.interestTag,
-                isEmphasized: true,
-                accessibilityLabelText: "Interest: \(community.interestTag)"
-            )
+                membershipButton
+            }
 
             Text(memberCountLabel(for: community.memberCount))
-                .font(CLTypography.footnote)
-                .foregroundStyle(CLColor.inkMuted)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private var membershipSection: some View {
-        VStack(spacing: CLSpacing.sm) {
-            if viewModel.isMember {
-                Button {
-                    Task { await viewModel.leave() }
-                } label: {
-                    membershipButtonLabel(title: "Leave Community", isLoading: viewModel.isMembershipActionInFlight)
-                }
-                .buttonStyle(CLSecondaryButtonStyle())
-                .disabled(viewModel.isMembershipActionInFlight)
-                .accessibilityLabel("Leave community")
-
-                Button {
-                    Task {
-                        if let result = await viewModel.openGroupChat() {
-                            onOpenGroupChat(result.chatId, result.title)
-                        }
-                    }
-                } label: {
-                    membershipButtonLabel(title: "Open Group Chat", isLoading: viewModel.isOpeningGroupChat)
-                }
-                .buttonStyle(CLPrimaryButtonStyle())
-                .disabled(viewModel.isOpeningGroupChat || viewModel.isMembershipActionInFlight)
-                .accessibilityLabel("Open group chat")
-                .accessibilityHint("Opens the community group chat")
-            } else {
-                Button {
-                    Task { await viewModel.join() }
-                } label: {
-                    membershipButtonLabel(title: "Join Community", isLoading: viewModel.isMembershipActionInFlight)
-                }
-                .buttonStyle(CLPrimaryButtonStyle())
-                .disabled(viewModel.isMembershipActionInFlight)
-                .accessibilityLabel("Join community")
-            }
-
-            if let membershipErrorMessage = viewModel.membershipErrorMessage {
-                Text(membershipErrorMessage)
-                    .font(CLTypography.footnote)
-                    .foregroundStyle(CLColor.error)
-                    .padding(CLSpacing.sm)
-                    .frame(maxWidth: .infinity)
-                    .background(CLColor.errorSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
-                    .multilineTextAlignment(.center)
-                    .accessibilityLabel("Membership error: \(membershipErrorMessage)")
-            }
+                .font(CLTypography.callout)
+                .foregroundStyle(CLColor.inkSecondary)
         }
     }
 
     @ViewBuilder
+    private var membershipButton: some View {
+        if viewModel.isMember {
+            Button { showLeaveConfirmation = true } label: {
+                membershipButtonLabel(title: "Joined", isLoading: viewModel.isMembershipActionInFlight)
+            }
+            .buttonStyle(CLPrimaryButtonStyle())
+            .frame(width: 112, height: AccessibilityHelpers.minimumTouchTarget)
+            .disabled(viewModel.isMembershipActionInFlight)
+            .accessibilityLabel("Joined. Double tap to leave community")
+        } else {
+            Button { Task { await viewModel.join() } } label: {
+                membershipButtonLabel(title: "Join", isLoading: viewModel.isMembershipActionInFlight)
+            }
+            .buttonStyle(CLPrimaryButtonStyle())
+            .frame(width: 112, height: AccessibilityHelpers.minimumTouchTarget)
+            .disabled(viewModel.isMembershipActionInFlight)
+            .accessibilityLabel("Join community")
+        }
+    }
+
     private func aboutSection(community: Community) -> some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("About")
-                .font(CLTypography.headline)
-                .foregroundStyle(CLColor.ink)
-                .accessibilityAddTraits(.isHeader)
+        Text(community.description.isEmpty ? "No description yet." : community.description)
+            .font(CLTypography.body)
+            .foregroundStyle(community.description.isEmpty ? CLColor.inkMuted : CLColor.inkSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
-            Text(community.description.isEmpty ? "No description yet." : community.description)
-                .font(CLTypography.body)
-                .foregroundStyle(community.description.isEmpty ? CLColor.inkMuted : CLColor.inkSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+    private var groupChatButton: some View {
+        Button {
+            Task {
+                if let result = await viewModel.openGroupChat() {
+                    onOpenGroupChat(result.chatId, result.title)
+                }
+            }
+        } label: {
+            HStack(spacing: CLSpacing.sm) {
+                Image(systemName: "message")
+                membershipButtonLabel(title: "Open Group Chat", isLoading: viewModel.isOpeningGroupChat)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(CLSecondaryButtonStyle())
+        .disabled(!viewModel.isMember || viewModel.isOpeningGroupChat || viewModel.isMembershipActionInFlight)
+        .accessibilityLabel(viewModel.isMember ? "Open group chat" : "Join this community to open group chat")
+    }
+
+    @ViewBuilder
+    private var membershipError: some View {
+        if let message = viewModel.membershipErrorMessage {
+            Text(message)
+                .font(CLTypography.footnote)
+                .foregroundStyle(CLColor.error)
+                .padding(CLSpacing.sm)
+                .frame(maxWidth: .infinity)
+                .background(CLColor.errorSoft)
+                .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
+                .accessibilityLabel("Membership error: \(message)")
+        }
+    }
+
+    private var tabs: some View {
+        HStack(spacing: 0) {
+            ForEach(CommunityDetailTab.allCases) { tab in
+                Button {
+                    withAnimation(CLMotion.soft) { selectedTab = tab }
+                } label: {
+                    VStack(spacing: CLSpacing.sm) {
+                        Text(tab.title)
+                            .font(CLTypography.callout.weight(.medium))
+                            .foregroundStyle(selectedTab == tab ? CLColor.primary : CLColor.inkSecondary)
+                        Rectangle()
+                            .fill(selectedTab == tab ? CLColor.primary : Color.clear)
+                            .frame(height: 2)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+            }
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(CLColor.hairline).frame(height: 1)
         }
     }
 
     @ViewBuilder
+    private var tabContent: some View {
+        switch selectedTab {
+        case .feed:
+            feedContent
+        case .members:
+            membersSection
+        case .gallery:
+            galleryContent
+        case .events:
+            placeholderTab(
+                systemImage: "calendar",
+                title: "No events yet",
+                message: "Upcoming community events will appear here."
+            )
+        }
+    }
+
+    private var feedContent: some View {
+        VStack(spacing: CLSpacing.md) {
+            if viewModel.isMember {
+                Button { isCreatingPost = true } label: {
+                    Label("Write a post", systemImage: "square.and.pencil")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(CLPrimaryButtonStyle())
+            }
+
+            if let message = viewModel.postErrorMessage {
+                Text(message).font(CLTypography.footnote).foregroundStyle(CLColor.error)
+            }
+
+            if viewModel.posts.isEmpty {
+                placeholderTab(systemImage: "text.bubble", title: "No community posts yet", message: "Be the first to start the conversation.")
+            } else {
+                ForEach(viewModel.posts) { post in
+                    CommunityPostCard(
+                        post: post,
+                        author: viewModel.author(for: post),
+                        canManage: viewModel.canManage(post),
+                        onEdit: { composeMode = post },
+                        onDelete: { Task { await viewModel.deletePost(post) } }
+                    )
+                }
+            }
+        }
+    }
+
+    private var galleryContent: some View {
+        let imagePosts = viewModel.posts.filter { $0.imageURL != nil }
+        return Group {
+            if imagePosts.isEmpty {
+                placeholderTab(systemImage: "photo.on.rectangle.angled", title: "No photos yet", message: "Photos from community posts will appear here.")
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: CLSpacing.sm) {
+                    ForEach(imagePosts) { post in
+                        CommunityPostImage(url: post.imageURL!)
+                            .aspectRatio(1, contentMode: .fit)
+                    }
+                }
+            }
+        }
+    }
+
+    private func placeholderTab(systemImage: String, title: String, message: String) -> some View {
+        CLEmptyState(systemImage: systemImage, title: title, message: message)
+            .frame(maxWidth: .infinity)
+    }
+
     private var membersSection: some View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("Members")
-                .font(CLTypography.headline)
-                .foregroundStyle(CLColor.ink)
-                .accessibilityAddTraits(.isHeader)
-
             switch viewModel.membersState {
             case .idle, .loading:
                 ProgressView("Loading members…")
                     .tint(CLColor.primary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, CLSpacing.sm)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, CLSpacing.lg)
             case .empty:
-                Text("No members yet.")
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkMuted)
-                    .padding(.vertical, CLSpacing.xs)
+                placeholderTab(systemImage: "person.3", title: "No members yet", message: "Join to be the first member.")
             case let .error(message):
-                VStack(alignment: .leading, spacing: CLSpacing.sm) {
-                    Text(message)
-                        .font(CLTypography.subheadline)
-                        .foregroundStyle(CLColor.inkSecondary)
-                        .accessibilityLabel("Members error: \(message)")
-                    Button("Retry") {
-                        Task { await viewModel.load() }
-                    }
-                    .buttonStyle(CLSecondaryButtonStyle())
-                    .accessibilityLabel("Retry loading members")
+                CLEmptyState(
+                    systemImage: "exclamationmark.triangle",
+                    title: message,
+                    actionTitle: "Retry",
+                    actionAccessibilityLabel: "Retry loading members"
+                ) {
+                    Task { await viewModel.load() }
                 }
             case let .loaded(members):
                 LazyVStack(spacing: 0) {
                     ForEach(members) { member in
                         memberRow(for: member)
-
                         if member.id != members.last?.id {
                             Rectangle()
                                 .fill(CLColor.hairline)
@@ -187,7 +306,6 @@ struct CommunityDetailView: View {
         }
     }
 
-    /// Self stays visible but not a peer sheet (Connect would reject).
     @ViewBuilder
     private func memberRow(for member: User) -> some View {
         let isSelf = member.id == viewModel.currentUserId
@@ -198,9 +316,7 @@ struct CommunityDetailView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("You, \(displayName)")
         } else {
-            Button {
-                presentedPeer = PeerSheetItem(userId: member.id)
-            } label: {
+            Button { presentedPeer = PeerSheetItem(userId: member.id) } label: {
                 MemberRowView(user: member, showsChevron: true)
             }
             .buttonStyle(.plain)
@@ -224,8 +340,7 @@ struct CommunityDetailView: View {
     @ViewBuilder
     private func membershipButtonLabel(title: String, isLoading: Bool) -> some View {
         if isLoading {
-            ProgressView()
-                .tint(CLColor.onPrimary)
+            ProgressView().tint(CLColor.onPrimary)
         } else {
             Text(title)
         }
@@ -236,13 +351,21 @@ struct CommunityDetailView: View {
     }
 }
 
-// MARK: - Member row
+private enum CommunityDetailTab: String, CaseIterable, Identifiable {
+    case feed
+    case members
+    case gallery
+    case events
+
+    var id: Self { self }
+    var title: String { rawValue.capitalized }
+}
 
 private struct MemberRowView: View {
     static let avatarSize: CGFloat = 44
 
     let user: User
-    var showsChevron: Bool = true
+    var showsChevron = true
 
     var body: some View {
         HStack(spacing: CLSpacing.sm) {
@@ -271,7 +394,6 @@ private struct MemberRowView: View {
     }
 }
 
-/// Sheet identity for `.sheet(item:)`.
 private struct PeerSheetItem: Identifiable {
     let userId: String
     var id: String { userId }
@@ -279,9 +401,7 @@ private struct PeerSheetItem: Identifiable {
 
 private extension ViewState {
     var loadedValue: T? {
-        if case let .loaded(value) = self {
-            return value
-        }
+        if case let .loaded(value) = self { return value }
         return nil
     }
 }

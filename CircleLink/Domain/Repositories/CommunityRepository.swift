@@ -5,6 +5,7 @@ protocol CommunityRepository: Sendable {
     func fetchMembers(communityId: String) async throws -> [User]
     func join(communityId: String) async throws
     func leave(communityId: String) async throws
+    func updateCoverURL(communityId: String, url: URL?) async throws
 
     /// Creates a community and joins the creator as admin (`memberCount == 1`).
     func createCommunity(

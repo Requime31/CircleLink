@@ -5,6 +5,7 @@ import SwiftUI
 struct PeerProfileView: View {
     @ObservedObject var viewModel: PeerProfileViewModel
     var onClose: (() -> Void)?
+    var onOpenChat: ((String, String) -> Void)?
 
     @State private var showRemoveConfirmation = false
 
@@ -25,6 +26,26 @@ struct PeerProfileView: View {
         .overlay(alignment: .topLeading) {
             if onClose != nil {
                 closeButton
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if viewModel.mode == .social, viewModel.relationship == .matched {
+                Menu {
+                    Button("Remove connection", role: .destructive) {
+                        showRemoveConfirmation = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(CLColor.ink)
+                        .frame(width: 44, height: 44)
+                        .background(CLColor.surface.opacity(0.92))
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(CLColor.hairline, lineWidth: 1))
+                }
+                .padding(.trailing, CLSpacing.screenHorizontal)
+                .padding(.top, CLSpacing.sm)
+                .accessibilityLabel("Profile actions")
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -61,6 +82,8 @@ struct PeerProfileView: View {
                 if !viewModel.communities.isEmpty {
                     communitiesSection
                 }
+
+                feedSection(user: user)
 
                 if let message = viewModel.actionErrorMessage {
                     Text(message)
@@ -165,6 +188,29 @@ struct PeerProfileView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func feedSection(user: User) -> some View {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+            Text("Feed")
+                .font(CLTypography.title)
+                .foregroundStyle(CLColor.ink)
+                .accessibilityAddTraits(.isHeader)
+
+            if viewModel.posts.isEmpty {
+                Text("No posts yet.")
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkMuted)
+                    .padding(.vertical, CLSpacing.sm)
+            } else {
+                ProfilePostsListView(
+                    posts: viewModel.posts,
+                    author: user,
+                    localAvatarPreview: nil
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     // MARK: - Actions
 
     @ViewBuilder
@@ -231,18 +277,21 @@ struct PeerProfileView: View {
 
             case .matched:
                 Button {
-                    showRemoveConfirmation = true
+                    Task {
+                        if let result = await viewModel.openChat() {
+                            onOpenChat?(result.chatId, result.title)
+                        }
+                    }
                 } label: {
-                    if viewModel.isActing {
-                        ProgressView()
-                            .tint(CLColor.ink)
+                    if viewModel.isOpeningChat {
+                        ProgressView().tint(CLColor.ink)
                     } else {
-                        Text("Remove from connections")
+                        Label("Message", systemImage: "message")
                     }
                 }
-                .buttonStyle(CLSecondaryButtonStyle())
-                .disabled(viewModel.isActing)
-                .accessibilityLabel("Remove from connections")
+                .buttonStyle(CLPrimaryButtonStyle())
+                .disabled(viewModel.isOpeningChat)
+                .accessibilityLabel("Message")
             }
         }
         .padding(.horizontal, CLSpacing.screenHorizontal)

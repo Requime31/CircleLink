@@ -138,6 +138,25 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
         }
     }
 
+    func updateCoverURL(communityId: String, url: URL?) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw FirestoreCommunityError.notAuthenticated
+        }
+
+        let ref = db.collection(communitiesCollection).document(communityId)
+        let snapshot = try await ref.getDocument()
+        guard snapshot.exists else { throw FirestoreCommunityError.communityNotFound }
+        guard snapshot.data()?["createdBy"] as? String == userId else {
+            throw FirestoreCommunityError.notAuthenticated
+        }
+
+        if let url {
+            try await ref.updateData(["coverImageURL": url.absoluteString])
+        } else {
+            try await ref.updateData(["coverImageURL": FieldValue.delete()])
+        }
+    }
+
     // MARK: - Membership reconcile
 
     /// Removes memberships whose user profile no longer exists, syncs `memberCount`,
@@ -274,7 +293,9 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
             name: trimmedName,
             description: trimmedDescription,
             interestTag: trimmedTag,
-            memberCount: 1
+            memberCount: 1,
+            createdAt: Date(),
+            creatorId: userId
         )
     }
 }

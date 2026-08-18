@@ -41,6 +41,10 @@ SupabaseSecrets.plist
 .env.*
 !.env.example
 
+# Local-only backend / deploy secrets (NOT part of the iOS app target)
+.secrets/*
+!.secrets/*.example
+
 # Node (Cloud Functions)
 functions/node_modules/
 functions/lib/
@@ -53,8 +57,10 @@ functions/lib/
 # SwiftLint
 .swiftlint-cache/
 
-# Cursor / IDE
-.cursor/
+# Cursor / IDE (share project subagents; keep local rules/cache out of git)
+.cursor/*
+!.cursor/agents/
+!.cursor/agents/**
 
 # Fastlane
 fastlane/report.xml

@@ -12,6 +12,8 @@ final class AppDependencies {
     let chatRepository: ChatRepository
     let moderationRepository: ModerationRepository
     let profilePostRepository: ProfilePostRepository
+    let communityPostRepository: CommunityPostRepository
+    let communityImageStorage: CommunityImageStorage
     let pushNotificationHandler: PushNotificationHandler
 
     init(
@@ -23,6 +25,8 @@ final class AppDependencies {
         chatRepository: ChatRepository? = nil,
         moderationRepository: ModerationRepository? = nil,
         profilePostRepository: ProfilePostRepository? = nil,
+        communityPostRepository: CommunityPostRepository? = nil,
+        communityImageStorage: CommunityImageStorage? = nil,
         pushNotificationHandler: PushNotificationHandler? = nil
     ) {
         let resolvedTokenStorage = tokenStorage ?? KeychainTokenStorage()
@@ -44,6 +48,11 @@ final class AppDependencies {
         self.moderationRepository = moderationRepository ?? FirestoreModerationRepository()
         self.profilePostRepository = profilePostRepository ?? FirestoreProfilePostRepository(
             imageStorage: SupabaseProfileImageStorage()
+        )
+        let resolvedCommunityImageStorage = communityImageStorage ?? SupabaseCommunityImageStorage()
+        self.communityImageStorage = resolvedCommunityImageStorage
+        self.communityPostRepository = communityPostRepository ?? FirestoreCommunityPostRepository(
+            imageStorage: resolvedCommunityImageStorage
         )
         self.pushNotificationHandler = pushNotificationHandler ?? PushNotificationHandler(
             userRepository: resolvedUserRepository,
@@ -83,7 +92,10 @@ final class AppDependencies {
             communityId: communityId,
             communityRepository: communityRepository,
             chatRepository: chatRepository,
-            authRepository: authRepository
+            authRepository: authRepository,
+            communityPostRepository: communityPostRepository,
+            communityImageStorage: communityImageStorage,
+            userRepository: userRepository
         )
     }
 
@@ -148,6 +160,7 @@ final class AppDependencies {
     func makePeerProfileSheet(
         userId: String,
         mode: PeerProfileMode = .social,
+        onOpenChat: @escaping (String, String) -> Void = { _, _ in },
         onFinished: @escaping () -> Void = {}
     ) -> PeerProfileSheet {
         PeerProfileSheet(
@@ -156,6 +169,9 @@ final class AppDependencies {
             userRepository: userRepository,
             connectionRepository: connectionRepository,
             communityRepository: communityRepository,
+            profilePostRepository: profilePostRepository,
+            chatRepository: chatRepository,
+            onOpenChat: onOpenChat,
             onFinished: onFinished
         )
     }
@@ -170,7 +186,9 @@ final class AppDependencies {
             mode: mode,
             userRepository: userRepository,
             connectionRepository: connectionRepository,
-            communityRepository: communityRepository
+            communityRepository: communityRepository,
+            profilePostRepository: profilePostRepository,
+            chatRepository: chatRepository
         )
     }
 }

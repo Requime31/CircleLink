@@ -1,0 +1,10 @@
+# Live secrets — do not read, index, or echo in agent context
+.secrets/*
+!.secrets/*.example
+.env
+.env.*
+!.env.example
+GoogleService-Info.plist
+**/GoogleService-Info.plist
+SupabaseSecrets.plist
+**/SupabaseSecrets.plist

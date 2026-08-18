@@ -11,6 +11,16 @@ final class StubCommunityRepository: CommunityRepository, @unchecked Sendable {
 
     func leave(communityId: String) async throws {}
 
+    func updateCoverURL(communityId: String, url: URL?) async throws {
+        guard let index = communities.firstIndex(where: { $0.id == communityId }) else { return }
+        let community = communities[index]
+        communities[index] = Community(
+            id: community.id, name: community.name, description: community.description,
+            interestTag: community.interestTag, memberCount: community.memberCount,
+            coverImageURL: url, createdAt: community.createdAt, creatorId: community.creatorId
+        )
+    }
+
     func createCommunity(
         name: String,
         description: String,

@@ -62,4 +62,32 @@ struct CommunitiesViewModelTests {
             Issue.record("Expected idle after reset")
         }
     }
+
+    @Test func discoverySectionsRankPopularAndRecentCommunities() async {
+        let repo = MockCommunityRepository()
+        repo.communities = [
+            Community(
+                id: "older-popular",
+                name: "Popular",
+                description: "",
+                interestTag: "Art",
+                memberCount: 100,
+                createdAt: Date(timeIntervalSince1970: 10)
+            ),
+            Community(
+                id: "newer",
+                name: "New",
+                description: "",
+                interestTag: "Art",
+                memberCount: 5,
+                createdAt: Date(timeIntervalSince1970: 20)
+            )
+        ]
+        let viewModel = CommunitiesViewModel(communityRepository: repo)
+
+        await viewModel.loadCommunities()
+
+        #expect(viewModel.suggestedCommunities.map(\.id) == ["older-popular", "newer"])
+        #expect(viewModel.newCommunities.map(\.id) == ["newer", "older-popular"])
+    }
 }
