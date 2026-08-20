@@ -2,20 +2,19 @@ import SwiftUI
 import UIKit
 
 /// Displays avatar from local preview, Firestore base64, or remote URL.
-/// Default shape: squircle (`CLAvatar` / DESIGN.md). Pass `clip: .chat` for Chats (circle).
+/// Avatar shape is the shared squircle (`CLAvatar` / DESIGN.md), including Chats.
 struct AvatarImageView: View {
     let localPreview: UIImage?
     let avatarBase64: String?
     let avatarURL: URL?
     let size: CGFloat
-    var clip: CLAvatarClip = .squircle
 
     @State private var remoteImage: UIImage?
 
     var body: some View {
         avatarContent
             .frame(width: size, height: size)
-            .modifier(AvatarClipModifier(clip: clip, size: size))
+            .clAvatarClip()
             .accessibilityHidden(true)
             .task(id: avatarURL) {
                 await loadRemoteImage()
@@ -83,25 +82,5 @@ struct AvatarImageView: View {
             return nil
         }
         return UIImage(data: data)
-    }
-}
-
-private struct AvatarClipModifier: ViewModifier {
-    let clip: CLAvatarClip
-    let size: CGFloat
-
-    func body(content: Content) -> some View {
-        switch clip {
-        case .squircle:
-            content.clipShape(
-                RoundedRectangle(cornerRadius: Self.cornerRadius(for: size), style: .continuous)
-            )
-        case .chat:
-            content.clipShape(Circle())
-        }
-    }
-
-    private static func cornerRadius(for size: CGFloat) -> CGFloat {
-        min(CLAvatar.cornerRadius, size * 0.28)
     }
 }

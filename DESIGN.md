@@ -13,12 +13,11 @@ Source brief: `stitch_circlelink_visual_redesign_brief` (Stitch export).
 
 ## 0. Design Rules (canonical)
 
-These override local screen habits when in doubt. Intentional exceptions are **not bugs** — do not “fix” them into squircles.
+These override local screen habits when in doubt. Intentional control-shape exceptions are **not bugs**.
 
 | Rule | Spec |
 |------|------|
-| **Default avatars** | **Squircle** (`radiusMd` / continuous) — Profile, Connect, Communities |
-| **Chats avatars** | **Circle** — intentional exception for Chat list / thread / chat info |
+| **Avatars** | **Squircle everywhere** (`radiusMd` / continuous), including Chats |
 | **Connect action row** | Pass / Say Hi / Back = **circle** buttons — intentional; do **not** replace with squircle |
 | **Connect Discover hero** | Show **name + age only** on the card; **bio only** in the About section |
 | **Default CTA** | Soft: `accentSoft` + `ink` — or secondary hairline |
@@ -40,7 +39,7 @@ These override local screen habits when in doubt. Intentional exceptions are **n
 | Motion | Soft springs / slight dim on press — never flashy |
 | Mode | Light-first (no dark-first UI in MVP) |
 
-**Brand test:** screens should feel like CircleLink without the logo — parchment canvas + clay accent + soft squircles (circles only where §0 allows).
+**Brand test:** screens should feel like CircleLink without the logo — parchment canvas + clay accent + soft squircles (circle action controls only where §0 allows).
 
 ---
 
@@ -161,7 +160,7 @@ Use **SF Pro** (system). Do **not** embed Inter (web-only in the brief).
 | `radiusXl` | 24 | Primary cards, sheets, large panels |
 | `radiusFull` | Capsule | Chips, pill filters |
 
-**Rule:** squircle-adjacent (`RoundedRectangle` + `.continuous`) for most interactive surfaces. Circles are allowed only where §0 lists them (Chats avatars, Connect Pass / Say Hi / Back).
+**Rule:** squircle-adjacent (`RoundedRectangle` + `.continuous`) for most interactive surfaces. Connect Pass / Say Hi / Back are the circle action-control exception in §0.
 
 ---
 
@@ -241,11 +240,10 @@ Overlay scrim behind modals: ~35–45% black.
 
 ### Avatars
 
-- **Default (Profile / Connect / Communities):** squircle — corner radius `radiusMd` (14), continuous (`clAvatarClip` / `CLAvatar.shape()`)
-- **Chats (list / thread / info):** **circle** — intentional (`clChatAvatarClip` / `CLAvatar.chatShape()`). Not a bug; do not convert the whole app to one shape.
+- **All avatars, including Chats:** squircle — corner radius `radiusMd` (14), continuous (`clAvatarClip` / `CLAvatar.shape()`)
 - Soft placeholder fill: `surfaceSoft`
 - Initials / icon: `inkSecondary`
-- Overlapping group stacks outside Chats may still use the squircle mask.
+- Overlapping group stacks use the same squircle mask.
 
 ### Tab bar
 
@@ -278,23 +276,23 @@ Overlay scrim behind modals: ~35–45% black.
 
 ### Navigation
 
-- Titles in `ink` (or `primary` when the mock intentionally brands the title, e.g. Chats)
-- System back chevron
+- Titles in `ink` via system `navigationTitle` — do not color tab titles with `primary`
+- System back chevron (app tint may still be clay)
 - Avoid heavy custom nav chrome
 
 #### Nav title policy (canonical)
 
 | Mode | When | Where |
 |------|------|--------|
-| **Large** | Tab root that is a calm scroll hub, no crowded trailing toolbar | Communities, Profile |
+| **Large** | Tab root that is a calm scroll hub, no crowded trailing toolbar | Communities, Chats, Profile |
 | **Inline (system)** | Push / secondary screens, or a tab root with trailing toolbar chrome | Connect + all push destinations (Settings, Edit Profile, Liked You, Matches, Chat Info, Community Detail, …) |
-| **Clay principal** | Branded tab root only — custom `.principal` title in `primary` | **Chats** list root only |
 
 Rules:
 
-- Do **not** invent clay principal titles on other tabs “for brand.”
-- Prefer system `navigationTitle` over custom principal chrome unless this table says otherwise.
+- Do **not** use clay / custom `.principal` titles on tab roots. Brand lives in tint, chips, and rare CTAs — not in the nav title.
+- Prefer system `navigationTitle` over custom principal chrome.
 - Auth / Age Gate / Profile Setup stay **inline** (onboarding, not main-tab hubs).
+- Chat **thread** may keep a custom `.principal` (name + “Tap for info”) because that title is a control, not a screen name.
 
 ---
 
@@ -326,13 +324,14 @@ Rules:
 
 ### Chat list
 - Clean rows, inset hairline separators
-- **Circle** avatars (intentional); unread clay dot
+- Airy row padding (`14` vertical in the row) so conversations don’t feel packed
+- Squircle avatars; compact clay numeric unread badge/capsule (`99+` for 100 or more)
 - Optional FAB compose (floating)
 
 ### Chat thread
 - `canvas` background
 - Soft bubbles + comfortable spacing
-- **Circle** peer avatars where shown
+- Squircle peer avatars where shown
 - Composer: rounded `surface`, clay send when active
 
 ### Profile
@@ -388,8 +387,8 @@ Respect Reduce Motion: fall back to simple fades.
 - Parchment canvas `#FCF9F8`
 - Sunset Clay `#E67E5F` for accents
 - Soft CTAs (`accentSoft` + ink) by default
-- Hairline cards (24 radius); squircle avatars outside Chats
-- Circle avatars in Chats; circle Connect Pass / Say Hi / Back
+- Hairline cards (24 radius); squircle avatars everywhere, including Chats
+- Circle Connect Pass / Say Hi / Back action controls
 - `screenHorizontal` = 20 everywhere
 - Hairline depth first; elevated shadow rare
 - SF Pro + soft springs
@@ -399,8 +398,8 @@ Respect Reduce Motion: fall back to simple fades.
 - Dark cinematic UI as default
 - Hard corners on buttons/cards
 - Heavy multi-layer shadows on every card
-- Circle avatars as the **system default** (Chats exception only)
-- Convert Chats circles or Connect action circles to squircle “for consistency”
+- Circle avatar frames
+- Convert Connect action circles to squircle “for consistency”
 - Put bio on the Connect Discover hero card
 - Solid clay as the everyday CTA
 - Giant marketing display type inside app screens
@@ -428,10 +427,10 @@ When generating or editing UI:
 3. Prefer SwiftUI system fonts and soft springs.
 4. Map flow: User action → View → ViewModel → … → UI update, without putting design logic in Domain.
 5. Keep screens light-first, parchment + clay, rounded, calmly animated.
-6. Do not unify all avatars/buttons to one shape — respect §0 exceptions.
+6. Use squircle avatars everywhere; keep the Connect action-row circle exception from §0.
 
 **Short prompt:**  
-“Build this CircleLink screen using DESIGN.md §0: parchment `#FCF9F8`, clay `#E67E5F`, soft CTA `accentSoft`+ink, cards radius 24 + hairline, squircle avatars (circle only in Chats), Connect Pass/Say Hi/Back = circles, screenHorizontal 20, SF Pro, spring motion.”
+“Build this CircleLink screen using DESIGN.md §0: parchment `#FCF9F8`, clay `#E67E5F`, soft CTA `accentSoft`+ink, cards radius 24 + hairline, squircle avatars everywhere, Connect Pass/Say Hi/Back = circles, screenHorizontal 20, SF Pro, spring motion.”
 
 ---
 

@@ -39,6 +39,7 @@ struct ChatInfoView: View {
     @State private var destination: ChatInfoDestination?
     @State private var activeAlert: ChatInfoAlert?
     @State private var presentedMedia: IdentifiedURL?
+    @State private var presentedPeer: ChatPeerSheetItem?
 
     init(
         viewModel: @autoclosure @escaping () -> ChatInfoViewModel,
@@ -111,6 +112,9 @@ struct ChatInfoView: View {
         }
         .fullScreenCover(item: $presentedMedia) { item in
             ChatMediaFullscreenView(url: item.url)
+        }
+        .sheet(item: $presentedPeer) { item in
+            makePeerProfileSheet(item.userId, .social)
         }
     }
 
@@ -187,7 +191,7 @@ struct ChatInfoView: View {
             }
             Button("Cancel", role: .cancel) {}
         case .hide:
-            Button("Hide", role: .destructive) {
+            Button("Hide") {
                 Task { await confirmHide() }
             }
             Button("Cancel", role: .cancel) {}
@@ -219,6 +223,8 @@ struct ChatInfoView: View {
 
     @ViewBuilder
     private func infoContent(_ info: ChatInfo) -> some View {
+        let isDirect = info.type == .direct
+
         List {
             Section {
                 header(for: info)
@@ -239,13 +245,15 @@ struct ChatInfoView: View {
             Section {
                 muteRow(info)
 
-                Button {
-                    destination = .participants
-                } label: {
-                    settingsLabel(systemImage: "person.2", title: "View Participants", showsChevron: true)
+                if !isDirect {
+                    Button {
+                        destination = .participants
+                    } label: {
+                        settingsLabel(systemImage: "person.2", title: "View Participants", showsChevron: true)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(CLColor.surface)
                 }
-                .buttonStyle(.plain)
-                .listRowBackground(CLColor.surface)
 
                 Button {
                     activeAlert = .clearHistory
@@ -280,27 +288,44 @@ struct ChatInfoView: View {
         .clAppear()
     }
 
+    @ViewBuilder
     private func header(for info: ChatInfo) -> some View {
         let peer = viewModel.displayParticipants(from: info).first
-        let count = info.participants.count
 
-        return VStack(spacing: CLSpacing.sm) {
-            if info.type == .direct, let peer {
+        if info.type == .direct, let peer {
+            let displayName = peer.displayName.isEmpty ? info.title : peer.displayName
+
+            Button {
+                presentedPeer = ChatPeerSheetItem(userId: peer.id, communityId: info.communityId)
+            } label: {
+                headerContent(info: info, peer: peer)
+                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(displayName)
+            .accessibilityHint("Opens profile")
+        } else {
+            headerContent(info: info, peer: nil)
+        }
+    }
+
+    private func headerContent(info: ChatInfo, peer: User?) -> some View {
+        VStack(spacing: CLSpacing.sm) {
+            if let peer {
                 AvatarImageView(
                     localPreview: nil,
                     avatarBase64: peer.avatarBase64,
                     avatarURL: peer.avatarURL,
-                    size: 96,
-                    clip: .chat
+                    size: 96
                 )
             } else {
-                // Chats avatars = circle (DESIGN.md §0), including group placeholder.
                 Image(systemName: "person.3.fill")
                     .font(.system(size: 36))
                     .foregroundStyle(CLColor.inkSecondary)
                     .frame(width: 96, height: 96)
-                    .background(Circle().fill(CLColor.surfaceSoft))
-                    .clipShape(Circle())
+                    .background(CLAvatar.shape().fill(CLColor.surfaceSoft))
+                    .clAvatarClip()
                     .accessibilityHidden(true)
             }
 
@@ -309,16 +334,20 @@ struct ChatInfoView: View {
                 .foregroundStyle(CLColor.ink)
                 .multilineTextAlignment(.center)
 
-            Text(info.type == .group ? "\(count) Participants" : "Direct chat")
-                .font(CLTypography.footnote)
-                .foregroundStyle(CLColor.inkSecondary)
+            if info.type == .group {
+                Text("\(info.participants.count) Participants")
+                    .font(CLTypography.footnote)
+                    .foregroundStyle(CLColor.inkSecondary)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, CLSpacing.sm)
     }
 
     private func actionGrid(_ info: ChatInfo) -> some View {
-        HStack(spacing: CLSpacing.sm) {
+        let isDirect = info.type == .direct
+
+        return HStack(spacing: CLSpacing.sm) {
             actionTile(
                 systemImage: info.isMuted ? "bell.slash.fill" : "bell.fill",
                 title: info.isMuted ? "Unmute" : "Mute"
@@ -330,8 +359,10 @@ struct ChatInfoView: View {
                 destination = .search
             }
 
-            actionTile(systemImage: "person.2.fill", title: "People") {
-                destination = .participants
+            if !isDirect {
+                actionTile(systemImage: "person.2.fill", title: "People") {
+                    destination = .participants
+                }
             }
         }
     }

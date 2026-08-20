@@ -43,14 +43,17 @@ struct CommunitiesListView: View {
                     showCreateSheet = false
                 }
             }
-            .navigationDestination(for: String.self) { communityId in
+            .navigationDestination(for: CommunityDetailRoute.self) { route in
                 CommunityDetailView(
-                    viewModel: makeDetailViewModel(communityId),
+                    viewModel: makeDetailViewModel(route.id),
+                    initialTitle: route.name,
                     onOpenGroupChat: onOpenGroupChat,
                     makePeerProfileSheet: makePeerProfileSheet
                 )
+                .navigationTitle(route.name)
+                .navigationBarTitleDisplayMode(.inline)
                 .onAppear {
-                    onCommunitySelected(communityId)
+                    onCommunitySelected(route.id)
                 }
             }
             .navigationDestination(isPresented: $showAllCommunities) {
@@ -120,7 +123,7 @@ struct CommunitiesListView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: CLSpacing.md) {
                     ForEach(suggestedItems) { community in
-                        NavigationLink(value: community.id) {
+                        NavigationLink(value: CommunityDetailRoute(id: community.id, name: community.name)) {
                             SuggestedCommunityCard(community: community)
                         }
                         .buttonStyle(.plain)
@@ -153,7 +156,7 @@ struct CommunitiesListView: View {
 
             LazyVStack(spacing: CLSpacing.xs) {
                 ForEach(communities) { community in
-                    NavigationLink(value: community.id) {
+                    NavigationLink(value: CommunityDetailRoute(id: community.id, name: community.name)) {
                         CommunityRowView(community: community)
                     }
                     .buttonStyle(.plain)
@@ -245,7 +248,7 @@ private struct AllCommunitiesView: View {
                 } else {
                     LazyVStack(spacing: CLSpacing.xs) {
                         ForEach(filteredCommunities) { community in
-                            NavigationLink(value: community.id) {
+                            NavigationLink(value: CommunityDetailRoute(id: community.id, name: community.name)) {
                                 CommunityRowView(community: community)
                             }
                             .buttonStyle(.plain)
@@ -260,7 +263,7 @@ private struct AllCommunitiesView: View {
         }
         .clCanvasBackground()
         .navigationTitle("All Communities")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

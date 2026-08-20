@@ -58,6 +58,7 @@ struct ConnectDiscoverDeckView: View {
 
     private var heroCard: some View {
         DiscoverCardView(user: top)
+            .clAppear()
             .id(top.id)
             .offset(x: dragOffsetX)
             .rotationEffect(.degrees(Double(dragOffsetX / 24)))

@@ -30,6 +30,9 @@ final class ProfileViewModel: ObservableObject {
     private var pendingAvatarData: Data?
     private var shouldRemoveAvatar = false
     private var statsTask: Task<Void, Never>?
+    private var loadGeneration = 0
+    private var saveGeneration = 0
+    private var sessionGeneration = 0
 
     init(
         authRepository: AuthRepository,
@@ -85,13 +88,19 @@ final class ProfileViewModel: ObservableObject {
             return
         }
 
+        loadGeneration += 1
+        let generation = loadGeneration
         state = .loading
         do {
             let user = try await userRepository.fetchProfile(userId: userId)
+            guard generation == loadGeneration,
+                  authRepository.currentUser?.id == userId,
+                  !Task.isCancelled else { return }
             apply(user: user)
             state = .loaded(user)
             await refreshStatsAndPosts(userId: userId)
         } catch {
+            guard generation == loadGeneration, !Task.isCancelled else { return }
             state = .error(error.localizedDescription)
         }
     }
@@ -126,6 +135,7 @@ final class ProfileViewModel: ObservableObject {
     }
 
     func saveProfile() async {
+        guard saveState != .loading else { return }
         guard canSave else {
             saveState = .error(validationMessage ?? "Complete all required fields.")
             return
@@ -136,6 +146,8 @@ final class ProfileViewModel: ObservableObject {
             return
         }
 
+        saveGeneration += 1
+        let generation = saveGeneration
         saveState = .loading
 
         do {
@@ -156,12 +168,16 @@ final class ProfileViewModel: ObservableObject {
 
             try await userRepository.updateProfile(user)
             let refreshed = try await userRepository.fetchProfile(userId: user.id)
+            guard generation == saveGeneration,
+                  authRepository.currentUser?.id == user.id,
+                  !Task.isCancelled else { return }
 
             apply(user: refreshed)
             saveState = .loaded(refreshed)
             shouldRemoveAvatar = false
             onProfileSaved?(refreshed)
         } catch {
+            guard generation == saveGeneration, !Task.isCancelled else { return }
             saveState = .error(error.localizedDescription)
         }
     }
@@ -170,10 +186,11 @@ final class ProfileViewModel: ObservableObject {
     @discardableResult
     func createPost(text: String?, image: Data?) async -> Bool {
         guard !isPosting else { return false }
-        guard authRepository.currentUser?.id != nil else {
+        guard let userId = authRepository.currentUser?.id else {
             postErrorMessage = "Session expired. Please sign in again."
             return false
         }
+        let generation = sessionGeneration
 
         isPosting = true
         postErrorMessage = nil
@@ -185,6 +202,9 @@ final class ProfileViewModel: ObservableObject {
                 text: text,
                 image: image
             )
+            guard generation == sessionGeneration,
+                  authRepository.currentUser?.id == userId,
+                  !Task.isCancelled else { return false }
             // Optimistic local update so a soft-fail refresh cannot hide the new post.
             if !posts.contains(where: { $0.id == created.id }) {
                 posts.insert(created, at: 0)
@@ -193,6 +213,7 @@ final class ProfileViewModel: ObservableObject {
             await refreshStatsAndPosts()
             return true
         } catch {
+            guard generation == sessionGeneration, !Task.isCancelled else { return false }
             postErrorMessage = error.localizedDescription
             return false
         }
@@ -207,10 +228,11 @@ final class ProfileViewModel: ObservableObject {
         removeImage: Bool
     ) async -> Bool {
         guard !isPosting else { return false }
-        guard authRepository.currentUser?.id != nil else {
+        guard let userId = authRepository.currentUser?.id else {
             postErrorMessage = "Session expired. Please sign in again."
             return false
         }
+        let generation = sessionGeneration
 
         isPosting = true
         postErrorMessage = nil
@@ -223,12 +245,16 @@ final class ProfileViewModel: ObservableObject {
                 image: image,
                 removeImage: removeImage
             )
+            guard generation == sessionGeneration,
+                  authRepository.currentUser?.id == userId,
+                  !Task.isCancelled else { return false }
             if let index = posts.firstIndex(where: { $0.id == updated.id }) {
                 posts[index] = updated
             }
             await refreshStatsAndPosts()
             return true
         } catch {
+            guard generation == sessionGeneration, !Task.isCancelled else { return false }
             postErrorMessage = error.localizedDescription
             return false
         }
@@ -236,11 +262,20 @@ final class ProfileViewModel: ObservableObject {
 
     func deletePost(_ post: ProfilePost) async {
         guard !isPosting else { return }
+        guard let userId = authRepository.currentUser?.id else { return }
+        let generation = sessionGeneration
+        isPosting = true
+        postErrorMessage = nil
+        defer { isPosting = false }
         do {
             try await profilePostRepository.deletePost(post)
+            guard generation == sessionGeneration,
+                  authRepository.currentUser?.id == userId,
+                  !Task.isCancelled else { return }
             posts.removeAll { $0.id == post.id }
             postsCount = max(0, postsCount - 1)
         } catch {
+            guard generation == sessionGeneration, !Task.isCancelled else { return }
             postErrorMessage = error.localizedDescription
         }
     }
@@ -251,7 +286,13 @@ final class ProfileViewModel: ObservableObject {
 
     func resetForm() {
         statsTask?.cancel()
+        statsTask = nil
+        loadGeneration += 1
+        saveGeneration += 1
+        sessionGeneration += 1
         displayName = ""
+        aboutMe = ""
+        ageText = ""
         selectedInterests = []
         profile = nil
         state = .idle

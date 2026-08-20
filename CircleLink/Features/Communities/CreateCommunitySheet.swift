@@ -38,7 +38,7 @@ struct CreateCommunitySheet: View {
                     }
                 }
             }
-            .navigationTitle("New community")
+            .navigationTitle("New Community")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

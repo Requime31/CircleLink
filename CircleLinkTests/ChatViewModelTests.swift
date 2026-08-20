@@ -165,4 +165,33 @@ struct ChatViewModelTests {
 
         viewModel.onDisappear()
     }
+
+    @Test func lateInitialLoadDoesNotStartListenerAfterDisappear() async {
+        let repo = MockChatRepository()
+        repo.shouldSuspendMessageFetch = true
+        let viewModel = ChatViewModel(
+            chatId: "chat-1",
+            currentUserId: "user-1",
+            chatRepository: repo
+        )
+
+        viewModel.onAppear()
+        let loadTask = Task { await viewModel.loadInitialMessages() }
+        for _ in 0..<100 where repo.hasPendingMessageFetch == false {
+            await Task.yield()
+        }
+
+        let didSuspendFetch = repo.hasPendingMessageFetch
+        if !didSuspendFetch {
+            repo.shouldSuspendMessageFetch = false
+        }
+
+        viewModel.onDisappear()
+        repo.resumeMessageFetch()
+        await loadTask.value
+        await Task.yield()
+
+        #expect(didSuspendFetch)
+        #expect(repo.liveContinuation == nil)
+    }
 }

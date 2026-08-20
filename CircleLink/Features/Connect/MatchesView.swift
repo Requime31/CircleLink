@@ -30,6 +30,7 @@ struct MatchesView: View {
                 }
             case let .loaded(items):
                 list(items)
+                    .clAppear()
             }
         }
         .clCanvasBackground()

@@ -2,6 +2,17 @@ import SwiftUI
 
 /// Shared chat row for the main list and Hidden chats.
 struct ChatListRowView: View {
+    /// Shared list insets so Hidden chats match the main list. Row padding is separate (`rowVerticalPadding`).
+    static let listRowInsets = EdgeInsets(
+        top: CLSpacing.xs,
+        leading: CLSpacing.screenHorizontal,
+        bottom: CLSpacing.xs,
+        trailing: CLSpacing.screenHorizontal
+    )
+
+    /// Tuned against the list on device while preserving the approved airy spacing.
+    static let rowVerticalPadding: CGFloat = CLSpacing.md - 2
+
     let chat: ChatSummary
 
     private let avatarSize: CGFloat = 56
@@ -12,8 +23,7 @@ struct ChatListRowView: View {
                 localPreview: nil,
                 avatarBase64: chat.avatarBase64,
                 avatarURL: chat.avatarURL,
-                size: avatarSize,
-                clip: .chat
+                size: avatarSize
             )
 
             VStack(alignment: .leading, spacing: CLSpacing.xxs) {
@@ -47,17 +57,20 @@ struct ChatListRowView: View {
 
                     Spacer(minLength: 0)
 
-                    // Single unread signal (DESIGN.md): trailing clay dot only.
                     if chat.unreadCount > 0 {
-                        Circle()
-                            .fill(CLColor.primary)
-                            .frame(width: 10, height: 10)
+                        Text(chat.unreadCount >= 100 ? "99+" : "\(chat.unreadCount)")
+                            .font(CLTypography.caption)
+                            .foregroundStyle(CLColor.onPrimaryStrong)
+                            .lineLimit(1)
+                            .padding(.horizontal, 6)
+                            .frame(minWidth: 20, minHeight: 20)
+                            .background(Capsule().fill(CLColor.primaryStrong))
                             .accessibilityHidden(true)
                     }
                 }
             }
         }
-        .padding(.vertical, CLSpacing.xs)
+        .padding(.vertical, Self.rowVerticalPadding)
         .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         .contentShape(Rectangle())
     }

@@ -26,20 +26,15 @@ struct ChatListView: View {
                 }
             }
             .clCanvasBackground()
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Chats")
-                        .font(CLTypography.title)
-                        .foregroundStyle(CLColor.primary)
-                        .accessibilityAddTraits(.isHeader)
-                }
-            }
+            .navigationTitle("Chats")
+            .navigationBarTitleDisplayMode(.large)
             .searchable(
                 text: $viewModel.searchText,
                 placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: "Search chats"
             )
+            .toolbarBackground(CLColor.canvas, for: .navigationBar, .tabBar)
+            .toolbarBackground(.visible, for: .navigationBar, .tabBar)
             .navigationDestination(for: ChatThreadRoute.self) { route in
                 chatThreadDestination(route)
             }
@@ -149,6 +144,7 @@ struct ChatListView: View {
                 }
                 .buttonStyle(.plain)
                 .listRowBackground(CLColor.canvas)
+                .listRowInsets(ChatListRowView.listRowInsets)
                 .listRowSeparatorTint(CLColor.hairline)
                 .accessibilityLabel(
                     viewModel.hiddenCount > 0
@@ -156,6 +152,7 @@ struct ChatListView: View {
                         : "Hidden chats"
                 )
             }
+            .listSectionSeparator(.hidden, edges: [.top, .bottom])
 
             Section {
                 ForEach(chats) { chat in
@@ -173,6 +170,7 @@ struct ChatListView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(ChatListAccessibility.label(for: chat))
                     .listRowBackground(CLColor.canvas)
+                    .listRowInsets(ChatListRowView.listRowInsets)
                     .listRowSeparatorTint(CLColor.hairline)
                     .contextMenu {
                         Button {
@@ -204,7 +202,7 @@ struct ChatListView: View {
                             Label("Info", systemImage: "info.circle")
                         }
 
-                        Button(role: .destructive) {
+                        Button {
                             Task { await viewModel.hideChat(chatId: chat.id) }
                         } label: {
                             Label("Hide", systemImage: "eye.slash")
@@ -222,6 +220,7 @@ struct ChatListView: View {
                     }
                 }
             }
+            .listSectionSeparator(.hidden, edges: [.top, .bottom])
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -259,7 +258,7 @@ struct ChatListView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(CLColor.inkMuted)
         }
-        .padding(.vertical, CLSpacing.xxs)
+        .padding(.vertical, CLSpacing.sm)
         .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         .contentShape(Rectangle())
     }

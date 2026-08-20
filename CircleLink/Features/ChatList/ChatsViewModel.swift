@@ -154,9 +154,12 @@ final class ChatsViewModel: ObservableObject {
     }
 
     func resetForm() {
+        loadGeneration += 1
         state = .idle
         hiddenChats = []
         searchText = ""
+        leaveErrorMessage = nil
+        actionErrorMessage = nil
     }
 
     // MARK: - Private

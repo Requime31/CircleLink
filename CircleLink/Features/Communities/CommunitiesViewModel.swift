@@ -12,6 +12,7 @@ final class CommunitiesViewModel: ObservableObject {
 
     private let communityRepository: CommunityRepository
     private var refreshTask: Task<Void, Never>?
+    private var createGeneration = 0
 
     init(communityRepository: CommunityRepository) {
         self.communityRepository = communityRepository
@@ -119,6 +120,9 @@ final class CommunitiesViewModel: ObservableObject {
         description: String,
         interestTag: String
     ) async -> Bool {
+        guard !isCreating else { return false }
+        createGeneration += 1
+        let generation = createGeneration
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
             createErrorMessage = "Enter a community name."
@@ -126,6 +130,11 @@ final class CommunitiesViewModel: ObservableObject {
         }
 
         isCreating = true
+        defer {
+            if generation == createGeneration {
+                isCreating = false
+            }
+        }
         createErrorMessage = nil
 
         do {
@@ -134,12 +143,13 @@ final class CommunitiesViewModel: ObservableObject {
                 description: description,
                 interestTag: interestTag
             )
+            guard generation == createGeneration, !Task.isCancelled else { return false }
             await loadCommunities()
-            isCreating = false
+            guard generation == createGeneration, !Task.isCancelled else { return false }
             return true
         } catch {
+            guard generation == createGeneration, !Task.isCancelled else { return false }
             createErrorMessage = error.localizedDescription
-            isCreating = false
             return false
         }
     }
@@ -156,6 +166,7 @@ final class CommunitiesViewModel: ObservableObject {
     func resetForm() {
         refreshTask?.cancel()
         refreshTask = nil
+        createGeneration += 1
         state = .idle
         isCreating = false
         createErrorMessage = nil

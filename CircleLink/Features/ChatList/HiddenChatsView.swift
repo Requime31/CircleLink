@@ -24,7 +24,7 @@ struct HiddenChatsView: View {
             }
         }
         .clCanvasBackground()
-        .navigationTitle("Hidden chats")
+        .navigationTitle("Hidden Chats")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(
             text: $searchText,
@@ -47,6 +47,7 @@ struct HiddenChatsView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(ChatListAccessibility.label(for: chat))
             .listRowBackground(CLColor.canvas)
+            .listRowInsets(ChatListRowView.listRowInsets)
             .listRowSeparatorTint(CLColor.hairline)
             .contextMenu {
                 Button {

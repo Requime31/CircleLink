@@ -401,8 +401,32 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             let chatRefsCollection = self.chatRefsCollection
             let windowSize = Self.liveMessagesWindowSize
 
+            /// `onTermination` can race with async listener setup. The lock guarantees that
+            /// a registration installed after termination is removed immediately.
             final class ListenerBox: @unchecked Sendable {
-                var registration: ListenerRegistration?
+                private let lock = NSLock()
+                private var registration: ListenerRegistration?
+                private var isTerminated = false
+
+                func install(_ registration: ListenerRegistration) {
+                    lock.lock()
+                    if isTerminated {
+                        lock.unlock()
+                        registration.remove()
+                        return
+                    }
+                    self.registration = registration
+                    lock.unlock()
+                }
+
+                func terminate() {
+                    lock.lock()
+                    isTerminated = true
+                    let registration = self.registration
+                    self.registration = nil
+                    lock.unlock()
+                    registration?.remove()
+                }
             }
             let box = ListenerBox()
 
@@ -425,7 +449,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                     .order(by: "createdAt", descending: false)
                     .limit(toLast: windowSize)
 
-                box.registration = query.addSnapshotListener { snapshot, error in
+                let registration = query.addSnapshotListener { snapshot, error in
                     if let error {
                         #if DEBUG
                         print("[FirestoreChatRepository] messages listener error: \(error.localizedDescription)")
@@ -456,11 +480,12 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                         }
                     }
                 }
+                box.install(registration)
             }
 
             continuation.onTermination = { _ in
                 setupTask.cancel()
-                box.registration?.remove()
+                box.terminate()
             }
         }
     }

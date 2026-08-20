@@ -108,6 +108,18 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     var sentClientMessageIds: [String] = []
     var callLog: MockCallLog?
     var liveContinuation: AsyncStream<Message>.Continuation?
+    var shouldSuspendMessageFetch = false
+    private var pendingMessageFetchContinuation: CheckedContinuation<Void, Never>?
+
+    var hasPendingMessageFetch: Bool {
+        pendingMessageFetchContinuation != nil
+    }
+
+    func resumeMessageFetch() {
+        shouldSuspendMessageFetch = false
+        pendingMessageFetchContinuation?.resume()
+        pendingMessageFetchContinuation = nil
+    }
 
     func fetchChats() async throws -> [ChatSummary] { [] }
 
@@ -165,6 +177,11 @@ final class MockChatRepository: ChatRepository, @unchecked Sendable {
     }
 
     func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
+        if shouldSuspendMessageFetch {
+            await withCheckedContinuation { continuation in
+                pendingMessageFetchContinuation = continuation
+            }
+        }
         let watermark = clearedAtByChatId[chatId]
         let filtered: [Message]
         if let before {

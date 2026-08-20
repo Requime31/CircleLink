@@ -3,6 +3,8 @@ import SwiftUI
 
 struct CommunityDetailView: View {
     @ObservedObject var viewModel: CommunityDetailViewModel
+    /// Name from the list — used until `load()` finishes, so the nav title does not flash "Community".
+    let initialTitle: String
     let onOpenGroupChat: (String, String) -> Void
     let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
 
@@ -27,7 +29,7 @@ struct CommunityDetailView: View {
             }
         }
         .clCanvasBackground()
-        .navigationTitle(viewModel.communityState.loadedValue?.name ?? "Community")
+        .navigationTitle(viewModel.communityState.loadedValue?.name ?? initialTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(CLColor.canvas.opacity(0.92), for: .navigationBar)
         .toolbar {
@@ -233,10 +235,18 @@ struct CommunityDetailView: View {
                 Text(message).font(CLTypography.footnote).foregroundStyle(CLColor.error)
             }
 
-            if viewModel.posts.isEmpty {
+            switch viewModel.postsState {
+            case .idle, .loading:
+                ProgressView("Loading posts…")
+                    .tint(CLColor.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, CLSpacing.lg)
+            case .empty:
                 placeholderTab(systemImage: "text.bubble", title: "No community posts yet", message: "Be the first to start the conversation.")
-            } else {
-                ForEach(viewModel.posts) { post in
+            case let .error(message):
+                postsErrorState(message: message)
+            case let .loaded(posts):
+                ForEach(posts) { post in
                     CommunityPostCard(
                         post: post,
                         author: viewModel.author(for: post),
@@ -250,18 +260,42 @@ struct CommunityDetailView: View {
     }
 
     private var galleryContent: some View {
-        let imagePosts = viewModel.posts.filter { $0.imageURL != nil }
-        return Group {
-            if imagePosts.isEmpty {
+        Group {
+            switch viewModel.postsState {
+            case .idle, .loading:
+                ProgressView("Loading photos…")
+                    .tint(CLColor.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, CLSpacing.lg)
+            case .empty:
                 placeholderTab(systemImage: "photo.on.rectangle.angled", title: "No photos yet", message: "Photos from community posts will appear here.")
-            } else {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: CLSpacing.sm) {
-                    ForEach(imagePosts) { post in
-                        CommunityPostImage(url: post.imageURL!)
-                            .aspectRatio(1, contentMode: .fit)
+            case let .error(message):
+                postsErrorState(message: message)
+            case let .loaded(posts):
+                let imagePosts = posts.filter { $0.imageURL != nil }
+                if imagePosts.isEmpty {
+                    placeholderTab(systemImage: "photo.on.rectangle.angled", title: "No photos yet", message: "Photos from community posts will appear here.")
+                } else {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: CLSpacing.sm) {
+                        ForEach(imagePosts) { post in
+                            CommunityPostImage(url: post.imageURL!)
+                                .aspectRatio(1, contentMode: .fit)
+                        }
                     }
                 }
             }
+        }
+    }
+
+    private func postsErrorState(message: String) -> some View {
+        CLEmptyState(
+            systemImage: "exclamationmark.triangle",
+            title: "Couldn’t load posts",
+            message: message,
+            actionTitle: "Retry",
+            actionAccessibilityLabel: "Retry loading community posts"
+        ) {
+            Task { await viewModel.reloadPosts() }
         }
     }
 

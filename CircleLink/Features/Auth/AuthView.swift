@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 
 struct AuthView: View {
@@ -146,23 +147,11 @@ struct AuthView: View {
 
     /// Apple HIG: Sign in with Apple stays black + white label.
     private var appleButton: some View {
-        Button {
+        SystemAppleSignInButton(isEnabled: !isBusy) {
             Task { await viewModel.signInWithApple() }
-        } label: {
-            HStack(spacing: CLSpacing.xs) {
-                Image(systemName: "apple.logo")
-                    .font(.title3)
-                Text("Sign in with Apple")
-                    .font(CLTypography.button.weight(.semibold))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 56)
-            .foregroundStyle(.white)
-            .background(Color.black)
-            .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .disabled(isBusy)
+        .frame(maxWidth: .infinity)
+        .frame(height: 56)
         .accessibilityLabel("Sign in with Apple")
     }
 
@@ -264,6 +253,43 @@ struct AuthView: View {
             withAnimation(CLMotion.soft) {
                 showEmailForm = visible
             }
+        }
+    }
+}
+
+/// Keeps the existing repository/presenter flow while using Apple's official button chrome.
+private struct SystemAppleSignInButton: UIViewRepresentable {
+    let isEnabled: Bool
+    let action: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
+        let button = ASAuthorizationAppleIDButton(type: .signIn, style: .black)
+        button.cornerRadius = CLRadius.md
+        button.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.didTap),
+            for: .touchUpInside
+        )
+        return button
+    }
+
+    func updateUIView(_ button: ASAuthorizationAppleIDButton, context: Context) {
+        button.isEnabled = isEnabled
+    }
+
+    final class Coordinator: NSObject {
+        private let action: () -> Void
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        @objc func didTap() {
+            action()
         }
     }
 }

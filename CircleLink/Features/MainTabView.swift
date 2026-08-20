@@ -30,7 +30,6 @@ struct MainTabView: View {
             .tabItem {
                 Label("Communities", systemImage: "person.3")
             }
-            .accessibilityLabel("Communities tab")
             .tag(AppCoordinator.MainTab.communities)
 
             ChatListView(
@@ -43,7 +42,6 @@ struct MainTabView: View {
             .tabItem {
                 Label("Chats", systemImage: "bubble.left.and.bubble.right")
             }
-            .accessibilityLabel("Chats tab")
             .tag(AppCoordinator.MainTab.chats)
 
             ConnectView(
@@ -53,7 +51,6 @@ struct MainTabView: View {
                 .tabItem {
                     Label("Connect", systemImage: "link")
                 }
-                .accessibilityLabel("Connect tab")
                 .tag(AppCoordinator.MainTab.connect)
 
             ProfileView(
@@ -64,7 +61,6 @@ struct MainTabView: View {
             .tabItem {
                 Label("Profile", systemImage: "person")
             }
-            .accessibilityLabel("Profile tab")
             .tag(AppCoordinator.MainTab.profile)
         }
         .tint(CLColor.primary)

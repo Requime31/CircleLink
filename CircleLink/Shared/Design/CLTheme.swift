@@ -83,24 +83,13 @@ enum CLShadow {
 }
 
 enum CLAvatar {
-    /// Squircle corner radius — default for Profile / Connect / Communities (DESIGN.md §0).
+    /// Shared avatar corner radius (DESIGN.md §0).
     static let cornerRadius: CGFloat = CLRadius.md
 
-    /// Default avatar shape (squircle).
+    /// Avatar shape used throughout the app, including Chats.
     static func shape() -> RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
-
-    /// Chats-only avatar shape (circle). Intentional exception — not a bug.
-    static func chatShape() -> Circle {
-        Circle()
-    }
-}
-
-/// Clip style for shared avatar views. Default is squircle; `.chat` is Chats-only.
-enum CLAvatarClip {
-    case squircle
-    case chat
 }
 
 // MARK: - Typography (SF Pro + Dynamic Type)
@@ -339,14 +328,9 @@ extension View {
         modifier(CLAppearModifier(delay: delay))
     }
 
-    /// Default avatar clip — squircle (Profile / Connect / Communities).
+    /// Shared avatar clip — squircle everywhere, including Chats.
     func clAvatarClip() -> some View {
         clipShape(CLAvatar.shape())
-    }
-
-    /// Chats avatar clip — circle (intentional exception; DESIGN.md §0).
-    func clChatAvatarClip() -> some View {
-        clipShape(CLAvatar.chatShape())
     }
 }
 

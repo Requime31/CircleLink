@@ -282,6 +282,21 @@ struct ProfileViewModelTests {
         }
     }
 
+    @Test func resetFormClearsAllUserSpecificFields() async {
+        let viewModel = makeViewModel()
+        await viewModel.loadProfile()
+        viewModel.aboutMe = "Private biography"
+        viewModel.ageText = "42"
+
+        viewModel.resetForm()
+
+        #expect(viewModel.displayName.isEmpty)
+        #expect(viewModel.aboutMe.isEmpty)
+        #expect(viewModel.ageText.isEmpty)
+        #expect(viewModel.profile == nil)
+        #expect(viewModel.posts.isEmpty)
+    }
+
     private func makeViewModel(
         authRepository: AuthRepository = MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
         userRepository: UserRepository = MockUserRepository(),

@@ -23,6 +23,8 @@ final class AgeGateViewModel: ObservableObject {
 
     private let calendar: Calendar
     private let minimumAge = 18
+    private var confirmationGeneration = 0
+    private var isConfirming = false
 
     init(
         authRepository: AuthRepository,
@@ -65,6 +67,7 @@ final class AgeGateViewModel: ObservableObject {
     }
 
     func confirmAge() async {
+        guard !isConfirming else { return }
         guard let birthYear else {
             state = .error("Enter your year of birth (YYYY).")
             return
@@ -81,22 +84,37 @@ final class AgeGateViewModel: ObservableObject {
             return
         }
 
+        isConfirming = true
+        confirmationGeneration += 1
+        let generation = confirmationGeneration
+        defer {
+            if generation == confirmationGeneration {
+                isConfirming = false
+            }
+        }
         state = .loading
         do {
             try await userRepository.confirmAge()
+            guard generation == confirmationGeneration else { return }
             guard let userId = authRepository.currentUser?.id else {
                 state = .error("Session expired. Please sign in again.")
                 return
             }
             let profile = try await userRepository.fetchProfile(userId: userId)
+            guard generation == confirmationGeneration,
+                  authRepository.currentUser?.id == userId,
+                  !Task.isCancelled else { return }
             state = .loaded(true)
             onAgeConfirmed(profile)
         } catch {
+            guard generation == confirmationGeneration else { return }
             state = .error(error.localizedDescription)
         }
     }
 
     func resetForm() {
+        confirmationGeneration += 1
+        isConfirming = false
         birthYearText = ""
         state = .idle
     }

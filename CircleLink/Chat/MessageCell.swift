@@ -9,7 +9,8 @@ final class MessageCell: UITableViewCell {
         imageView.translatesAutoresizingMaskIntoConstraints = false
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
-        imageView.layer.cornerRadius = MessageCell.avatarSize / 2
+        imageView.layer.cornerRadius = CLRadius.md
+        imageView.layer.cornerCurve = .continuous
         imageView.backgroundColor = ChatAppearance.surfaceSoft
         imageView.isUserInteractionEnabled = true
         imageView.isHidden = true

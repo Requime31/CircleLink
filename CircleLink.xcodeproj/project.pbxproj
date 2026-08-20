@@ -354,7 +354,7 @@
 				DEVELOPMENT_TEAM = 7ZMD5KP5YT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "CircleLink needs photo access to send images in chat.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "CircleLink uses your photos for chat attachments, posts, profile pictures, and community covers.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
@@ -391,7 +391,7 @@
 				DEVELOPMENT_TEAM = 7ZMD5KP5YT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "CircleLink needs photo access to send images in chat.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "CircleLink uses your photos for chat attachments, posts, profile pictures, and community covers.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";

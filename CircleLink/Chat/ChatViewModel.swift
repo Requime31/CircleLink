@@ -43,6 +43,8 @@ final class ChatViewModel: ObservableObject {
     /// Prevents overlapping report/block requests.
     private var isModerating = false
     private var pendingRevealMessageId: String?
+    /// Prevents a late initial load from starting a listener after the screen disappeared.
+    private var isVisible = false
 
     var canModeratePeer: Bool {
         peerUserId != nil && moderationRepository != nil
@@ -80,6 +82,7 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Lifecycle
 
     func onAppear() {
+        isVisible = true
         // Start only after history is loaded so the first listener snapshot can be
         // filtered against known ids / oldest loaded date (avoids dumping older history).
         if loadState == .loaded {
@@ -92,6 +95,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     func onDisappear() {
+        isVisible = false
         liveMessagesTask?.cancel()
         liveMessagesTask = nil
     }
@@ -334,6 +338,7 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Live Messages
 
     private func startObservingLiveMessages() {
+        guard isVisible else { return }
         liveMessagesTask?.cancel()
         liveMessagesTask = Task { [weak self] in
             guard let self else { return }

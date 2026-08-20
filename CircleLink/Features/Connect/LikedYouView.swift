@@ -35,6 +35,7 @@ struct LikedYouView: View {
                 }
             case let .loaded(items):
                 grid(items)
+                    .clAppear()
             }
         }
         .clCanvasBackground()

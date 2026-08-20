@@ -61,6 +61,7 @@ struct CommunityComposePostSheet: View {
             }
             .clCanvasBackground()
             .navigationTitle(post == nil ? "New Post" : "Edit Post")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onDismiss) } }
             .task { await prefill() }
             .onChange(of: photoItem) { item in Task { await load(item) } }

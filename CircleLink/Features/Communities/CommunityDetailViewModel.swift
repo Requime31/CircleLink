@@ -9,6 +9,7 @@ final class CommunityDetailViewModel: ObservableObject {
     @Published private(set) var isMembershipActionInFlight = false
     @Published private(set) var isOpeningGroupChat = false
     @Published private(set) var membershipErrorMessage: String?
+    @Published private(set) var postsState: ViewState<[CommunityPost]> = .idle
     @Published private(set) var posts: [CommunityPost] = []
     @Published private(set) var postAuthors: [String: User] = [:]
     @Published private(set) var isPosting = false
@@ -27,6 +28,10 @@ final class CommunityDetailViewModel: ObservableObject {
     private let communityPostRepository: CommunityPostRepository
     private let communityImageStorage: CommunityImageStorage
     private let userRepository: UserRepository
+    private var communityLoadGeneration = 0
+    private var membersLoadGeneration = 0
+    private var postsLoadGeneration = 0
+    private var loadGeneration = 0
 
     init(
         communityId: String,
@@ -47,37 +52,45 @@ final class CommunityDetailViewModel: ObservableObject {
     }
 
     func load() async {
+        loadGeneration += 1
+        let generation = loadGeneration
         await loadCommunity()
+        guard generation == loadGeneration, !Task.isCancelled else { return }
         await loadMembers()
+        guard generation == loadGeneration, !Task.isCancelled else { return }
+        await loadPosts()
+    }
+
+    func reloadPosts() async {
         await loadPosts()
     }
 
     func join() async {
+        guard !isMembershipActionInFlight else { return }
         isMembershipActionInFlight = true
+        defer { isMembershipActionInFlight = false }
         membershipErrorMessage = nil
 
         do {
             try await communityRepository.join(communityId: communityId)
-            isMembershipActionInFlight = false
             await load()
         } catch {
-            isMembershipActionInFlight = false
             membershipErrorMessage = error.localizedDescription
         }
     }
 
     func leave() async {
+        guard !isMembershipActionInFlight else { return }
         isMembershipActionInFlight = true
+        defer { isMembershipActionInFlight = false }
         membershipErrorMessage = nil
 
         do {
             // Drop group chat access first — group write rules still require membership.
             try await chatRepository.leaveGroupChat(communityId: communityId)
             try await communityRepository.leave(communityId: communityId)
-            isMembershipActionInFlight = false
             await load()
         } catch {
-            isMembershipActionInFlight = false
             membershipErrorMessage = error.localizedDescription
         }
     }
@@ -88,6 +101,7 @@ final class CommunityDetailViewModel: ObservableObject {
     /// User tap → View → this method → ChatRepository.createGroupChat
     /// → Firestore chats/{group_id} → callback opens Chat sheet.
     func openGroupChat() async -> (chatId: String, title: String)? {
+        guard !isOpeningGroupChat else { return nil }
         guard isMember else {
             membershipErrorMessage = "Join this community to open group chat."
             return nil
@@ -157,7 +171,9 @@ final class CommunityDetailViewModel: ObservableObject {
             let post = try await communityPostRepository.createPost(
                 communityId: communityId, postId: UUID().uuidString, text: text, image: image
             )
+            postsLoadGeneration += 1
             posts.insert(post, at: 0)
+            syncPostsState()
             return true
         } catch {
             postErrorMessage = error.localizedDescription
@@ -173,7 +189,9 @@ final class CommunityDetailViewModel: ObservableObject {
         defer { isPosting = false }
         do {
             let updated = try await communityPostRepository.updatePost(post, text: text, image: image, removeImage: removeImage)
+            postsLoadGeneration += 1
             if let index = posts.firstIndex(where: { $0.id == updated.id }) { posts[index] = updated }
+            syncPostsState()
             return true
         } catch {
             postErrorMessage = error.localizedDescription
@@ -188,7 +206,9 @@ final class CommunityDetailViewModel: ObservableObject {
         defer { isPosting = false }
         do {
             try await communityPostRepository.deletePost(post)
+            postsLoadGeneration += 1
             posts.removeAll { $0.id == post.id }
+            syncPostsState()
         } catch { postErrorMessage = error.localizedDescription }
     }
 
@@ -214,43 +234,61 @@ final class CommunityDetailViewModel: ObservableObject {
     func clearPostError() { postErrorMessage = nil }
 
     private func loadCommunity() async {
+        communityLoadGeneration += 1
+        let generation = communityLoadGeneration
         communityState = .loading
 
         do {
             let communities = try await communityRepository.fetchCommunities()
+            guard generation == communityLoadGeneration, !Task.isCancelled else { return }
             if let community = communities.first(where: { $0.id == communityId }) {
                 communityState = .loaded(community)
             } else {
                 communityState = .error("Community not found.")
             }
         } catch {
+            guard generation == communityLoadGeneration, !Task.isCancelled else { return }
             communityState = .error(error.localizedDescription)
         }
     }
 
     private func loadMembers() async {
+        membersLoadGeneration += 1
+        let generation = membersLoadGeneration
         membersState = .loading
 
         do {
             let members = try await communityRepository.fetchMembers(communityId: communityId)
+            guard generation == membersLoadGeneration, !Task.isCancelled else { return }
             membersState = members.isEmpty ? .empty : .loaded(members)
             updateMembership(from: members)
             syncDisplayedMemberCount(members.count)
         } catch {
+            guard generation == membersLoadGeneration, !Task.isCancelled else { return }
             membersState = .error(error.localizedDescription)
         }
     }
 
     private func loadPosts() async {
+        postsLoadGeneration += 1
+        let generation = postsLoadGeneration
+        postsState = .loading
+        postErrorMessage = nil
         do {
             let loaded = try await communityPostRepository.fetchPosts(communityId: communityId, limit: 50, before: nil)
-            guard !Task.isCancelled else { return }
+            guard generation == postsLoadGeneration, !Task.isCancelled else { return }
             posts = loaded
             await loadPostAuthors(for: loaded)
+            guard generation == postsLoadGeneration, !Task.isCancelled else { return }
+            syncPostsState()
         } catch {
-            guard !Task.isCancelled else { return }
-            postErrorMessage = error.localizedDescription
+            guard generation == postsLoadGeneration, !Task.isCancelled else { return }
+            postsState = .error(error.localizedDescription)
         }
+    }
+
+    private func syncPostsState() {
+        postsState = posts.isEmpty ? .empty : .loaded(posts)
     }
 
     private func loadPostAuthors(for posts: [CommunityPost]) async {
