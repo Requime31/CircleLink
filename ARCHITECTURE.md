@@ -44,6 +44,9 @@ View → ViewModel → Repository protocol ← Data implementation
 9. **Account deactivation is soft and reversible for 30 days** — `users/{uid}` owns `accountState`, `deletionRequestedAt`, and `scheduledDeletionAt`; new social interactions require active participants
 10. **Deactivated sessions are recovery-only** — the root coordinator routes them to account recovery before age/profile/main gates; restore refetches the profile before normal routing
 11. **Physical account cleanup is external and retryable** — the `websocket-server` CLI claims due profiles transactionally, anonymizes preserved content, deletes private/related records and Auth, then deletes the public profile last
+12. **No UseCase layer** — ViewModel calls the repository protocol directly
+13. **Firebase Spark only** — do not deploy `functions/` or require Blaze; FCM goes through `websocket-server/`
+14. **UI follows DESIGN.md** — read it before any visual work; do not invent colors, spacing, or components
 
 ## Real-Time Model
 
