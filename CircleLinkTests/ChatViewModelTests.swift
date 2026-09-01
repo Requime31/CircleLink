@@ -4,6 +4,48 @@ import Testing
 
 @MainActor
 struct ChatViewModelTests {
+    @Test func directPeerBlockSucceedsOnceAndCallsDismissHook() async {
+        let moderation = MockModerationRepository()
+        moderation.shouldSuspendBlock = true
+        var callbackCount = 0
+        let viewModel = ChatViewModel(
+            chatId: "user-1_peer-1",
+            currentUserId: "user-1",
+            chatRepository: MockChatRepository(),
+            chatTitle: "Peer",
+            peerUserId: "peer-1",
+            moderationRepository: moderation,
+            onPeerBlocked: { callbackCount += 1 }
+        )
+
+        let first = Task { await viewModel.blockPeer() }
+        await Task.yield()
+        #expect(await viewModel.blockPeer() == false)
+        moderation.resumeBlock()
+
+        #expect(await first.value)
+        #expect(moderation.blockCallCount == 1)
+        #expect(callbackCount == 1)
+        #expect(viewModel.didBlockPeer)
+    }
+
+    @Test func directPeerBlockFailureStaysRetryable() async {
+        let moderation = MockModerationRepository()
+        moderation.blockError = NSError(domain: "test", code: 3, userInfo: [NSLocalizedDescriptionKey: "No connection"])
+        let viewModel = ChatViewModel(
+            chatId: "user-1_peer-1",
+            currentUserId: "user-1",
+            chatRepository: MockChatRepository(),
+            peerUserId: "peer-1",
+            moderationRepository: moderation
+        )
+
+        #expect(await viewModel.blockPeer() == false)
+        #expect(viewModel.moderationErrorMessage == "No connection")
+        moderation.blockError = nil
+        #expect(await viewModel.blockPeer())
+    }
+
     @Test func loadInitialMessagesMapsAndSetsLoadedState() async {
         let repo = MockChatRepository()
         let now = Date()

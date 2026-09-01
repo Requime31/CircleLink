@@ -7,6 +7,8 @@ final class ProfileViewModel: ObservableObject {
     @Published var displayName = ""
     @Published var aboutMe = ""
     @Published var ageText = ""
+    @Published var selectedBirthDate = Date()
+    @Published var usesBirthDate = false
     @Published var selectedInterests: Set<String> = []
     @Published private(set) var profile: User?
     @Published private(set) var state: ViewState<User> = .idle
@@ -33,6 +35,9 @@ final class ProfileViewModel: ObservableObject {
     private var loadGeneration = 0
     private var saveGeneration = 0
     private var sessionGeneration = 0
+    private let calendar: Calendar
+    private let timeZone: TimeZone
+    private let now: () -> Date
 
     init(
         authRepository: AuthRepository,
@@ -40,7 +45,10 @@ final class ProfileViewModel: ObservableObject {
         communityRepository: CommunityRepository,
         connectionRepository: ConnectionRepository,
         profilePostRepository: ProfilePostRepository,
-        onProfileSaved: ((User) -> Void)? = nil
+        onProfileSaved: ((User) -> Void)? = nil,
+        calendar: Calendar = Calendar(identifier: .gregorian),
+        timeZone: TimeZone = .current,
+        now: @escaping () -> Date = Date.init
     ) {
         self.authRepository = authRepository
         self.userRepository = userRepository
@@ -48,6 +56,13 @@ final class ProfileViewModel: ObservableObject {
         self.connectionRepository = connectionRepository
         self.profilePostRepository = profilePostRepository
         self.onProfileSaved = onProfileSaved
+        var configuredCalendar = calendar
+        configuredCalendar.timeZone = timeZone
+        self.calendar = configuredCalendar
+        self.timeZone = timeZone
+        self.now = now
+        let localCalendar = configuredCalendar
+        selectedBirthDate = localCalendar.date(byAdding: .year, value: -25, to: now()) ?? now()
     }
 
     var interestCountHint: String {
@@ -56,8 +71,7 @@ final class ProfileViewModel: ObservableObject {
 
     var canSave: Bool {
         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedAge = ageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let ageOk = trimmedAge.isEmpty || Self.parsedAge(from: trimmedAge) != nil
+        let ageOk = usesBirthDate ? isBirthDateValid : legacyAgeIsValid
         return !trimmedName.isEmpty
             && selectedInterests.count >= User.minInterests
             && selectedInterests.count <= User.maxInterests
@@ -75,11 +89,45 @@ final class ProfileViewModel: ObservableObject {
         if selectedInterests.count > User.maxInterests {
             return "Select at most \(User.maxInterests) interests."
         }
+        if usesBirthDate, !isBirthDateValid {
+            return "Choose a valid birth date for someone aged 18 to 120."
+        }
         let trimmedAge = ageText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedAge.isEmpty, Self.parsedAge(from: trimmedAge) == nil {
+        if !usesBirthDate, !trimmedAge.isEmpty, Self.parsedAge(from: trimmedAge) == nil {
             return "Enter an age between 18 and 120."
         }
         return nil
+    }
+
+    var minimumBirthDate: Date { dateByAddingYears(-120) ?? now() }
+    var maximumBirthDate: Date { dateByAddingYears(-18) ?? now() }
+    var calculatedAge: Int? {
+        guard usesBirthDate, isBirthDateValid else { return nil }
+        return AgeCalculator.completedYears(
+            since: selectedBirthDate,
+            at: now(),
+            calendar: calendar,
+            timeZone: timeZone
+        )
+    }
+    var hasBirthDateChange: Bool {
+        guard usesBirthDate else { return false }
+        guard let persisted = profile?.birthDate,
+              let original = AgeCalculator.localDate(
+                fromPersistedBirthDate: persisted,
+                calendar: calendar,
+                timeZone: timeZone
+              ) else { return true }
+        return !calendar.isDate(original, inSameDayAs: selectedBirthDate)
+    }
+    var birthDateChangeMessage: String {
+        let age = calculatedAge.map(String.init) ?? "—"
+        return "This changes the age shown on your public profile to \(age). Save this date of birth?"
+    }
+
+    func offerBirthDateEntry() {
+        usesBirthDate = true
+        saveState = .idle
     }
 
     func loadProfile() async {
@@ -134,7 +182,7 @@ final class ProfileViewModel: ObservableObject {
         localAvatarPreview != nil || profile?.avatarBase64 != nil || profile?.avatarURL != nil
     }
 
-    func saveProfile() async {
+    func saveProfile(confirmBirthDateChange: Bool = false) async {
         guard saveState != .loading else { return }
         guard canSave else {
             saveState = .error(validationMessage ?? "Complete all required fields.")
@@ -142,6 +190,15 @@ final class ProfileViewModel: ObservableObject {
         }
 
         guard var user = profile ?? authRepository.currentUser else {
+            saveState = .error("Session expired. Please sign in again.")
+            return
+        }
+        guard !hasBirthDateChange || confirmBirthDateChange else {
+            saveState = .error("Confirm the date-of-birth change before saving.")
+            return
+        }
+        let expectedUserId = user.id
+        guard authRepository.currentUser?.id == expectedUserId, !Task.isCancelled else {
             saveState = .error("Session expired. Please sign in again.")
             return
         }
@@ -163,22 +220,46 @@ final class ProfileViewModel: ObservableObject {
 
             user.displayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
             user.aboutMe = String(aboutMe.trimmingCharacters(in: .whitespacesAndNewlines).prefix(500))
-            user.age = Self.parsedAge(from: ageText)
+            if usesBirthDate {
+                user.birthDate = AgeCalculator.canonicalBirthDate(
+                    fromLocalDate: selectedBirthDate,
+                    calendar: calendar,
+                    timeZone: timeZone
+                )
+                user.age = calculatedAge
+            } else {
+                user.age = Self.parsedAge(from: ageText)
+            }
             user.interests = ProfileInterests.presets.filter { selectedInterests.contains($0) }
 
+            if hasBirthDateChange {
+                try await userRepository.confirmAge(birthDate: selectedBirthDate)
+                try Task.checkCancellation()
+                guard authRepository.currentUser?.id == expectedUserId else {
+                    saveState = .idle
+                    return
+                }
+            }
             try await userRepository.updateProfile(user)
             let refreshed = try await userRepository.fetchProfile(userId: user.id)
             guard generation == saveGeneration,
                   authRepository.currentUser?.id == user.id,
-                  !Task.isCancelled else { return }
+                  !Task.isCancelled else {
+                if generation == saveGeneration { saveState = .idle }
+                return
+            }
 
             apply(user: refreshed)
             saveState = .loaded(refreshed)
             shouldRemoveAvatar = false
             onProfileSaved?(refreshed)
+        } catch is CancellationError {
+            if generation == saveGeneration { saveState = .idle }
         } catch {
-            guard generation == saveGeneration, !Task.isCancelled else { return }
-            saveState = .error(error.localizedDescription)
+            guard generation == saveGeneration else { return }
+            saveState = authRepository.currentUser?.id == expectedUserId
+                ? .error(error.localizedDescription)
+                : .idle
         }
     }
 
@@ -293,6 +374,7 @@ final class ProfileViewModel: ObservableObject {
         displayName = ""
         aboutMe = ""
         ageText = ""
+        usesBirthDate = false
         selectedInterests = []
         profile = nil
         state = .idle
@@ -332,6 +414,17 @@ final class ProfileViewModel: ObservableObject {
         displayName = user.displayName
         aboutMe = user.aboutMe
         ageText = user.age.map(String.init) ?? ""
+        if let birthDate = user.birthDate,
+           let localDate = AgeCalculator.localDate(
+            fromPersistedBirthDate: birthDate,
+            calendar: calendar,
+            timeZone: timeZone
+           ) {
+            selectedBirthDate = localDate
+            usesBirthDate = true
+        } else {
+            usesBirthDate = false
+        }
         selectedInterests = Set(user.interests)
         if pendingAvatarData == nil {
             localAvatarPreview = nil
@@ -345,6 +438,31 @@ final class ProfileViewModel: ObservableObject {
         }
         return value
     }
+
+    private var legacyAgeIsValid: Bool {
+        let trimmed = ageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty || Self.parsedAge(from: trimmed) != nil
+    }
+
+    private var isBirthDateValid: Bool {
+        let age = AgeCalculator.completedYears(
+            since: selectedBirthDate,
+            at: now(),
+            calendar: calendar,
+            timeZone: timeZone
+        )
+        return (18...120).contains(age)
+            && normalizedDay(selectedBirthDate) >= normalizedDay(minimumBirthDate)
+            && normalizedDay(selectedBirthDate) <= normalizedDay(maximumBirthDate)
+    }
+
+    private func dateByAddingYears(_ years: Int) -> Date? {
+        var localCalendar = calendar
+        localCalendar.timeZone = timeZone
+        return localCalendar.date(byAdding: .year, value: years, to: localCalendar.startOfDay(for: now()))
+    }
+
+    private func normalizedDay(_ date: Date) -> Date { calendar.startOfDay(for: date) }
 
     private func refreshStatsAndPosts(userId: String) async {
         statsTask?.cancel()

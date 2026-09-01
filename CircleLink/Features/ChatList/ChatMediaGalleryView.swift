@@ -49,7 +49,7 @@ final class ChatMediaGalleryViewModel: ObservableObject {
             let fetched = try await chatRepository.fetchChatMedia(
                 chatId: chatId,
                 limit: pageSize,
-                before: last.createdAt
+                before: MessagePageCursor(message: last)
             )
             let known = Set(items.map(\.id))
             let unique = fetched.filter { !known.contains($0.id) }
@@ -74,12 +74,10 @@ struct ChatMediaGalleryView: View {
         )
     }
 
-    private let columns = [
-        GridItem(.flexible(), spacing: CLSpacing.xs),
-        GridItem(.flexible(), spacing: CLSpacing.xs),
-        GridItem(.flexible(), spacing: CLSpacing.xs),
-        GridItem(.flexible(), spacing: CLSpacing.xs)
-    ]
+    private let columns = Array(
+        repeating: GridItem(.flexible(minimum: 0), spacing: CLSpacing.xs),
+        count: 4
+    )
 
     var body: some View {
         Group {
@@ -112,19 +110,22 @@ struct ChatMediaGalleryView: View {
                                 Button {
                                     presentedMedia = IdentifiedURL(url)
                                 } label: {
-                                    AsyncImage(url: url) { phase in
-                                        switch phase {
-                                        case let .success(image):
-                                            image
-                                                .resizable()
-                                                .scaledToFill()
-                                        default:
-                                            CLColor.surfaceSoft
+                                    Color.clear
+                                        .aspectRatio(1, contentMode: .fit)
+                                        .overlay {
+                                            AsyncImage(url: url) { phase in
+                                                switch phase {
+                                                case let .success(image):
+                                                    image.resizable().scaledToFill()
+                                                default:
+                                                    CLColor.surfaceSoft
+                                                }
+                                            }
                                         }
-                                    }
-                                    .frame(minWidth: 0, maxWidth: .infinity)
-                                    .aspectRatio(1, contentMode: .fill)
                                     .clipShape(
+                                        RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
+                                    )
+                                    .contentShape(
                                         RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
                                     )
                                     .overlay(
@@ -169,21 +170,41 @@ struct IdentifiedURL: Identifiable, Hashable {
 
 /// Full-screen photo viewer shared by Chat Info preview and Shared Media gallery.
 struct ChatMediaFullscreenView: View {
-    let url: URL
+    let url: URL?
+    let localImageData: Data?
     @Environment(\.dismiss) private var dismiss
+
+    init(url: URL, localImageData: Data? = nil) {
+        self.url = url
+        self.localImageData = localImageData
+    }
+
+    init(url: URL?, localImageData: Data?) {
+        self.url = url
+        self.localImageData = localImageData
+    }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Color.black.ignoresSafeArea()
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case let .success(image):
-                    image
+            Group {
+                if let localImageData, let image = UIImage(data: localImageData) {
+                    Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
-                default:
-                    ProgressView()
-                        .tint(.white)
+                } else if let url {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case let .success(image):
+                            image.resizable().scaledToFit()
+                        default:
+                            ProgressView().tint(.white)
+                        }
+                    }
+                } else {
+                    Image(systemName: "photo")
+                        .font(.largeTitle)
+                        .foregroundStyle(.white.opacity(0.7))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

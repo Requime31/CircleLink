@@ -17,17 +17,27 @@ struct MatchedConnectionItem: Identifiable, Equatable, Sendable {
     var id: String { request.id }
 }
 
+/// Display model for a pending request sent by the current user.
+struct OutgoingConnectRequestItem: Identifiable, Equatable, Sendable {
+    let request: ConnectionRequest
+    let peer: User
+
+    var id: String { request.id }
+}
+
 @MainActor
 final class ConnectViewModel: ObservableObject {
     @Published private(set) var candidatesState: ViewState<[User]> = .idle
     @Published private(set) var incomingState: ViewState<[ConnectRequestItem]> = .idle
     @Published private(set) var matchedState: ViewState<[MatchedConnectionItem]> = .idle
+    @Published private(set) var outgoingPendingState: ViewState<[OutgoingConnectRequestItem]> = .idle
 
     @Published private(set) var actionErrorMessage: String?
     @Published private(set) var moderationMessage: String?
     @Published private(set) var respondingRequestId: String?
     @Published private(set) var openingChatPeerId: String?
     @Published private(set) var moderatingUserId: String?
+    @Published private(set) var blockErrorMessage: String?
     @Published private(set) var isSendingConnect = false
 
     /// Session-only Pass skips — not persisted.
@@ -43,13 +53,14 @@ final class ConnectViewModel: ObservableObject {
     private let userRepository: UserRepository
     private let authRepository: AuthRepository
     private let moderationRepository: ModerationRepository
-    private let onOpenChat: (String) -> Void
+    private let onOpenChat: (String, String) -> Void
 
     private var blockedUserIds = Set<String>()
     private var candidatesLoadGeneration = 0
     private var topCommunitiesLoadGeneration = 0
     private var incomingLoadGeneration = 0
     private var matchedLoadGeneration = 0
+    private var outgoingPendingLoadGeneration = 0
     private var blockedLoadGeneration = 0
     private var interestsLoadGeneration = 0
     private var sessionGeneration = 0
@@ -64,6 +75,8 @@ final class ConnectViewModel: ObservableObject {
     }
 
     var topCandidate: User? { deckCandidates.first }
+    var nextCandidate: User? { deckCandidates.dropFirst().first }
+    var followingCandidate: User? { deckCandidates.dropFirst(2).first }
 
     var canUndoPass: Bool { !passUndoStack.isEmpty }
 
@@ -77,6 +90,18 @@ final class ConnectViewModel: ObservableObject {
         return items.count
     }
 
+    var outgoingPendingCount: Int {
+        guard case let .loaded(items) = outgoingPendingState else { return 0 }
+        return items.count
+    }
+
+    func sharedInterests(with peer: User) -> [String] {
+        let mine = Set(myInterests.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+        return peer.interests.filter {
+            mine.contains($0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        }
+    }
+
     init(
         connectionRepository: ConnectionRepository,
         chatRepository: ChatRepository,
@@ -84,7 +109,7 @@ final class ConnectViewModel: ObservableObject {
         userRepository: UserRepository,
         authRepository: AuthRepository,
         moderationRepository: ModerationRepository,
-        onOpenChat: @escaping (String) -> Void
+        onOpenChat: @escaping (String, String) -> Void
     ) {
         self.connectionRepository = connectionRepository
         self.chatRepository = chatRepository
@@ -104,6 +129,8 @@ final class ConnectViewModel: ObservableObject {
         await loadIncoming(showLoading: !hasIncomingContent)
         guard generation == sessionGeneration, !Task.isCancelled else { return }
         await loadMatched(showLoading: !hasMatchedContent)
+        guard generation == sessionGeneration, !Task.isCancelled else { return }
+        await loadOutgoingPending(showLoading: !hasOutgoingPendingContent)
         guard generation == sessionGeneration, !Task.isCancelled else { return }
         await loadCandidates(showLoading: !hasCandidatesContent)
     }
@@ -127,6 +154,8 @@ final class ConnectViewModel: ObservableObject {
         guard generation == sessionGeneration, !Task.isCancelled else { return }
         await loadMatched(showLoading: false)
         guard generation == sessionGeneration, !Task.isCancelled else { return }
+        await loadOutgoingPending(showLoading: false)
+        guard generation == sessionGeneration, !Task.isCancelled else { return }
         await loadCandidates(showLoading: false)
     }
 
@@ -148,6 +177,12 @@ final class ConnectViewModel: ObservableObject {
         return false
     }
 
+    private var hasOutgoingPendingContent: Bool {
+        if case .loaded = outgoingPendingState { return true }
+        if case .empty = outgoingPendingState { return true }
+        return false
+    }
+
     /// Local Pass only — does not hide the peer in Firestore.
     func passCandidate(userId: String, undoable: Bool = true) {
         guard !userId.isEmpty else { return }
@@ -166,10 +201,12 @@ final class ConnectViewModel: ObservableObject {
 
     /// Say Hi from Discover — card leaves the deck in this turn, request goes out after.
     /// Rolls back onto the deck if the request fails.
-    func sayHi(to userId: String) {
-        guard prepareSayHi(userId: userId) else { return }
+    @discardableResult
+    func sayHi(to userId: String) -> Bool {
+        guard prepareSayHi(userId: userId) else { return false }
         let generation = sessionGeneration
         Task { await completeSayHi(userId: userId, generation: generation) }
+        return true
     }
 
     /// Same as `sayHi`, awaited until the request finishes.
@@ -199,6 +236,8 @@ final class ConnectViewModel: ObservableObject {
         do {
             try await connectionRepository.sendConnect(to: userId)
             guard generation == sessionGeneration, !Task.isCancelled else { return }
+            await loadOutgoingPending(showLoading: false)
+            guard generation == sessionGeneration, !Task.isCancelled else { return }
             await loadIncoming(showLoading: false)
             guard generation == sessionGeneration, !Task.isCancelled else { return }
             await loadMatched(showLoading: false)
@@ -216,6 +255,11 @@ final class ConnectViewModel: ObservableObject {
 
     func refreshAfterPeerSheet() async {
         await refreshQuietly()
+    }
+
+    /// Screen-scoped refresh: retain existing rows while checking for status changes.
+    func refreshOutgoingPending() async {
+        await loadOutgoingPending(showLoading: !hasOutgoingPendingContent)
     }
 
     func report(
@@ -249,8 +293,9 @@ final class ConnectViewModel: ObservableObject {
         }
     }
 
-    func block(userId: String) async {
-        guard moderatingUserId == nil else { return }
+    @discardableResult
+    func block(userId: String) async -> Bool {
+        guard moderatingUserId == nil else { return false }
         let generation = sessionGeneration
         moderatingUserId = userId
         defer {
@@ -259,18 +304,34 @@ final class ConnectViewModel: ObservableObject {
             }
         }
         actionErrorMessage = nil
+        blockErrorMessage = nil
         moderationMessage = nil
 
         do {
             try await moderationRepository.blockUser(userId)
-            guard generation == sessionGeneration, !Task.isCancelled else { return }
+            guard generation == sessionGeneration, !Task.isCancelled else { return false }
             blockedUserIds.insert(userId)
             removeLocally(userId: userId)
             moderationMessage = "User blocked. They won’t appear in Connect."
+            Task { await refreshQuietly() }
+            return true
         } catch {
-            guard generation == sessionGeneration, !Task.isCancelled else { return }
-            actionErrorMessage = error.localizedDescription
+            guard generation == sessionGeneration, !Task.isCancelled else { return false }
+            blockErrorMessage = error.localizedDescription
+            return false
         }
+    }
+
+    func prepareBlockConfirmation() {
+        blockErrorMessage = nil
+    }
+
+    /// Used by successful blocks initiated from peer profile or direct chat.
+    func handlePeerBlocked(userId: String) {
+        guard !userId.isEmpty else { return }
+        blockedUserIds.insert(userId)
+        removeLocally(userId: userId)
+        Task { await refreshQuietly() }
     }
 
     func clearModerationFeedback() {
@@ -327,6 +388,29 @@ final class ConnectViewModel: ObservableObject {
         }
     }
 
+    func cancelOutgoingLike(requestId: String) async {
+        guard respondingRequestId == nil else { return }
+        let generation = sessionGeneration
+        respondingRequestId = requestId
+        defer {
+            if generation == sessionGeneration { respondingRequestId = nil }
+        }
+        actionErrorMessage = nil
+
+        do {
+            try await connectionRepository.cancelOutgoingRequest(requestId: requestId)
+            guard generation == sessionGeneration, !Task.isCancelled else { return }
+            if case let .loaded(items) = outgoingPendingState {
+                let remaining = items.filter { $0.request.id != requestId }
+                outgoingPendingState = remaining.isEmpty ? .empty : .loaded(remaining)
+            }
+            await loadCandidates(showLoading: false)
+        } catch {
+            guard generation == sessionGeneration, !Task.isCancelled else { return }
+            actionErrorMessage = error.localizedDescription
+        }
+    }
+
     func openChat(with peerId: String) async {
         guard openingChatPeerId == nil else { return }
         let generation = sessionGeneration
@@ -341,22 +425,34 @@ final class ConnectViewModel: ObservableObject {
         do {
             let chatId = try await chatRepository.createDirectChat(with: peerId)
             guard generation == sessionGeneration, !Task.isCancelled else { return }
-            onOpenChat(chatId)
+            let title = matchedPeerTitle(peerId: peerId)
+            onOpenChat(chatId, title)
         } catch {
             guard generation == sessionGeneration, !Task.isCancelled else { return }
             actionErrorMessage = error.localizedDescription
         }
     }
 
+    private func matchedPeerTitle(peerId: String) -> String {
+        guard case let .loaded(items) = matchedState,
+              let peer = items.first(where: { $0.peer.id == peerId })?.peer else {
+            return "Chat"
+        }
+        let name = peer.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? "Chat" : name
+    }
+
     func resetForm() {
         candidatesState = .idle
         incomingState = .idle
         matchedState = .idle
+        outgoingPendingState = .idle
         actionErrorMessage = nil
         moderationMessage = nil
         respondingRequestId = nil
         openingChatPeerId = nil
         moderatingUserId = nil
+        blockErrorMessage = nil
         isSendingConnect = false
         blockedUserIds = []
         myInterests = []
@@ -366,6 +462,7 @@ final class ConnectViewModel: ObservableObject {
         topCommunitiesLoadGeneration += 1
         incomingLoadGeneration += 1
         matchedLoadGeneration += 1
+        outgoingPendingLoadGeneration += 1
         blockedLoadGeneration += 1
         interestsLoadGeneration += 1
         sessionGeneration += 1
@@ -424,6 +521,10 @@ final class ConnectViewModel: ObservableObject {
             let filtered = matched.filter { $0.peer.id != userId }
             matchedState = filtered.isEmpty ? .empty : .loaded(filtered)
         }
+        if case let .loaded(outgoing) = outgoingPendingState {
+            let filtered = outgoing.filter { $0.peer.id != userId }
+            outgoingPendingState = filtered.isEmpty ? .empty : .loaded(filtered)
+        }
     }
 
     private func loadCandidates(showLoading: Bool = true) async {
@@ -435,13 +536,13 @@ final class ConnectViewModel: ObservableObject {
 
         do {
             let raw = try await connectionRepository.fetchCandidates()
-                .filter { !blockedUserIds.contains($0.id) }
+                .filter { $0.isSociallyAvailable && !blockedUserIds.contains($0.id) }
             let ranked = ConnectCandidateRanker.ranked(raw, matching: myInterests)
             guard generation == candidatesLoadGeneration, !Task.isCancelled else { return }
 
-            // Drop session Pass ids that are no longer in the fresh list.
-            passedCandidateIds = passedCandidateIds.intersection(Set(ranked.map(\.id)))
-            passUndoStack = passUndoStack.filter { passedCandidateIds.contains($0) }
+            // Keep session Pass ids across refreshes. A transient repository result
+            // may omit a peer and include them again later; pruning here would put
+            // an already-swiped card back into the deck.
             candidatesState = ranked.isEmpty ? .empty : .loaded(ranked)
             await refreshTopCandidateCommunities()
         } catch {
@@ -521,7 +622,9 @@ final class ConnectViewModel: ObservableObject {
                 guard !blockedUserIds.contains(peerId) else { continue }
                 do {
                     let peer = try await userRepository.fetchProfile(userId: peerId)
-                    items.append(MatchedConnectionItem(request: request, peer: peer))
+                    if peer.isSociallyAvailable {
+                        items.append(MatchedConnectionItem(request: request, peer: peer))
+                    }
                 } catch {
                     // Skip broken peer profiles so one missing user doesn't fail the section.
                     continue
@@ -538,6 +641,70 @@ final class ConnectViewModel: ObservableObject {
         }
     }
 
+    func loadOutgoingPending(showLoading: Bool = true) async {
+        outgoingPendingLoadGeneration += 1
+        let generation = outgoingPendingLoadGeneration
+        let session = sessionGeneration
+        if showLoading { outgoingPendingState = .loading }
+
+        guard let currentUserId = authRepository.currentUser?.id else {
+            guard generation == outgoingPendingLoadGeneration else { return }
+            outgoingPendingState = .error(FirestoreConnectionError.notAuthenticated.localizedDescription)
+            return
+        }
+
+        do {
+            let requests = try await connectionRepository.fetchOutgoingPendingRequests()
+            guard generation == outgoingPendingLoadGeneration,
+                  session == sessionGeneration,
+                  authRepository.currentUser?.id == currentUserId,
+                  !Task.isCancelled else { return }
+
+            var seenPeers = Set<String>()
+            var items: [OutgoingConnectRequestItem] = []
+            let ordered = requests
+                .filter { $0.fromUserId == currentUserId && $0.status == .pending }
+                .sorted {
+                    if $0.createdAt != $1.createdAt { return $0.createdAt > $1.createdAt }
+                    return $0.id < $1.id
+                }
+
+            for request in ordered {
+                let peerId = request.toUserId
+                guard !peerId.isEmpty,
+                      !blockedUserIds.contains(peerId),
+                      seenPeers.insert(peerId).inserted else { continue }
+                do {
+                    let peer = try await userRepository.fetchProfile(userId: peerId)
+                    guard generation == outgoingPendingLoadGeneration,
+                          session == sessionGeneration,
+                          authRepository.currentUser?.id == currentUserId,
+                          !Task.isCancelled else { return }
+                    if peer.isSociallyAvailable {
+                        items.append(OutgoingConnectRequestItem(request: request, peer: peer))
+                    }
+                } catch {
+                    guard generation == outgoingPendingLoadGeneration,
+                          session == sessionGeneration,
+                          !Task.isCancelled else { return }
+                    continue
+                }
+            }
+
+            guard generation == outgoingPendingLoadGeneration,
+                  session == sessionGeneration,
+                  !Task.isCancelled else { return }
+            outgoingPendingState = items.isEmpty ? .empty : .loaded(items)
+        } catch {
+            guard generation == outgoingPendingLoadGeneration,
+                  session == sessionGeneration,
+                  !Task.isCancelled else { return }
+            if showLoading || !hasOutgoingPendingContent {
+                outgoingPendingState = .error(error.localizedDescription)
+            }
+        }
+    }
+
     private func resolveRequestItems(
         _ requests: [ConnectionRequest],
         peerId: KeyPath<ConnectionRequest, String>
@@ -548,7 +715,9 @@ final class ConnectViewModel: ObservableObject {
         for request in requests {
             do {
                 let peer = try await userRepository.fetchProfile(userId: request[keyPath: peerId])
-                items.append(ConnectRequestItem(request: request, peer: peer))
+                if peer.isSociallyAvailable {
+                    items.append(ConnectRequestItem(request: request, peer: peer))
+                }
             } catch {
                 // Skip broken peer profiles so one missing user doesn't fail Liked You.
                 continue

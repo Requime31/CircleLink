@@ -1,6 +1,12 @@
 import Combine
 import Foundation
 
+enum CommunityCoverEdit: Equatable, Sendable {
+    case unchanged
+    case replace(Data)
+    case remove
+}
+
 @MainActor
 final class CommunityDetailViewModel: ObservableObject {
     @Published private(set) var communityState: ViewState<Community> = .idle
@@ -14,6 +20,8 @@ final class CommunityDetailViewModel: ObservableObject {
     @Published private(set) var postAuthors: [String: User] = [:]
     @Published private(set) var isPosting = false
     @Published private(set) var isUpdatingCover = false
+    @Published private(set) var isSavingCommunity = false
+    @Published private(set) var communityEditErrorMessage: String?
     @Published private(set) var postErrorMessage: String?
 
     let communityId: String
@@ -73,7 +81,8 @@ final class CommunityDetailViewModel: ObservableObject {
 
         do {
             try await communityRepository.join(communityId: communityId)
-            await load()
+            isMember = true
+            await refreshAfterMembershipChange()
         } catch {
             membershipErrorMessage = error.localizedDescription
         }
@@ -89,7 +98,8 @@ final class CommunityDetailViewModel: ObservableObject {
             // Drop group chat access first — group write rules still require membership.
             try await chatRepository.leaveGroupChat(communityId: communityId)
             try await communityRepository.leave(communityId: communityId)
-            await load()
+            isMember = false
+            await refreshAfterMembershipChange()
         } catch {
             membershipErrorMessage = error.localizedDescription
         }
@@ -121,7 +131,6 @@ final class CommunityDetailViewModel: ObservableObject {
             let members = try await communityRepository.fetchMembers(communityId: communityId)
             membersState = members.isEmpty ? .empty : .loaded(members)
             updateMembership(from: members)
-            syncDisplayedMemberCount(members.count)
 
             guard members.contains(where: { $0.id == currentUserId }) else {
                 membershipErrorMessage = "Only community members can open this group chat."
@@ -137,7 +146,7 @@ final class CommunityDetailViewModel: ObservableObject {
 
             let title: String
             if case let .loaded(community) = communityState {
-                title = community.name
+                title = CommunityContentPolicy.safeDisplayName(community.name)
             } else {
                 title = "Group Chat"
             }
@@ -213,30 +222,89 @@ final class CommunityDetailViewModel: ObservableObject {
     }
 
     func updateCover(image: Data?) async {
-        guard canEditCover, !isUpdatingCover else { return }
-        isUpdatingCover = true
-        membershipErrorMessage = nil
-        defer { isUpdatingCover = false }
+        guard case let .loaded(community) = communityState else { return }
+        _ = await saveCommunity(
+            name: community.name,
+            description: community.description,
+            coverEdit: image.map(CommunityCoverEdit.replace) ?? .remove
+        )
+    }
+
+    @discardableResult
+    func saveCommunity(name: String, description: String, coverEdit: CommunityCoverEdit) async -> Bool {
+        guard canEditCover else {
+            communityEditErrorMessage = "Only the community owner can edit it."
+            return false
+        }
+        guard !isSavingCommunity else { return false }
+        let content: ValidatedCommunityContent
         do {
-            if let image {
-                let url = try await communityImageStorage.uploadCover(
-                    data: ImageCompressor.compressForChat(image), communityId: communityId
-                )
-                try await communityRepository.updateCoverURL(communityId: communityId, url: url)
-            } else {
+            content = try CommunityContentPolicy.validate(name: name, description: description)
+        } catch {
+            communityEditErrorMessage = error.localizedDescription
+            return false
+        }
+
+        isSavingCommunity = true
+        isUpdatingCover = coverEdit != .unchanged
+        communityEditErrorMessage = nil
+        defer {
+            isSavingCommunity = false
+            isUpdatingCover = false
+        }
+
+        do {
+            try await communityRepository.updateCommunityMetadata(
+                communityId: communityId,
+                name: content.name,
+                description: content.description
+            )
+
+            switch coverEdit {
+            case .unchanged:
+                break
+            case let .replace(data):
+                do {
+                    let url = try await communityImageStorage.uploadCover(
+                        data: ImageCompressor.compressForChat(data),
+                        communityId: communityId
+                    )
+                    try await communityRepository.updateCoverURL(communityId: communityId, url: url)
+                } catch {
+                    await loadCommunity()
+                    communityEditErrorMessage = "Name and description were saved, but the cover wasn’t. Try Save again to retry the cover."
+                    return false
+                }
+            case .remove:
                 try await communityRepository.updateCoverURL(communityId: communityId, url: nil)
+                // The visible Firestore reference is authoritative. Storage cleanup can be retried later.
                 try? await communityImageStorage.deleteCover(communityId: communityId)
             }
+
             await loadCommunity()
-        } catch { membershipErrorMessage = error.localizedDescription }
+            return true
+        } catch {
+            communityEditErrorMessage = error.localizedDescription
+            return false
+        }
     }
+
+    func clearCommunityEditError() { communityEditErrorMessage = nil }
 
     func clearPostError() { postErrorMessage = nil }
 
-    private func loadCommunity() async {
+    private func refreshAfterMembershipChange() async {
+        // Preserve the visible detail screen while refreshing authoritative counts
+        // and members. Re-entering `.loading` here causes a full-screen flash.
+        await loadCommunity(showLoading: false)
+        guard !Task.isCancelled else { return }
+        await loadMembers(showLoading: false)
+    }
+
+    private func loadCommunity(showLoading: Bool = true) async {
         communityLoadGeneration += 1
         let generation = communityLoadGeneration
-        communityState = .loading
+        if showLoading { communityState = .loading }
 
         do {
             let communities = try await communityRepository.fetchCommunities()
@@ -252,17 +320,16 @@ final class CommunityDetailViewModel: ObservableObject {
         }
     }
 
-    private func loadMembers() async {
+    private func loadMembers(showLoading: Bool = true) async {
         membersLoadGeneration += 1
         let generation = membersLoadGeneration
-        membersState = .loading
+        if showLoading { membersState = .loading }
 
         do {
             let members = try await communityRepository.fetchMembers(communityId: communityId)
             guard generation == membersLoadGeneration, !Task.isCancelled else { return }
             membersState = members.isEmpty ? .empty : .loaded(members)
             updateMembership(from: members)
-            syncDisplayedMemberCount(members.count)
         } catch {
             guard generation == membersLoadGeneration, !Task.isCancelled else { return }
             membersState = .error(error.localizedDescription)
@@ -292,12 +359,17 @@ final class CommunityDetailViewModel: ObservableObject {
     }
 
     private func loadPostAuthors(for posts: [CommunityPost]) async {
-        var authors = postAuthors
+        let authorIds = Set(posts.map(\.authorId))
+        var authors: [String: User] = [:]
         if case let .loaded(members) = membersState {
-            for member in members { authors[member.id] = member }
+            for member in members where authorIds.contains(member.id) && member.isSociallyAvailable {
+                authors[member.id] = member
+            }
         }
 
-        let missingIds = Set(posts.map(\.authorId)).subtracting(authors.keys)
+        // Refetch every non-member author on refresh so a previously cached
+        // active profile disappears promptly after account deactivation.
+        let missingIds = authorIds.subtracting(authors.keys)
         await withTaskGroup(of: (String, User?).self) { group in
             for userId in missingIds {
                 group.addTask { [userRepository] in
@@ -305,7 +377,7 @@ final class CommunityDetailViewModel: ObservableObject {
                 }
             }
             for await (userId, user) in group {
-                if let user { authors[userId] = user }
+                if let user, user.isSociallyAvailable { authors[userId] = user }
             }
         }
         guard !Task.isCancelled else { return }
@@ -320,13 +392,6 @@ final class CommunityDetailViewModel: ObservableObject {
         isMember = members.contains { $0.id == currentUserId }
     }
 
-    private func syncDisplayedMemberCount(_ count: Int) {
-        guard case let .loaded(community) = communityState else { return }
-        guard community.memberCount != count else { return }
-        var updated = community
-        updated.memberCount = count
-        communityState = .loaded(updated)
-    }
 }
 
 private extension ViewState {

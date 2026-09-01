@@ -27,6 +27,8 @@ struct PeerProfileSheet: View {
         communityRepository: CommunityRepository,
         profilePostRepository: ProfilePostRepository,
         chatRepository: ChatRepository,
+        moderationRepository: ModerationRepository,
+        onBlocked: @escaping (String) -> Void = { _ in },
         onOpenChat: @escaping (String, String) -> Void = { _, _ in },
         onFinished: @escaping () -> Void = {}
     ) {
@@ -38,7 +40,9 @@ struct PeerProfileSheet: View {
                 connectionRepository: connectionRepository,
                 communityRepository: communityRepository,
                 profilePostRepository: profilePostRepository,
-                chatRepository: chatRepository
+                chatRepository: chatRepository,
+                moderationRepository: moderationRepository,
+                onBlocked: onBlocked
             )
         )
         self.onFinished = onFinished
@@ -70,6 +74,9 @@ struct PeerProfileSheet: View {
                 handleClose()
             }
         }
+        .onChange(of: viewModel.didBlock) { blocked in
+            if blocked { handleClose() }
+        }
     }
 
     private func handleClose() {
@@ -89,7 +96,7 @@ private struct PeerProfileSheetChrome: ViewModifier {
 
     func body(content: Content) -> some View {
         switch mode {
-        case .social:
+        case .social, .readOnly:
             content
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -164,7 +171,8 @@ private enum PeerProfilePreviewData {
             connectionRepository: connections,
             communityRepository: communities,
             profilePostRepository: StubProfilePostRepository(),
-            chatRepository: StubChatRepository()
+            chatRepository: StubChatRepository(),
+            moderationRepository: StubModerationRepository()
         )
     }
 }
@@ -179,6 +187,10 @@ private final class PreviewPeerUserRepository: UserRepository, @unchecked Sendab
     func fetchProfile(userId: String) async throws -> User { user }
     func updateProfile(_ user: User) async throws {}
     func confirmAge() async throws {}
+
+    func confirmAge(birthDate localBirthDate: Date) async throws {}
+    func requestAccountDeletion(now: Date) async throws {}
+    func restoreAccount() async throws {}
     func updateFCMToken(_ token: String) async throws {}
     func clearFCMToken() async throws {}
 }

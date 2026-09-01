@@ -8,23 +8,15 @@ struct CommunitiesListView: View {
     let onOpenGroupChat: (String, String) -> Void
 
     @State private var showCreateSheet = false
-    @State private var showAllCommunities = false
+    @State private var navigationPath: [CommunitiesRoute] = []
+    @State private var carouselViewportWidth: CGFloat = 0
     @FocusState private var isSearchFocused: Bool
 
+    private let carouselCoordinateSpace = "communities-popular-carousel"
+
     var body: some View {
-        NavigationStack {
-            Group {
-                switch viewModel.state {
-                case .idle, .loading:
-                    CLLoadingState(message: "Loading communities…")
-                case .empty:
-                    emptyState
-                case let .error(message):
-                    errorState(message: message)
-                case .loaded:
-                    discoveryContent
-                }
-            }
+        NavigationStack(path: $navigationPath) {
+            rootContent
             .clCanvasBackground()
             .navigationTitle("Communities")
             .navigationBarTitleDisplayMode(.large)
@@ -43,21 +35,29 @@ struct CommunitiesListView: View {
                     showCreateSheet = false
                 }
             }
-            .navigationDestination(for: CommunityDetailRoute.self) { route in
-                CommunityDetailView(
-                    viewModel: makeDetailViewModel(route.id),
-                    initialTitle: route.name,
-                    onOpenGroupChat: onOpenGroupChat,
-                    makePeerProfileSheet: makePeerProfileSheet
-                )
-                .navigationTitle(route.name)
-                .navigationBarTitleDisplayMode(.inline)
-                .onAppear {
-                    onCommunitySelected(route.id)
+            .navigationDestination(for: CommunitiesRoute.self) { route in
+                switch route {
+                case let .allCommunities(sortOrder):
+                    AllCommunitiesView(
+                        communities: viewModel.allCommunities,
+                        initialSortOrder: sortOrder,
+                        onCommunitySelected: { community in
+                            navigate(to: detailRoute(for: community))
+                        }
+                    )
+                case let .communityDetail(id, name):
+                    CommunityDetailView(
+                        viewModel: makeDetailViewModel(id),
+                        initialTitle: name,
+                        onOpenGroupChat: onOpenGroupChat,
+                        makePeerProfileSheet: makePeerProfileSheet
+                    )
+                    .navigationTitle(name)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .onAppear {
+                        onCommunitySelected(id)
+                    }
                 }
-            }
-            .navigationDestination(isPresented: $showAllCommunities) {
-                AllCommunitiesView(communities: viewModel.suggestedCommunities)
             }
             // onAppear (not only .task): re-runs when popping back from detail so counts stay fresh.
             .onAppear {
@@ -66,115 +66,165 @@ struct CommunitiesListView: View {
         }
     }
 
-    /// Search stays visible even when the query matches nothing.
-    private var discoveryContent: some View {
+    /// Navigation chrome, search, and known categories remain stable while section content changes.
+    private var rootContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: CLSpacing.xl) {
-                searchField
+                CommunitySearchField(
+                    query: $viewModel.searchQuery,
+                    isFocused: $isSearchFocused
+                )
 
-                if viewModel.filteredCommunities.isEmpty {
-                    filterEmptyState
-                        .frame(maxWidth: .infinity)
-                } else if viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    suggestedSection
-                    newCirclesSection
-                } else {
-                    resultsSection
+                if !viewModel.availableInterestTags.isEmpty {
+                    CommunityCategoryChips(
+                        interestTags: viewModel.availableInterestTags,
+                        selectedInterestTag: $viewModel.selectedInterestTag
+                    )
                 }
+
+                Group {
+                    switch viewModel.state {
+                    case .idle, .loading:
+                        loadingSections
+                    case .empty:
+                        emptyState
+                    case .error:
+                        errorState
+                    case .loaded:
+                        loadedSections
+                    }
+                }
+                .frame(maxWidth: .infinity)
             }
             .padding(.vertical, CLSpacing.sm)
             .clAppear()
         }
     }
 
-    private var searchField: some View {
-        HStack(spacing: CLSpacing.xs) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(CLColor.inkMuted)
-                .accessibilityHidden(true)
-            TextField("Search circles…", text: $viewModel.searchQuery)
-                .font(CLTypography.body)
-                .foregroundStyle(CLColor.ink)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .focused($isSearchFocused)
-                .accessibilityLabel("Search communities")
+    @ViewBuilder private var loadedSections: some View {
+        if viewModel.filteredCommunities.isEmpty {
+            filterEmptyState
+        } else if hasActiveFilters {
+            resultsSection
+        } else {
+            VStack(alignment: .leading, spacing: CLSpacing.xl) {
+                popularSection
+                newCommunitiesSection
+            }
         }
-        .clTextFieldChrome(isFocused: isSearchFocused)
-        .padding(.horizontal, CLSpacing.screenHorizontal)
     }
 
-    private var suggestedSection: some View {
+    private var loadingSections: some View {
+        ProgressView("Loading communities…")
+            .font(CLTypography.callout)
+            .foregroundStyle(CLColor.inkMuted)
+            .tint(CLColor.primary)
+            .padding(.vertical, CLSpacing.xxl)
+            .accessibilityLabel("Loading communities")
+    }
+
+    private var hasActiveFilters: Bool {
+        !viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || viewModel.selectedInterestTag != nil
+    }
+
+    private var popularSection: some View {
         VStack(alignment: .leading, spacing: CLSpacing.md) {
-            HStack {
-                Text("Suggested for you")
-                    .font(CLTypography.title)
-                    .foregroundStyle(CLColor.ink)
-                Spacer()
-                Button("See all") {
-                    showAllCommunities = true
+            CommunitySectionHeader(
+                title: "Popular communities",
+                onSeeAll: {
+                    navigate(to: .allCommunities(sortOrder: .popular))
                 }
-                .font(CLTypography.callout.weight(.medium))
-                .foregroundStyle(CLColor.primary)
-                .accessibilityLabel("See all communities")
-            }
-            .padding(.horizontal, CLSpacing.screenHorizontal)
+            )
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: CLSpacing.md) {
-                    ForEach(suggestedItems) { community in
-                        NavigationLink(value: CommunityDetailRoute(id: community.id, name: community.name)) {
-                            SuggestedCommunityCard(community: community)
+                LazyHStack(alignment: .top, spacing: CLSpacing.md) {
+                    ForEach(popularItems) { community in
+                        Button {
+                            navigate(to: detailRoute(for: community))
+                        } label: {
+                            PopularCommunityCard(
+                                community: community,
+                                viewportWidth: carouselViewportWidth,
+                                coordinateSpace: carouselCoordinateSpace
+                            )
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(community.name), \(memberCountLabel(for: community))")
+                        .accessibilityLabel(CommunityContentPolicy.safeDisplayName(community.name))
+                        .accessibilityValue(
+                            CommunityMetadataPresentation.make(for: community).accessibilityText
+                        )
+                        .accessibilityHint("Opens community details")
                     }
                 }
                 .padding(.horizontal, CLSpacing.screenHorizontal)
             }
+            .coordinateSpace(name: carouselCoordinateSpace)
+            .background {
+                GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: CarouselViewportWidthPreferenceKey.self,
+                        value: geometry.size.width
+                    )
+                }
+            }
+            .onPreferenceChange(CarouselViewportWidthPreferenceKey.self) {
+                carouselViewportWidth = $0
+            }
         }
     }
 
-    private var suggestedItems: [Community] {
-        Array(viewModel.suggestedCommunities.prefix(3))
+    private var popularItems: [Community] {
+        Array(viewModel.suggestedCommunities.prefix(4))
     }
 
-    private var newCirclesSection: some View {
-        communityRows(title: "New Circles", communities: viewModel.newCommunities)
+    private var newCommunitiesSection: some View {
+        VStack(alignment: .leading, spacing: CLSpacing.md) {
+            CommunitySectionHeader(
+                title: "New communities",
+                onSeeAll: {
+                    navigate(to: .allCommunities(sortOrder: .newest))
+                }
+            )
+
+            CommunityRows(
+                communities: Array(viewModel.newCommunities.prefix(5)),
+                onSelect: { community in
+                    navigate(to: detailRoute(for: community))
+                }
+            )
+        }
     }
 
     private var resultsSection: some View {
-        communityRows(title: "Results", communities: viewModel.filteredCommunities)
+        VStack(alignment: .leading, spacing: CLSpacing.md) {
+            CommunitySectionHeader(title: resultsTitle)
+            CommunityRows(
+                communities: viewModel.sortedCommunities,
+                onSelect: { community in
+                    navigate(to: detailRoute(for: community))
+                }
+            )
+        }
     }
 
-    private func communityRows(title: String, communities: [Community]) -> some View {
-        VStack(alignment: .leading, spacing: CLSpacing.md) {
-            Text(title)
-                .font(CLTypography.title)
-                .foregroundStyle(CLColor.ink)
-                .padding(.horizontal, CLSpacing.screenHorizontal)
-
-            LazyVStack(spacing: CLSpacing.xs) {
-                ForEach(communities) { community in
-                    NavigationLink(value: CommunityDetailRoute(id: community.id, name: community.name)) {
-                        CommunityRowView(community: community)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("\(community.name), \(memberCountLabel(for: community))")
-                    .accessibilityHint("Opens community details")
-                }
-            }
-            .padding(.horizontal, CLSpacing.screenHorizontal)
+    private var resultsTitle: String {
+        if !viewModel.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Results"
         }
+        if let category = viewModel.selectedInterestTag {
+            return "Explore \(category)"
+        }
+        return "Results"
     }
 
     private var filterEmptyState: some View {
         CLEmptyState(
             systemImage: "magnifyingglass",
-            title: "No communities match",
-            message: "Try a different search or clear the interest filter.",
+            title: "No communities found",
+            message: "Try another search or category.",
             actionTitle: "Clear filters",
-            actionAccessibilityLabel: "Clear search and interest filters"
+            actionAccessibilityLabel: "Clear search and category filters"
         ) {
             viewModel.clearFilters()
         }
@@ -184,123 +234,299 @@ struct CommunitiesListView: View {
         CLEmptyState(
             systemImage: "person.3",
             title: "No communities yet",
-            message: "Interest-based groups will appear here.",
-            actionTitle: "Refresh",
-            actionAccessibilityLabel: "Refresh communities list"
+            message: "Create the first community and bring people together.",
+            actionTitle: "Create community",
+            actionAccessibilityLabel: "Create community"
         ) {
-            Task { await viewModel.loadCommunities() }
+            showCreateSheet = true
         }
     }
 
-    private func errorState(message: String) -> some View {
+    private var errorState: some View {
         CLEmptyState(
             systemImage: "exclamationmark.triangle",
-            title: message,
-            actionTitle: "Retry",
-            actionAccessibilityLabel: "Retry loading communities",
-            titleAccessibilityLabel: "Error: \(message)"
+            title: "Couldn’t load communities",
+            message: "Check your connection and try again.",
+            actionTitle: "Try again",
+            actionAccessibilityLabel: "Try loading communities again",
+            titleAccessibilityLabel: "Couldn’t load communities"
         ) {
             Task { await viewModel.loadCommunities() }
         }
     }
 
-    private func memberCountLabel(for community: Community) -> String {
-        community.memberCount == 1 ? "1 member" : "\(community.memberCount) members"
+    private func navigate(to route: CommunitiesRoute) {
+        navigationPath = CommunitiesNavigationPathPolicy.appending(route, to: navigationPath)
+    }
+
+    private func detailRoute(for community: Community) -> CommunitiesRoute {
+        .communityDetail(
+            id: community.id,
+            name: CommunityContentPolicy.safeDisplayName(community.name)
+        )
     }
 }
 
 private struct AllCommunitiesView: View {
     let communities: [Community]
+    let onCommunitySelected: (Community) -> Void
     @State private var searchQuery = ""
+    @State private var selectedInterestTag: String?
+    @State private var sortOrder: CommunitySortOrder
     @FocusState private var isSearchFocused: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    init(
+        communities: [Community],
+        initialSortOrder: CommunitySortOrder,
+        onCommunitySelected: @escaping (Community) -> Void
+    ) {
+        self.communities = communities
+        self.onCommunitySelected = onCommunitySelected
+        _selectedInterestTag = State(initialValue: nil)
+        _sortOrder = State(initialValue: initialSortOrder)
+    }
+
+    private var availableInterestTags: [String] {
+        Array(
+            Set(
+                communities
+                    .map(\.interestTag)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        )
+        .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
 
     private var filteredCommunities: [Community] {
-        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return communities }
-        return communities.filter {
-            $0.name.localizedCaseInsensitiveContains(query)
-                || $0.description.localizedCaseInsensitiveContains(query)
-                || $0.interestTag.localizedCaseInsensitiveContains(query)
-        }
+        let filtered = CommunitiesViewModel.filter(
+            communities,
+            searchQuery: searchQuery,
+            selectedInterestTag: selectedInterestTag
+        )
+        return CommunitiesViewModel.sort(filtered, by: sortOrder)
+    }
+
+    private var hasActiveFilters: Bool {
+        !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || selectedInterestTag != nil
+    }
+
+    private var resultCountText: String {
+        let count = filteredCommunities.count
+        return count == 1 ? "1 community" : "\(count) communities"
     }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: CLSpacing.md) {
-                HStack(spacing: CLSpacing.xs) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(CLColor.inkMuted)
-                        .accessibilityHidden(true)
-                    TextField("Search circles…", text: $searchQuery)
-                        .font(CLTypography.body)
-                        .focused($isSearchFocused)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-                .clTextFieldChrome(isFocused: isSearchFocused)
+            VStack(alignment: .leading, spacing: CLSpacing.lg) {
+                CommunitySearchField(
+                    query: $searchQuery,
+                    isFocused: $isSearchFocused
+                )
+
+                CommunityCategoryChips(
+                    interestTags: availableInterestTags,
+                    selectedInterestTag: $selectedInterestTag
+                )
+
+                catalogControls
 
                 if filteredCommunities.isEmpty {
-                    CLEmptyState(
-                        systemImage: "magnifyingglass",
-                        title: "No communities match",
-                        message: "Try a different search."
-                    )
+                    catalogEmptyState
                 } else {
-                    LazyVStack(spacing: CLSpacing.xs) {
-                        ForEach(filteredCommunities) { community in
-                            NavigationLink(value: CommunityDetailRoute(id: community.id, name: community.name)) {
-                                CommunityRowView(community: community)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(community.name)
-                            .accessibilityHint("Opens community details")
-                        }
-                    }
+                    CommunityRows(
+                        communities: filteredCommunities,
+                        onSelect: onCommunitySelected
+                    )
                 }
             }
-            .padding(.horizontal, CLSpacing.screenHorizontal)
             .padding(.vertical, CLSpacing.md)
         }
         .clCanvasBackground()
         .navigationTitle("All Communities")
         .navigationBarTitleDisplayMode(.inline)
     }
+
+    @ViewBuilder private var catalogEmptyState: some View {
+        if hasActiveFilters {
+            CLEmptyState(
+                systemImage: "magnifyingglass",
+                title: "No communities found",
+                message: "Try another search or category.",
+                actionTitle: "Clear filters",
+                actionAccessibilityLabel: "Clear search and category filters",
+                action: clearFilters
+            )
+        } else {
+            CLEmptyState(
+                systemImage: "magnifyingglass",
+                title: "No communities found",
+                message: "Try another search or category."
+            )
+        }
+    }
+
+    @ViewBuilder private var catalogControls: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: CLSpacing.xs) {
+                Text(resultCountText)
+                HStack(spacing: CLSpacing.md) {
+                    clearFiltersButton
+                    Spacer(minLength: CLSpacing.xs)
+                    sortMenu
+                }
+            }
+            .catalogControlsStyle()
+        } else {
+            HStack(spacing: CLSpacing.md) {
+                Text(resultCountText)
+                Spacer(minLength: CLSpacing.xs)
+                clearFiltersButton
+                sortMenu
+            }
+            .catalogControlsStyle()
+        }
+    }
+
+    @ViewBuilder private var clearFiltersButton: some View {
+        if hasActiveFilters {
+            Button("Clear filters", action: clearFilters)
+                .font(CLTypography.callout.weight(.medium))
+                .foregroundStyle(CLColor.primary)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                .accessibilityLabel("Clear search and category filters")
+        }
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort communities", selection: $sortOrder) {
+                ForEach(CommunitySortOrder.allCases, id: \.self) { order in
+                    Text(order.rawValue).tag(order)
+                }
+            }
+        } label: {
+            Label(sortOrder.rawValue, systemImage: "arrow.up.arrow.down")
+                .font(CLTypography.callout.weight(.medium))
+                .foregroundStyle(CLColor.primary)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+        }
+        .accessibilityLabel("Sort communities")
+        .accessibilityValue(sortOrder.rawValue)
+    }
+
+    private func clearFilters() {
+        searchQuery = ""
+        selectedInterestTag = nil
+    }
+}
+
+private extension View {
+    func catalogControlsStyle() -> some View {
+        font(CLTypography.callout)
+            .foregroundStyle(CLColor.inkSecondary)
+            .padding(.horizontal, CLSpacing.screenHorizontal)
+    }
 }
 
 // MARK: - Card
 
-private struct SuggestedCommunityCard: View {
+private struct PopularCommunityCard: View {
     let community: Community
+    let viewportWidth: CGFloat
+    let coordinateSpace: String
 
-    var body: some View {
-        VStack(spacing: CLSpacing.md) {
-            CommunityArtworkView(community: community)
-                .frame(width: 224, height: 224)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var horizontalMidpoint: CGFloat = 0
 
-            VStack(spacing: CLSpacing.xxs) {
-                Text(community.name)
-                    .font(CLTypography.headline)
-                    .foregroundStyle(CLColor.ink)
-                    .lineLimit(1)
-                Text(memberCountLabel)
-                    .font(CLTypography.callout)
-                    .foregroundStyle(CLColor.inkSecondary)
-            }
-        }
-        .padding(CLSpacing.sm)
-        .frame(width: 248)
-        .background(CLColor.surface)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous).stroke(CLColor.hairline, lineWidth: 1))
+    private let width: CGFloat = 260
+
+    private var edgeProgress: CGFloat {
+        let distance = abs(horizontalMidpoint - viewportWidth / 2)
+        return min(max(distance / max(viewportWidth / 2, 1), 0), 1)
     }
 
-    private var memberCountLabel: String {
-        community.memberCount == 1 ? "1 member" : "\(community.memberCount) members"
+    private var scale: CGFloat {
+        reduceMotion ? 1 : 1 - (0.04 * edgeProgress)
+    }
+
+    private var opacity: Double {
+        reduceMotion ? 1 : 1 - (0.12 * edgeProgress)
+    }
+
+    private var memberCountText: String {
+        let normalizedCount = max(0, community.memberCount)
+        let count = normalizedCount.formatted(.number.notation(.compactName))
+        return normalizedCount == 1 ? "\(count) member" : "\(count) members"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+            CommunityArtworkView(community: community, cornerRadius: CLRadius.xl)
+                .frame(width: width - (CLSpacing.sm * 2))
+                .aspectRatio(4 / 3, contentMode: .fit)
+
+            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
+                Text(CommunityContentPolicy.safeDisplayName(community.name))
+                    .font(CLTypography.headline)
+                    .foregroundStyle(CLColor.ink)
+
+                Text(community.interestTag)
+                    .font(CLTypography.subheadline)
+                    .foregroundStyle(CLColor.inkSecondary)
+
+                Text(memberCountText)
+                    .font(CLTypography.footnote)
+                    .foregroundStyle(CLColor.inkMuted)
+            }
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(CLSpacing.sm)
+        .frame(width: width)
+        .background(CLColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous)
+                .stroke(CLColor.hairline, lineWidth: 1)
+        }
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(
+                    key: PopularCardMidpointPreferenceKey.self,
+                    value: geometry.frame(in: .named(coordinateSpace)).midX
+                )
+            }
+        }
+        .onPreferenceChange(PopularCardMidpointPreferenceKey.self) { horizontalMidpoint = $0 }
+        .scaleEffect(scale)
+        .opacity(opacity)
+        .accessibilityElement(children: .ignore)
+    }
+}
+
+private struct PopularCardMidpointPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct CarouselViewportWidthPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
 private struct CommunityRowView: View {
     let community: Community
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(spacing: CLSpacing.md) {
@@ -308,10 +534,11 @@ private struct CommunityRowView: View {
                 .frame(width: 64, height: 64)
 
             VStack(alignment: .leading, spacing: CLSpacing.xxs) {
-                Text(community.name)
+                Text(CommunityContentPolicy.safeDisplayName(community.name))
                     .font(CLTypography.headline)
                     .foregroundStyle(CLColor.ink)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(memberCountLabel)
                     .font(CLTypography.callout)
                     .foregroundStyle(CLColor.inkSecondary)

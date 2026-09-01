@@ -4,6 +4,7 @@ import Foundation
 enum FirebaseAuthError: LocalizedError {
     case notConfigured
     case missingUser
+    case sessionChanged
 
     var errorDescription: String? {
         switch self {
@@ -11,6 +12,8 @@ enum FirebaseAuthError: LocalizedError {
             return "Firebase is not configured. Check GoogleService-Info.plist and restart the app."
         case .missingUser:
             return "No authenticated Firebase user found."
+        case .sessionChanged:
+            return "The signed-in account changed. Please try again."
         }
     }
 }
@@ -23,12 +26,12 @@ final class FirebaseAuthRepository: AuthRepository, @unchecked Sendable {
     private var cachedUser: User?
 
     var currentUser: User? {
-        if let cachedUser {
-            return cachedUser
-        }
         guard FirebaseBootstrap.isConfigured,
               let firebaseUser = Auth.auth().currentUser else {
             return nil
+        }
+        if let cachedUser, cachedUser.id == firebaseUser.uid {
+            return cachedUser
         }
         return User(
             id: firebaseUser.uid,
@@ -38,6 +41,15 @@ final class FirebaseAuthRepository: AuthRepository, @unchecked Sendable {
             interests: [],
             ageConfirmedAt: nil
         )
+    }
+
+    var reauthenticationMethod: ReauthenticationMethod {
+        guard FirebaseBootstrap.isConfigured, let user = Auth.auth().currentUser else { return .unavailable }
+        if user.providerData.contains(where: { $0.providerID == "apple.com" }) { return .apple }
+        if user.providerData.contains(where: { $0.providerID == EmailAuthProviderID }), let email = user.email {
+            return .email(address: email)
+        }
+        return .unavailable
     }
 
     init(
@@ -87,11 +99,36 @@ final class FirebaseAuthRepository: AuthRepository, @unchecked Sendable {
         }
     }
 
+    func reauthenticateWithApple() async throws {
+        try ensureConfigured()
+        guard let user = Auth.auth().currentUser else { throw FirebaseAuthError.missingUser }
+        let appleResult = try await appleSignInPresenter.signIn()
+        let credential = OAuthProvider.appleCredential(
+            withIDToken: appleResult.idToken,
+            rawNonce: appleResult.nonce,
+            fullName: appleResult.fullName
+        )
+        _ = try await user.reauthenticate(with: credential)
+    }
+
+    func reauthenticateWithEmail(password: String) async throws {
+        try ensureConfigured()
+        guard let user = Auth.auth().currentUser, let email = user.email else {
+            throw FirebaseAuthError.missingUser
+        }
+        let credential = EmailAuthProvider.credential(withEmail: email, password: password)
+        do {
+            _ = try await user.reauthenticate(with: credential)
+        } catch {
+            throw mapAuthError(error)
+        }
+    }
+
     func signOut() throws {
         guard FirebaseBootstrap.isConfigured else { return }
         try Auth.auth().signOut()
-        try tokenStorage.delete(for: .firebaseIDToken)
         cachedUser = nil
+        try tokenStorage.delete(for: .firebaseIDToken)
     }
 
     func restoreSessionProfile() async throws -> User? {
@@ -103,17 +140,22 @@ final class FirebaseAuthRepository: AuthRepository, @unchecked Sendable {
         }
 
         if let token = try? await Auth.auth().currentUser?.getIDToken() {
+            guard Auth.auth().currentUser?.uid == userId else { throw FirebaseAuthError.sessionChanged }
             try tokenStorage.save(token: token, for: .firebaseIDToken)
         }
 
         let profile = try await userRepository.fetchProfile(userId: userId)
+        guard Auth.auth().currentUser?.uid == userId else { throw FirebaseAuthError.sessionChanged }
         cachedUser = profile
         return profile
     }
 
     private func completeSignIn(for user: FirebaseAuth.User) async throws -> User {
+        let expectedUserID = user.uid
         try await persistToken(for: user)
-        let profile = try await userRepository.fetchProfile(userId: user.uid)
+        guard Auth.auth().currentUser?.uid == expectedUserID else { throw FirebaseAuthError.sessionChanged }
+        let profile = try await userRepository.fetchProfile(userId: expectedUserID)
+        guard Auth.auth().currentUser?.uid == expectedUserID else { throw FirebaseAuthError.sessionChanged }
         cachedUser = profile
         return profile
     }

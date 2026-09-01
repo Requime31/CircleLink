@@ -14,7 +14,11 @@ final class StubUserRepository: UserRepository, @unchecked Sendable {
 
     func updateProfile(_ user: User) async throws {}
 
+    func confirmAge(birthDate localBirthDate: Date) async throws {}
+
     func confirmAge() async throws {}
+    func requestAccountDeletion(now: Date) async throws {}
+    func restoreAccount() async throws {}
 
     func updateFCMToken(_ token: String) async throws {}
 

@@ -9,7 +9,7 @@ struct ProfileSetupView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: CLSpacing.lg) {
                     header
-                    ProfileFormFields(viewModel: viewModel)
+                    ProfileFormFields(viewModel: viewModel, mode: .setup)
 
                     if case .loading = viewModel.saveState {
                         ProgressView("Saving profile…")

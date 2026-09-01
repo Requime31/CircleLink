@@ -7,6 +7,8 @@ enum PeerProfileMode: Equatable, Sendable {
     case likedYou(requestId: String)
     /// Chats / Communities / Matches — Connect / Pending / Message.
     case social
+    /// Informational profile reached from an outgoing pending request.
+    case readOnly
 }
 
 /// UI relationship for social mode (maps from `ConnectionStatus`).
@@ -32,6 +34,9 @@ final class PeerProfileViewModel: ObservableObject {
     @Published private(set) var actionErrorMessage: String?
     /// Set after a successful like/skip so the sheet can dismiss.
     @Published private(set) var didCompleteAction = false
+    @Published private(set) var isBlocking = false
+    @Published private(set) var blockErrorMessage: String?
+    @Published private(set) var didBlock = false
 
     let userId: String
     let mode: PeerProfileMode
@@ -41,6 +46,9 @@ final class PeerProfileViewModel: ObservableObject {
     private let communityRepository: CommunityRepository
     private let profilePostRepository: ProfilePostRepository
     private let chatRepository: ChatRepository
+    private let moderationRepository: ModerationRepository
+    private let onBlocked: (String) -> Void
+    private var generation = 0
 
     /// How many community chips to show before “+N”.
     static let visibleCommunityLimit = 3
@@ -52,7 +60,9 @@ final class PeerProfileViewModel: ObservableObject {
         connectionRepository: ConnectionRepository,
         communityRepository: CommunityRepository,
         profilePostRepository: ProfilePostRepository,
-        chatRepository: ChatRepository
+        chatRepository: ChatRepository,
+        moderationRepository: ModerationRepository,
+        onBlocked: @escaping (String) -> Void = { _ in }
     ) {
         self.userId = userId
         self.mode = mode
@@ -61,6 +71,8 @@ final class PeerProfileViewModel: ObservableObject {
         self.communityRepository = communityRepository
         self.profilePostRepository = profilePostRepository
         self.chatRepository = chatRepository
+        self.moderationRepository = moderationRepository
+        self.onBlocked = onBlocked
     }
 
     var visibleCommunities: [Community] {
@@ -75,13 +87,24 @@ final class PeerProfileViewModel: ObservableObject {
         mode == .social && relationship == .none
     }
 
+    var peerDisplayName: String {
+        if case let .loaded(user) = state { return user.displayName }
+        return "this user"
+    }
+
     func load() async {
+        generation += 1
+        let currentGeneration = generation
         state = .loading
         actionErrorMessage = nil
         didCompleteAction = false
 
         do {
             let user = try await userRepository.fetchProfile(userId: userId)
+            guard user.isSociallyAvailable else {
+                state = .error("This profile is no longer available.")
+                return
+            }
 
             var nextRelationship: PeerRelationship = .none
             if mode == .social {
@@ -90,7 +113,7 @@ final class PeerProfileViewModel: ObservableObject {
                 nextRelationship = Self.relationship(from: request)
             }
 
-            guard !Task.isCancelled else { return }
+            guard currentGeneration == generation, !Task.isCancelled else { return }
 
             state = .loaded(user)
             relationship = nextRelationship
@@ -104,13 +127,40 @@ final class PeerProfileViewModel: ObservableObject {
                 before: nil
             )
             let (nextCommunities, nextPosts) = await (loadedCommunities, loadedPosts)
-            guard !Task.isCancelled else { return }
+            guard currentGeneration == generation, !Task.isCancelled else { return }
             communities = nextCommunities ?? []
             posts = nextPosts ?? []
         } catch {
-            guard !Task.isCancelled else { return }
+            guard currentGeneration == generation, !Task.isCancelled else { return }
             state = .error(error.localizedDescription)
         }
+    }
+
+    @discardableResult
+    func block() async -> Bool {
+        guard !isBlocking else { return false }
+        let currentGeneration = generation
+        isBlocking = true
+        blockErrorMessage = nil
+        defer {
+            if currentGeneration == generation { isBlocking = false }
+        }
+
+        do {
+            try await moderationRepository.blockUser(userId)
+            guard currentGeneration == generation, !Task.isCancelled else { return false }
+            didBlock = true
+            onBlocked(userId)
+            return true
+        } catch {
+            guard currentGeneration == generation, !Task.isCancelled else { return false }
+            blockErrorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func prepareBlockConfirmation() {
+        blockErrorMessage = nil
     }
 
     // MARK: - Social actions

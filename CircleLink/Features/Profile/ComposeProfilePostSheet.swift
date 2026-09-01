@@ -38,6 +38,7 @@ struct ComposeProfilePostSheet: View {
     @State private var localErrorMessage: String?
     @FocusState private var isTextFocused: Bool
     @State private var didPrefill = false
+    @State private var photoLoadGeneration = 0
 
     private var isEditing: Bool { mode.editingPost != nil }
 
@@ -54,6 +55,8 @@ struct ComposeProfilePostSheet: View {
     private var bannerError: String? {
         localErrorMessage ?? viewModel.postErrorMessage
     }
+
+    private var previewHeight: CGFloat { isEditing ? 180 : 200 }
 
     var body: some View {
         NavigationStack {
@@ -84,32 +87,46 @@ struct ComposeProfilePostSheet: View {
                             .accessibilityLabel("Post error: \(errorMessage)")
                     }
 
-                    Button {
-                        Task { await submit() }
-                    } label: {
-                        if viewModel.isPosting {
-                            ProgressView()
-                                .tint(CLColor.onPrimary)
-                        } else {
-                            Text(isEditing ? "Save" : "Post")
+                    if !isEditing {
+                        Button {
+                            Task { await submit() }
+                        } label: {
+                            submitLabel(title: "Post")
                         }
+                        .buttonStyle(CLPrimaryButtonStyle())
+                        .disabled(!canSubmit)
+                        .accessibilityLabel("Publish post")
                     }
-                    .buttonStyle(CLPrimaryButtonStyle())
-                    .disabled(!canSubmit)
-                    .accessibilityLabel(isEditing ? "Save post" : "Publish post")
                 }
                 .padding(CLSpacing.md)
             }
+            .scrollDismissesKeyboard(.interactively)
             .clCanvasBackground()
             .navigationTitle(isEditing ? "Edit Post" : "New Post")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        photoLoadGeneration += 1
                         viewModel.clearPostError()
                         onDismiss()
                     }
                     .disabled(viewModel.isPosting)
+                }
+                if isEditing {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button {
+                            Task { await submit() }
+                        } label: {
+                            if viewModel.isPosting {
+                                ProgressView()
+                            } else {
+                                Text("Save")
+                            }
+                        }
+                        .disabled(!canSubmit)
+                        .accessibilityLabel("Save post")
+                    }
                 }
             }
             .interactiveDismissDisabled(viewModel.isPosting)
@@ -122,6 +139,9 @@ struct ComposeProfilePostSheet: View {
             .onChange(of: selectedPhotoItem) { item in
                 Task { await loadPhoto(item) }
             }
+            .onDisappear {
+                photoLoadGeneration += 1
+            }
         }
     }
 
@@ -133,16 +153,16 @@ struct ComposeProfilePostSheet: View {
 
                 HStack(spacing: CLSpacing.sm) {
                     PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                        Text("Change Photo")
+                        Text(isEditing ? "Replace Photo" : "Change Photo")
                             .font(CLTypography.button)
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
                     }
                     .buttonStyle(CLSecondaryButtonStyle())
                     .disabled(isLoadingPhoto || viewModel.isPosting)
-                    .accessibilityLabel("Change post photo")
+                    .accessibilityLabel(isEditing ? "Replace post photo" : "Change post photo")
 
-                    Button("Remove") {
+                    Button("Remove Photo") {
                         clearPhoto()
                     }
                     .buttonStyle(CLSecondaryButtonStyle())
@@ -156,7 +176,7 @@ struct ComposeProfilePostSheet: View {
                         .tint(CLColor.primary)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 200)
+                .frame(height: previewHeight)
                 .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
                 .accessibilityLabel("Loading photo")
             } else {
@@ -180,7 +200,8 @@ struct ComposeProfilePostSheet: View {
                 .resizable()
                 .scaledToFill()
                 .frame(maxWidth: .infinity)
-                .frame(height: 200)
+                .frame(height: previewHeight)
+                .clipped()
                 .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
                 .accessibilityLabel("Selected photo preview")
         } else {
@@ -196,7 +217,7 @@ struct ComposeProfilePostSheet: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 200)
+            .frame(height: previewHeight)
             .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
             .accessibilityLabel("Could not load photo")
         }
@@ -209,20 +230,31 @@ struct ComposeProfilePostSheet: View {
         keptRemoteImageURL = post.imageURL
         guard let url = post.imageURL else { return }
 
+        photoLoadGeneration += 1
+        let generation = photoLoadGeneration
         isLoadingPhoto = true
-        defer { isLoadingPhoto = false }
+        defer {
+            if generation == photoLoadGeneration { isLoadingPhoto = false }
+        }
 
         do {
-            previewImage = try await ImageLoader.shared.load(from: url)
+            let loaded = try await ImageLoader.shared.load(from: url)
+            guard generation == photoLoadGeneration,
+                  keptRemoteImageURL == url,
+                  !Task.isCancelled else { return }
+            previewImage = loaded
             remotePreviewFailed = previewImage == nil
         } catch {
-            guard !Task.isCancelled else { return }
+            guard generation == photoLoadGeneration,
+                  keptRemoteImageURL == url,
+                  !Task.isCancelled else { return }
             previewImage = nil
             remotePreviewFailed = true
         }
     }
 
     private func clearPhoto() {
+        photoLoadGeneration += 1
         selectedPhotoItem = nil
         selectedImageData = nil
         previewImage = nil
@@ -234,19 +266,28 @@ struct ComposeProfilePostSheet: View {
 
     private func loadPhoto(_ item: PhotosPickerItem?) async {
         guard let item else { return }
+        photoLoadGeneration += 1
+        let generation = photoLoadGeneration
         localErrorMessage = nil
         isLoadingPhoto = true
-        defer { isLoadingPhoto = false }
+        defer {
+            if generation == photoLoadGeneration { isLoadingPhoto = false }
+        }
 
         do {
-            if let data = try await item.loadTransferable(type: Data.self) {
-                selectedImageData = data
-                previewImage = UIImage(data: data)
-                keptRemoteImageURL = nil
-                remotePreviewFailed = false
+            guard let data = try await item.loadTransferable(type: Data.self) else {
+                guard generation == photoLoadGeneration, !Task.isCancelled else { return }
+                selectedPhotoItem = nil
+                localErrorMessage = "Couldn’t load the selected photo."
+                return
             }
+            guard generation == photoLoadGeneration, !Task.isCancelled else { return }
+            selectedImageData = data
+            previewImage = UIImage(data: data)
+            keptRemoteImageURL = nil
+            remotePreviewFailed = false
         } catch {
-            guard !Task.isCancelled else { return }
+            guard generation == photoLoadGeneration, !Task.isCancelled else { return }
             selectedPhotoItem = nil
             selectedImageData = nil
             if keptRemoteImageURL == nil {
@@ -277,6 +318,16 @@ struct ComposeProfilePostSheet: View {
 
         if success {
             onDismiss()
+        }
+    }
+
+    @ViewBuilder
+    private func submitLabel(title: String) -> some View {
+        if viewModel.isPosting {
+            ProgressView()
+                .tint(CLColor.onPrimary)
+        } else {
+            Text(title)
         }
     }
 }

@@ -7,6 +7,7 @@ final class AppCoordinator: ObservableObject {
     enum Route: Equatable {
         case bootstrapping
         case auth
+        case accountRecovery
         case ageGate
         case profileSetup
         case mainTab
@@ -31,9 +32,10 @@ final class AppCoordinator: ObservableObject {
     private let communitiesViewModel: CommunitiesViewModel
     private let chatsViewModel: ChatsViewModel
     private let profileViewModel: ProfileViewModel
+    private var accountRecoveryViewModel: AccountRecoveryViewModel?
 
-    private lazy var connectViewModel: ConnectViewModel = dependencies.makeConnectViewModel { [weak self] chatId in
-        self?.onChatSelected(chatId: chatId)
+    private lazy var connectViewModel: ConnectViewModel = dependencies.makeConnectViewModel { [weak self] chatId, title in
+        self?.openDirectChat(chatId: chatId, title: title)
     }
 
     private lazy var authViewModel = dependencies.makeAuthViewModel { [weak self] user in
@@ -76,10 +78,16 @@ final class AppCoordinator: ObservableObject {
         Group {
             switch route {
             case .bootstrapping:
-                ProgressView("Loading…")
+                LoadingView()
             case .auth:
                 NavigationStack {
                     AuthView(viewModel: authViewModel)
+                }
+            case .accountRecovery:
+                if let accountRecoveryViewModel {
+                    AccountRecoveryView(viewModel: accountRecoveryViewModel)
+                } else {
+                    ProgressView("Loading…")
                 }
             case .ageGate:
                 NavigationStack {
@@ -111,20 +119,41 @@ final class AppCoordinator: ObservableObject {
                     profileViewModel: profileViewModel,
                     makeCommunityDetailViewModel: dependencies.makeCommunityDetailViewModel,
                     makeChatViewModel: { chatId, title in
-                        self.dependencies.makeChatViewModel(chatId: chatId, title: title)
+                        self.dependencies.makeChatViewModel(
+                            chatId: chatId,
+                            title: title,
+                            onPeerBlocked: { [weak self] in
+                                guard let self,
+                                      let peerId = DirectChatPeer.peerUserId(
+                                        chatId: chatId,
+                                        currentUserId: self.dependencies.authRepository.currentUser?.id ?? ""
+                                      ) else { return }
+                                self.connectViewModel.handlePeerBlocked(userId: peerId)
+                            }
+                        )
                     },
                     makeChatInfoViewModel: dependencies.makeChatInfoViewModel,
                     makePeerProfileSheet: { userId, mode in
                         self.dependencies.makePeerProfileSheet(
                             userId: userId,
                             mode: mode,
-                            onOpenChat: self.openChat
+                            onBlocked: { [weak self] blockedId in
+                                self?.connectViewModel.handlePeerBlocked(userId: blockedId)
+                            },
+                            onOpenChat: self.openDirectChat
                         )
                     },
-                    pushHandler: dependencies.pushNotificationHandler,
+                    makeSettingsViewModel: dependencies.makeSettingsViewModel,
+                    makeSupportViewModel: dependencies.makeSupportViewModel,
                     onCommunitySelected: onCommunitySelected,
                     onOpenGroupChat: onOpenGroupChat,
-                    onSignOut: signOut
+                    onSignOut: signOut,
+                    makeAccountDeletionViewModel: {
+                        return self.dependencies.makeAccountDeletionViewModel {
+                            await self.performSignOut(expectedUserID: $0)
+                        }
+                    },
+                    makeBlockedPeopleViewModel: dependencies.makeBlockedPeopleViewModel
                 )
             }
         }
@@ -137,6 +166,11 @@ final class AppCoordinator: ObservableObject {
 
     func bootstrapIfNeeded() async {
         guard route == .bootstrapping else { return }
+
+        #if DEBUG
+        // Keep the branded loading animation visible during local development.
+        try? await Task.sleep(nanoseconds: 3_000_000_000)
+        #endif
 
         do {
             if let profile = try await dependencies.restoreAuthenticatedProfile() {
@@ -180,6 +214,7 @@ final class AppCoordinator: ObservableObject {
 
     func handleSignedOut() {
         currentProfile = nil
+        accountRecoveryViewModel = nil
         pendingDeepLink = nil
         pendingChatRoute = nil
         selectedTab = .communities
@@ -195,31 +230,61 @@ final class AppCoordinator: ObservableObject {
 
     func signOut() {
         Task { @MainActor in
-            await dependencies.pushNotificationHandler.clearTokenOnSignOut()
-            do {
-                try dependencies.authRepository.signOut()
+            guard let userID = dependencies.authRepository.currentUser?.id else { return }
+            await performSignOut(expectedUserID: userID)
+        }
+    }
+
+    func performSignOut(expectedUserID: String) async {
+        guard dependencies.authRepository.currentUser?.id == expectedUserID else { return }
+        await dependencies.pushNotificationHandler.clearTokenOnSignOut()
+        guard dependencies.authRepository.currentUser?.id == expectedUserID else { return }
+        do {
+            try dependencies.authRepository.signOut()
+            handleSignedOut()
+        } catch {
+            if dependencies.authRepository.currentUser == nil {
                 handleSignedOut()
-            } catch {
-                #if DEBUG
-                print("[AppCoordinator] signOut failed: \(error.localizedDescription)")
-                #endif
+                return
             }
+            #if DEBUG
+            print("[AppCoordinator] signOut failed: \(error.localizedDescription)")
+            #endif
         }
     }
 
     private func applyRoute(for user: User) {
         currentProfile = user
 
-        if user.ageConfirmedAt == nil {
+        if Self.route(for: user) == .accountRecovery {
+            pendingDeepLink = nil
+            pendingChatRoute = nil
+            accountRecoveryViewModel = dependencies.makeAccountRecoveryViewModel(
+                profile: user,
+                onRestored: { [weak self] restored in self?.applyRoute(for: restored) },
+                onSignOut: { [weak self] userID in await self?.performSignOut(expectedUserID: userID) }
+            )
+            route = .accountRecovery
+        } else if user.ageConfirmedAt == nil {
+            accountRecoveryViewModel = nil
             route = .ageGate
         } else if !user.isProfileComplete {
+            accountRecoveryViewModel = nil
             route = .profileSetup
         } else {
+            accountRecoveryViewModel = nil
             route = .mainTab
             applyPendingDeepLinkIfNeeded()
             // Permission after auth + onboarding — not on cold launch, not buried in Send/Connect.
             Task { await dependencies.pushNotificationHandler.requestPermissionIfNeeded() }
         }
+    }
+
+    static func route(for user: User) -> Route {
+        if user.accountState == .deactivated { return .accountRecovery }
+        if user.ageConfirmedAt == nil { return .ageGate }
+        if !user.isProfileComplete { return .profileSetup }
+        return .mainTab
     }
 
     // MARK: - Deep links (push only — routed here)
@@ -282,7 +347,29 @@ final class AppCoordinator: ObservableObject {
 
     /// Group chat entry — `chatId` is a real Firestore id from `createGroupChat`.
     func onOpenGroupChat(chatId: String, title: String) {
-        openChat(chatId: chatId, title: title)
+        let prefix = "group_"
+        guard chatId.hasPrefix(prefix) else {
+            openChat(chatId: chatId, title: title)
+            return
+        }
+        let communityId = String(chatId.dropFirst(prefix.count))
+        guard !communityId.isEmpty else {
+            openChat(chatId: chatId, title: title)
+            return
+        }
+        selectedTab = .chats
+        pendingChatRoute = .group(
+            chatId: chatId,
+            title: title,
+            communityId: communityId
+        )
+    }
+
+    /// Match/profile entry has already created a deterministic direct chat.
+    /// Never enrich this route with community context from a cached summary.
+    func openDirectChat(chatId: String, title: String) {
+        selectedTab = .chats
+        pendingChatRoute = .direct(chatId: chatId, title: title)
     }
 
     private func openChat(chatId: String, title: String) {
@@ -294,11 +381,11 @@ final class AppCoordinator: ObservableObject {
         } else {
             communityId = nil
         }
-        pendingChatRoute = ChatThreadRoute(
-            chatId: chatId,
-            title: title,
-            communityId: communityId
-        )
+        if let communityId {
+            pendingChatRoute = .group(chatId: chatId, title: title, communityId: communityId)
+        } else {
+            pendingChatRoute = .direct(chatId: chatId, title: title)
+        }
     }
 
     private func chatTitle(for chatId: String) -> String {

@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct CircleLinkApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var appearanceStore: AppAppearanceStore
     @StateObject private var coordinator: AppCoordinator
 
     init() {
@@ -11,6 +12,7 @@ struct CircleLinkApp: App {
 
         let dependencies = AppDependencies()
         let coordinator = AppCoordinator(dependencies: dependencies)
+        _appearanceStore = StateObject(wrappedValue: dependencies.appearanceStore)
         _coordinator = StateObject(wrappedValue: coordinator)
 
         // Attach as early as possible; if AppDelegate.shared is not ready yet,
@@ -22,6 +24,8 @@ struct CircleLinkApp: App {
         WindowGroup {
             coordinator.rootView
                 .tint(CLColor.primary)
+                .preferredColorScheme(appearanceStore.appearance.colorScheme)
+                .environmentObject(appearanceStore)
                 .onAppear {
                     coordinator.attachPushHandling(to: appDelegate)
                 }

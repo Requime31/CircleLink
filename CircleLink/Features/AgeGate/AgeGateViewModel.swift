@@ -1,28 +1,19 @@
 import Combine
 import Foundation
 
-/// Data flow:
-/// User enters birth year → taps Continue
-///   → AgeGateView
-///   → AgeGateViewModel.confirmAge()
-///   → local age check (18+)
-///   → UserRepository.confirmAge()
-///   → Firestore `ageConfirmedAt`
-///   → fetchProfile → onAgeConfirmed(User)
-///   → AppCoordinator → Profile Setup / MainTab
-///
-/// Birth year is validated on-device only for now (not stored).
 @MainActor
 final class AgeGateViewModel: ObservableObject {
-    @Published var birthYearText = ""
+    @Published var selectedBirthDate: Date {
+        didSet { if case .error = state { state = .idle } }
+    }
     @Published private(set) var state: ViewState<Bool> = .idle
 
     private let authRepository: AuthRepository
     private let userRepository: UserRepository
     let onAgeConfirmed: (User) -> Void
-
     private let calendar: Calendar
-    private let minimumAge = 18
+    private let timeZone: TimeZone
+    private let now: () -> Date
     private var confirmationGeneration = 0
     private var isConfirming = false
 
@@ -30,84 +21,75 @@ final class AgeGateViewModel: ObservableObject {
         authRepository: AuthRepository,
         userRepository: UserRepository,
         onAgeConfirmed: @escaping (User) -> Void,
-        calendar: Calendar = .current
+        calendar: Calendar = Calendar(identifier: .gregorian),
+        timeZone: TimeZone = .current,
+        now: @escaping () -> Date = Date.init
     ) {
         self.authRepository = authRepository
         self.userRepository = userRepository
         self.onAgeConfirmed = onAgeConfirmed
-        self.calendar = calendar
+        var configuredCalendar = calendar
+        configuredCalendar.timeZone = timeZone
+        self.calendar = configuredCalendar
+        self.timeZone = timeZone
+        self.now = now
+        let localCalendar = configuredCalendar
+        selectedBirthDate = localCalendar.date(byAdding: .year, value: -25, to: now()) ?? now()
     }
 
-    /// Parsed YYYY when the field looks complete.
-    var birthYear: Int? {
-        let digits = birthYearText.filter(\.isNumber)
-        guard digits.count == 4, let year = Int(digits) else { return nil }
-        return year
+    var minimumBirthDate: Date { dateByAddingYears(-120) ?? now() }
+    var maximumBirthDate: Date { dateByAddingYears(-18) ?? now() }
+
+    var calculatedAge: Int {
+        AgeCalculator.completedYears(
+            since: selectedBirthDate,
+            at: now(),
+            calendar: calendar,
+            timeZone: timeZone
+        )
     }
 
     var canContinue: Bool {
-        isAtLeastMinimumAge
-    }
-
-    var isAtLeastMinimumAge: Bool {
-        guard let birthYear else { return false }
-        let currentYear = calendar.component(.year, from: Date())
-        // Reject absurd future / ancient years.
-        guard birthYear >= 1900, birthYear <= currentYear else { return false }
-        return currentYear - birthYear >= minimumAge
-    }
-
-    func updateBirthYearText(_ raw: String) {
-        let digits = String(raw.filter(\.isNumber).prefix(4))
-        birthYearText = digits
-        // Clear stale validation errors while the user edits.
-        if case .error = state {
-            state = .idle
-        }
+        (18...120).contains(calculatedAge)
+            && normalizedDay(selectedBirthDate) >= normalizedDay(minimumBirthDate)
+            && normalizedDay(selectedBirthDate) <= normalizedDay(maximumBirthDate)
     }
 
     func confirmAge() async {
         guard !isConfirming else { return }
-        guard let birthYear else {
-            state = .error("Enter your year of birth (YYYY).")
+        guard canContinue else {
+            state = .error("Enter a valid birth date for someone aged 18 or older.")
             return
         }
-
-        let currentYear = calendar.component(.year, from: Date())
-        guard birthYear >= 1900, birthYear <= currentYear else {
-            state = .error("Enter a valid year of birth.")
-            return
-        }
-
-        guard currentYear - birthYear >= minimumAge else {
-            state = .error("You must be 18 or older to use CircleLink.")
+        guard let userId = authRepository.currentUser?.id else {
+            state = .error("Session expired. Please sign in again.")
             return
         }
 
         isConfirming = true
         confirmationGeneration += 1
         let generation = confirmationGeneration
-        defer {
-            if generation == confirmationGeneration {
-                isConfirming = false
-            }
-        }
+        defer { if generation == confirmationGeneration { isConfirming = false } }
         state = .loading
+
         do {
-            try await userRepository.confirmAge()
-            guard generation == confirmationGeneration else { return }
-            guard let userId = authRepository.currentUser?.id else {
-                state = .error("Session expired. Please sign in again.")
-                return
-            }
-            let profile = try await userRepository.fetchProfile(userId: userId)
+            try Task.checkCancellation()
+            try await userRepository.confirmAge(birthDate: selectedBirthDate)
+            try Task.checkCancellation()
             guard generation == confirmationGeneration,
-                  authRepository.currentUser?.id == userId,
-                  !Task.isCancelled else { return }
+                  authRepository.currentUser?.id == userId else { return }
+            let profile = try await userRepository.fetchProfile(userId: userId)
+            try Task.checkCancellation()
+            guard generation == confirmationGeneration,
+                  authRepository.currentUser?.id == userId else { return }
             state = .loaded(true)
             onAgeConfirmed(profile)
-        } catch {
+        } catch is CancellationError {
             guard generation == confirmationGeneration else { return }
+            state = .idle
+        } catch {
+            guard generation == confirmationGeneration,
+                  authRepository.currentUser?.id == userId else { return }
             state = .error(error.localizedDescription)
         }
     }
@@ -115,7 +97,17 @@ final class AgeGateViewModel: ObservableObject {
     func resetForm() {
         confirmationGeneration += 1
         isConfirming = false
-        birthYearText = ""
+        var localCalendar = calendar
+        localCalendar.timeZone = timeZone
+        selectedBirthDate = localCalendar.date(byAdding: .year, value: -25, to: now()) ?? now()
         state = .idle
     }
+
+    private func dateByAddingYears(_ years: Int) -> Date? {
+        var localCalendar = calendar
+        localCalendar.timeZone = timeZone
+        return localCalendar.date(byAdding: .year, value: years, to: localCalendar.startOfDay(for: now()))
+    }
+
+    private func normalizedDay(_ date: Date) -> Date { calendar.startOfDay(for: date) }
 }

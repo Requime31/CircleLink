@@ -50,6 +50,100 @@ struct ProfileViewModelTests {
         }
     }
 
+    @Test func loadProfilePrefillsPersistedBirthDateAndCalculatedAge() async {
+        let users = MockUserRepository()
+        var user = MockAuthRepository.sampleUser
+        user.birthDate = Self.persistedDate(1990, 4, 12)
+        user.age = 36
+        users.profiles[user.id] = user
+        let viewModel = makeViewModel(userRepository: users, now: Self.localDate(2026, 8, 25))
+
+        await viewModel.loadProfile()
+
+        #expect(viewModel.usesBirthDate)
+        #expect(viewModel.calculatedAge == 36)
+        #expect(Self.calendar.isDate(viewModel.selectedBirthDate, inSameDayAs: Self.localDate(1990, 4, 12)))
+    }
+
+    @Test func legacyConfirmedProfileKeepsEditableAgeFallback() async {
+        let users = MockUserRepository()
+        var user = MockAuthRepository.sampleUser
+        user.birthDate = nil
+        user.age = 42
+        users.profiles[user.id] = user
+        let viewModel = makeViewModel(userRepository: users)
+
+        await viewModel.loadProfile()
+
+        #expect(!viewModel.usesBirthDate)
+        #expect(viewModel.ageText == "42")
+        viewModel.ageText = "43"
+        #expect(viewModel.canSave)
+        await viewModel.saveProfile()
+        #expect(users.lastUpdatedUser?.age == 43)
+    }
+
+    @Test func birthDateSaveSessionChangeReturnsToIdle() async {
+        let users = MockUserRepository()
+        users.shouldSuspendBirthDateConfirmation = true
+        let auth = MockAuthRepository(currentUser: MockAuthRepository.sampleUser)
+        var user = MockAuthRepository.sampleUser
+        user.birthDate = Self.persistedDate(1990, 4, 12)
+        user.age = 36
+        users.profiles[user.id] = user
+        let viewModel = makeViewModel(authRepository: auth, userRepository: users, now: Self.localDate(2026, 8, 25))
+        await viewModel.loadProfile()
+        viewModel.selectedBirthDate = Self.localDate(1991, 4, 12)
+
+        let task = Task { await viewModel.saveProfile(confirmBirthDateChange: true) }
+        while !users.hasPendingBirthDateConfirmation { await Task.yield() }
+        auth.currentUser = nil
+        users.resumeBirthDateConfirmation()
+        await task.value
+
+        if case .idle = viewModel.saveState {} else { Issue.record("Expected idle after session change") }
+    }
+
+    @Test func birthDateSaveCancellationReturnsToIdle() async {
+        let users = MockUserRepository()
+        users.shouldSuspendBirthDateConfirmation = true
+        var user = MockAuthRepository.sampleUser
+        user.birthDate = Self.persistedDate(1990, 4, 12)
+        user.age = 36
+        users.profiles[user.id] = user
+        let viewModel = makeViewModel(userRepository: users, now: Self.localDate(2026, 8, 25))
+        await viewModel.loadProfile()
+        viewModel.selectedBirthDate = Self.localDate(1991, 4, 12)
+
+        let task = Task { await viewModel.saveProfile(confirmBirthDateChange: true) }
+        while !users.hasPendingBirthDateConfirmation { await Task.yield() }
+        task.cancel()
+        users.resumeBirthDateConfirmation()
+        await task.value
+
+        if case .idle = viewModel.saveState {} else { Issue.record("Expected idle after cancellation") }
+    }
+
+    @Test func editingBirthDateRecalculatesAgeAndRequiresConfirmation() async {
+        let users = MockUserRepository()
+        var user = MockAuthRepository.sampleUser
+        user.birthDate = Self.persistedDate(1990, 4, 12)
+        user.age = 36
+        users.profiles[user.id] = user
+        let viewModel = makeViewModel(userRepository: users, now: Self.localDate(2026, 8, 25))
+        await viewModel.loadProfile()
+        viewModel.selectedBirthDate = Self.localDate(1991, 9, 1)
+
+        #expect(viewModel.hasBirthDateChange)
+        #expect(viewModel.calculatedAge == 34)
+        await viewModel.saveProfile()
+        #expect(users.confirmAgeBirthDateCallCount == 0)
+
+        await viewModel.saveProfile(confirmBirthDateChange: true)
+        #expect(users.confirmAgeBirthDateCallCount == 1)
+        #expect(users.updateProfileCallCount == 1)
+    }
+
     @Test func loadProfileWithoutSessionShowsError() async {
         let viewModel = makeViewModel(
             authRepository: MockAuthRepository(currentUser: nil)
@@ -175,6 +269,63 @@ struct ProfileViewModelTests {
         #expect(ok == false)
         #expect(viewModel.postErrorMessage != nil)
         #expect(viewModel.posts.first?.text == "Old")
+    }
+
+    @Test func unchangedPostSaveKeepsExistingImage() async {
+        let (viewModel, posts, existing) = await makeLoadedPostViewModel(text: "Same", hasImage: true)
+
+        let ok = await viewModel.updatePost(existing, text: "Same", image: nil, removeImage: false)
+
+        #expect(ok)
+        #expect(posts.lastUpdateImage == nil)
+        #expect(!posts.lastUpdateRemoveImage)
+        #expect(viewModel.posts.first?.imageURL == existing.imageURL)
+    }
+
+    @Test func replacingPostPhotoForwardsNewImage() async {
+        let (viewModel, posts, existing) = await makeLoadedPostViewModel(text: "Photo", hasImage: true)
+        let replacement = Data([1, 2, 3])
+
+        let ok = await viewModel.updatePost(existing, text: "Photo", image: replacement, removeImage: false)
+
+        #expect(ok)
+        #expect(posts.lastUpdateImage == replacement)
+        #expect(!posts.lastUpdateRemoveImage)
+    }
+
+    @Test func removingPostPhotoForwardsRemoval() async {
+        let (viewModel, posts, existing) = await makeLoadedPostViewModel(text: "Photo", hasImage: true)
+
+        let ok = await viewModel.updatePost(existing, text: "Photo", image: nil, removeImage: true)
+
+        #expect(ok)
+        #expect(posts.lastUpdateRemoveImage)
+        #expect(viewModel.posts.first?.imageURL == nil)
+    }
+
+    @Test func emptyPostAfterPhotoRemovalIsRejected() async {
+        let (viewModel, _, existing) = await makeLoadedPostViewModel(text: nil, hasImage: true)
+
+        let ok = await viewModel.updatePost(existing, text: "   ", image: nil, removeImage: true)
+
+        #expect(!ok)
+        #expect(viewModel.postErrorMessage != nil)
+        #expect(viewModel.posts.first == existing)
+    }
+
+    @Test func duplicatePostSaveIsIgnoredWhileUpdateRuns() async {
+        let (viewModel, posts, existing) = await makeLoadedPostViewModel(text: "Old", hasImage: false)
+        posts.shouldSuspendUpdate = true
+
+        let first = Task { await viewModel.updatePost(existing, text: "First", image: nil, removeImage: false) }
+        while !posts.hasPendingUpdate { await Task.yield() }
+        let duplicate = await viewModel.updatePost(existing, text: "Second", image: nil, removeImage: false)
+        posts.resumeUpdate()
+
+        #expect(!duplicate)
+        #expect(await first.value)
+        #expect(posts.updateCallCount == 1)
+        #expect(viewModel.posts.first?.text == "First")
     }
 
     @Test func failedStatsRefreshKeepsPreviousValues() async {
@@ -303,7 +454,8 @@ struct ProfileViewModelTests {
         communityRepository: CommunityRepository = MockCommunityRepository(),
         connectionRepository: ConnectionRepository = MockConnectionRepository(),
         profilePostRepository: ProfilePostRepository = MockProfilePostRepository(),
-        onProfileSaved: ((User) -> Void)? = nil
+        onProfileSaved: ((User) -> Void)? = nil,
+        now: Date = Date()
     ) -> ProfileViewModel {
         ProfileViewModel(
             authRepository: authRepository,
@@ -311,7 +463,42 @@ struct ProfileViewModelTests {
             communityRepository: communityRepository,
             connectionRepository: connectionRepository,
             profilePostRepository: profilePostRepository,
-            onProfileSaved: onProfileSaved
+            onProfileSaved: onProfileSaved,
+            calendar: Self.calendar,
+            timeZone: .gmt,
+            now: { now }
         )
+    }
+
+    private func makeLoadedPostViewModel(
+        text: String?,
+        hasImage: Bool
+    ) async -> (ProfileViewModel, MockProfilePostRepository, ProfilePost) {
+        let posts = MockProfilePostRepository()
+        let post = ProfilePost(
+            id: "edit-post",
+            authorId: MockAuthRepository.sampleUser.id,
+            text: text,
+            imageURL: hasImage ? URL(string: "https://example.com/original.jpg") : nil,
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        posts.posts = [post]
+        let viewModel = makeViewModel(profilePostRepository: posts)
+        await viewModel.loadProfile()
+        return (viewModel, posts, post)
+    }
+
+    private static var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .gmt
+        return calendar
+    }
+
+    private static func localDate(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
+    }
+
+    private static func persistedDate(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        AgeCalculator.canonicalBirthDate(fromLocalDate: localDate(year, month, day), timeZone: .gmt)!
     }
 }

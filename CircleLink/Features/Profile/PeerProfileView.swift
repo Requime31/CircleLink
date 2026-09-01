@@ -8,6 +8,7 @@ struct PeerProfileView: View {
     var onOpenChat: ((String, String) -> Void)?
 
     @State private var showRemoveConfirmation = false
+    @State private var showBlockConfirmation = false
 
     var body: some View {
         Group {
@@ -29,10 +30,16 @@ struct PeerProfileView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if viewModel.mode == .social, viewModel.relationship == .matched {
+            if case .loaded = viewModel.state {
                 Menu {
-                    Button("Remove connection", role: .destructive) {
-                        showRemoveConfirmation = true
+                    if viewModel.mode == .social, viewModel.relationship == .matched {
+                        Button("Remove connection", role: .destructive) {
+                            showRemoveConfirmation = true
+                        }
+                    }
+                    Button("Block…", role: .destructive) {
+                        viewModel.prepareBlockConfirmation()
+                        showBlockConfirmation = true
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -63,6 +70,15 @@ struct PeerProfileView: View {
             }
         } message: {
             Text("You’ll no longer be connected. Chat history stays.")
+        }
+        .sheet(isPresented: $showBlockConfirmation) {
+            BlockConfirmationView(
+                peerName: viewModel.peerDisplayName,
+                isBlocking: viewModel.isBlocking,
+                errorMessage: viewModel.blockErrorMessage,
+                onCancel: { showBlockConfirmation = false },
+                onBlock: { Task { _ = await viewModel.block() } }
+            )
         }
     }
 
@@ -173,7 +189,10 @@ struct PeerProfileView: View {
 
             FlowLayout(spacing: CLSpacing.sm) {
                 ForEach(viewModel.visibleCommunities) { community in
-                    CLChip(title: community.name)
+                    CLChip(
+                        title: CommunityContentPolicy.safeDisplayName(community.name, limit: 24),
+                        accessibilityLabelText: CommunityContentPolicy.safeDisplayName(community.name)
+                    )
                 }
 
                 if viewModel.overflowCommunityCount > 0 {
@@ -204,7 +223,9 @@ struct PeerProfileView: View {
                 ProfilePostsListView(
                     posts: viewModel.posts,
                     author: user,
-                    localAvatarPreview: nil
+                    localAvatarPreview: nil,
+                    // The author profile is already open; avoid presenting a duplicate peer sheet.
+                    currentUserId: user.id
                 )
             }
         }
@@ -220,6 +241,8 @@ struct PeerProfileView: View {
             connectActionBar
         case .social:
             socialActionBar
+        case .readOnly:
+            EmptyView()
         }
     }
 
@@ -303,14 +326,14 @@ struct PeerProfileView: View {
     private var likeAccessibilityLabel: String {
         switch viewModel.mode {
         case .likedYou: return "Like"
-        case .social: return "Like"
+        case .social, .readOnly: return "Like"
         }
     }
 
     private var skipAccessibilityLabel: String {
         switch viewModel.mode {
         case .likedYou: return "Skip"
-        case .social: return "Skip"
+        case .social, .readOnly: return "Skip"
         }
     }
 

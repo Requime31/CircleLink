@@ -10,6 +10,7 @@ enum FirestoreConnectionError: LocalizedError {
     case notRecipient
     case notParticipant
     case invalidStatusTransition
+    case deactivatedAccount
 
     var errorDescription: String? {
         switch self {
@@ -27,6 +28,8 @@ enum FirestoreConnectionError: LocalizedError {
             return "Only people in this connection can change it."
         case .invalidStatusTransition:
             return "This request can no longer be updated."
+        case .deactivatedAccount:
+            return "This account is no longer available for new connections."
         }
     }
 }
@@ -34,11 +37,16 @@ enum FirestoreConnectionError: LocalizedError {
 final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Sendable {
     private let requestsCollection = "connectionRequests"
     private let usersCollection = "users"
+    private let currentUserID: @Sendable () -> String?
 
     private var db: Firestore { Firestore.firestore() }
 
+    init(currentUserID: @escaping @Sendable () -> String? = { Auth.auth().currentUser?.uid }) {
+        self.currentUserID = currentUserID
+    }
+
     func fetchCandidates() async throws -> [User] {
-        guard let currentUserId = Auth.auth().currentUser?.uid else {
+        guard let currentUserId = currentUserID() else {
             throw FirestoreConnectionError.notAuthenticated
         }
 
@@ -52,7 +60,8 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
             let userId = document.documentID
             guard userId != currentUserId, !excluded.contains(userId) else { continue }
             do {
-                candidates.append(try FirestoreUserMapper.user(from: document))
+                let user = try FirestoreUserMapper.user(from: document)
+                if user.isSociallyAvailable { candidates.append(user) }
             } catch {
                 // Skip corrupt profiles so one bad doc cannot empty Discover.
                 continue
@@ -73,12 +82,14 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
 
         let pairKey = Self.pairKey(currentUserId, userId)
         let requestRef = db.collection(requestsCollection).document(pairKey)
+        let currentUserRef = db.collection(usersCollection).document(currentUserId)
+        let peerRef = db.collection(usersCollection).document(userId)
 
         let data: [String: Any] = [
             "fromUserId": currentUserId,
             "toUserId": userId,
             "status": ConnectionStatus.pending.rawValue,
-            "createdAt": Timestamp(date: Date()),
+            "createdAt": FieldValue.serverTimestamp(),
             "pairKey": pairKey
         ]
 
@@ -88,6 +99,19 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
                 let snapshot: DocumentSnapshot
                 do {
                     snapshot = try transaction.getDocument(requestRef)
+                    let currentUser = try transaction.getDocument(currentUserRef)
+                    let peer = try transaction.getDocument(peerRef)
+                    let currentState = AccountState(rawValue: currentUser.data()?["accountState"] as? String ?? "") ?? .active
+                    let peerState = AccountState(rawValue: peer.data()?["accountState"] as? String ?? "") ?? .active
+                    guard currentUser.exists, peer.exists,
+                          currentState == .active, peerState == .active else {
+                        errorPointer?.pointee = NSError(
+                            domain: "FirestoreConnectionRepository.Deactivated",
+                            code: 2,
+                            userInfo: [NSLocalizedDescriptionKey: FirestoreConnectionError.deactivatedAccount.localizedDescription]
+                        )
+                        return nil
+                    }
                 } catch let error as NSError {
                     errorPointer?.pointee = error
                     return nil
@@ -110,6 +134,9 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
                 return nil
             }
         } catch {
+            if (error as NSError).domain == "FirestoreConnectionRepository.Deactivated" {
+                throw FirestoreConnectionError.deactivatedAccount
+            }
             if (error as NSError).domain == "FirestoreConnectionRepository" {
                 throw FirestoreConnectionError.duplicateRequest
             }
@@ -133,9 +160,33 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
             .whereField("status", isEqualTo: ConnectionStatus.pending.rawValue)
             .getDocuments()
 
-        return try snapshot.documents
+        let requests = try snapshot.documents
             .map { try FirestoreConnectionMapper.request(from: $0) }
             .sorted { $0.createdAt > $1.createdAt }
+        return try await sociallyAvailable(requests, currentUserId: currentUserId)
+    }
+
+    func fetchOutgoingPendingRequests() async throws -> [ConnectionRequest] {
+        guard let currentUserId = currentUserID() else {
+            throw FirestoreConnectionError.notAuthenticated
+        }
+
+        let snapshot = try await db.collection(requestsCollection)
+            .whereField("fromUserId", isEqualTo: currentUserId)
+            .whereField("status", isEqualTo: ConnectionStatus.pending.rawValue)
+            .order(by: "createdAt", descending: true)
+            .getDocuments()
+
+        // Keep the contract defensive even if malformed cached/server data appears.
+        return try snapshot.documents
+            .map { try FirestoreConnectionMapper.request(from: $0) }
+            .filter { request in
+                request.fromUserId == currentUserId && request.status == .pending
+            }
+            .sorted {
+                if $0.createdAt != $1.createdAt { return $0.createdAt > $1.createdAt }
+                return $0.id < $1.id
+            }
     }
 
     func fetchMatchedConnections() async throws -> [ConnectionRequest] {
@@ -165,7 +216,10 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
             requests.append(try FirestoreConnectionMapper.request(from: document))
         }
 
-        return requests.sorted { $0.createdAt > $1.createdAt }
+        return try await sociallyAvailable(
+            requests.sorted { $0.createdAt > $1.createdAt },
+            currentUserId: currentUserId
+        )
     }
 
     func respond(to requestId: String, accept: Bool) async throws {
@@ -206,6 +260,23 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
         let document = try await db.collection(requestsCollection).document(pairKey).getDocument()
         guard document.exists else { return nil }
         return try FirestoreConnectionMapper.request(from: document)
+    }
+
+    func cancelOutgoingRequest(requestId: String) async throws {
+        guard let currentUserId = currentUserID() else {
+            throw FirestoreConnectionError.notAuthenticated
+        }
+        let requestRef = db.collection(requestsCollection).document(requestId)
+        let document = try await requestRef.getDocument()
+        guard document.exists else { throw FirestoreConnectionError.requestNotFound }
+        let data = document.data() ?? [:]
+        guard data["fromUserId"] as? String == currentUserId else {
+            throw FirestoreConnectionError.notParticipant
+        }
+        guard data["status"] as? String == ConnectionStatus.pending.rawValue else {
+            throw FirestoreConnectionError.invalidStatusTransition
+        }
+        try await requestRef.updateData(["status": ConnectionStatus.declined.rawValue])
     }
 
     func removeConnection(with peerId: String) async throws {
@@ -272,6 +343,22 @@ final class FirestoreConnectionRepository: ConnectionRepository, @unchecked Send
         }
 
         return peers
+    }
+
+    private func sociallyAvailable(
+        _ requests: [ConnectionRequest],
+        currentUserId: String
+    ) async throws -> [ConnectionRequest] {
+        var available: [ConnectionRequest] = []
+        available.reserveCapacity(requests.count)
+        for request in requests {
+            let peerId = request.fromUserId == currentUserId ? request.toUserId : request.fromUserId
+            let document = try await db.collection(usersCollection).document(peerId).getDocument()
+            guard document.exists else { continue }
+            let peer = try FirestoreUserMapper.user(from: document)
+            if peer.isSociallyAvailable { available.append(request) }
+        }
+        return available
     }
 
     static func pairKey(_ userIdA: String, _ userIdB: String) -> String {

@@ -2,15 +2,14 @@ import SwiftUI
 
 /// Discover page for one candidate: hero card + profile sections in one ScrollView.
 /// Horizontal swipe on the card = Pass / Say Hi. Vertical scroll = Interests / About / Communities.
-/// Reduce Motion: drag disabled; use buttons only.
 struct ConnectDiscoverDeckView: View {
     let top: User
+    let next: User?
+    let following: User?
     let communities: [Community]
-    let canUndo: Bool
     let isSendingConnect: Bool
-    let onPass: () -> Void
-    let onSayHi: () -> Void
-    let onUndo: () -> Void
+    let onPass: (String) -> Void
+    let onSayHi: (String) -> Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -21,6 +20,24 @@ struct ConnectDiscoverDeckView: View {
     private let swipeThreshold: CGFloat = 120
     private let visibleCommunityLimit = 3
 
+    init(
+        top: User,
+        next: User?,
+        following: User?,
+        communities: [Community],
+        isSendingConnect: Bool,
+        onPass: @escaping (String) -> Void,
+        onSayHi: @escaping (String) -> Bool
+    ) {
+        self.top = top
+        self.next = next
+        self.following = following
+        self.communities = communities
+        self.isSendingConnect = isSendingConnect
+        self.onPass = onPass
+        self.onSayHi = onSayHi
+    }
+
     private var visibleCommunities: [Community] {
         Array(communities.prefix(visibleCommunityLimit))
     }
@@ -29,19 +46,24 @@ struct ConnectDiscoverDeckView: View {
         max(0, communities.count - visibleCommunityLimit)
     }
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: CLSpacing.lg) {
-                heroCard
+    private var revealProgress: CGFloat {
+        min(abs(dragOffsetX) / swipeThreshold, 1)
+    }
 
-                profileDetails
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading, spacing: CLSpacing.lg) {
+                    heroDeck
+                        .frame(minHeight: max(480, geometry.size.height - CLSpacing.lg))
+
+                    profileDetails
+                }
+                .padding(.horizontal, CLSpacing.screenHorizontal)
+                .padding(.top, CLSpacing.sm)
+                .padding(.bottom, CLSpacing.xxl)
             }
-            .padding(.horizontal, CLSpacing.screenHorizontal)
-            .padding(.top, CLSpacing.sm)
-        }
-        .scrollIndicators(.hidden)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            actionBar
+            .scrollIndicators(.hidden)
         }
         .onChange(of: top.id) { _ in
             exitTask?.cancel()
@@ -52,18 +74,43 @@ struct ConnectDiscoverDeckView: View {
             exitTask?.cancel()
             exitTask = nil
         }
+        .task(id: preloadTaskID) {
+            await preloadUpcomingImages()
+        }
     }
 
     // MARK: - Hero
 
+    private var heroDeck: some View {
+        ZStack {
+            if let following {
+                DiscoverCardView(user: following)
+                    .id(following.id)
+                    .scaleEffect(0.92 + 0.04 * revealProgress)
+                    .offset(y: 28 - 14 * revealProgress)
+                    .accessibilityHidden(true)
+            }
+
+            if let next {
+                DiscoverCardView(user: next)
+                    .id(next.id)
+                    .scaleEffect(0.96 + 0.04 * revealProgress)
+                    .offset(y: 14 * (1 - revealProgress))
+                    .accessibilityHidden(true)
+            }
+
+            heroCard
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     private var heroCard: some View {
         DiscoverCardView(user: top)
-            .clAppear()
             .id(top.id)
             .offset(x: dragOffsetX)
             .rotationEffect(.degrees(Double(dragOffsetX / 24)))
             .modifier(HorizontalDragModifier(
-                isEnabled: !reduceMotion && !isExiting,
+                isEnabled: !isExiting,
                 onChanged: { translation in
                     // Horizontal-only: ignore vertical-dominant moves so ScrollView can scroll.
                     guard abs(translation.width) >= abs(translation.height) else { return }
@@ -146,7 +193,10 @@ struct ConnectDiscoverDeckView: View {
 
             FlowLayout(spacing: CLSpacing.sm) {
                 ForEach(visibleCommunities) { community in
-                    CLChip(title: community.name)
+                    CLChip(
+                        title: CommunityContentPolicy.safeDisplayName(community.name, limit: 24),
+                        accessibilityLabelText: CommunityContentPolicy.safeDisplayName(community.name)
+                    )
                 }
 
                 if overflowCommunityCount > 0 {
@@ -158,85 +208,6 @@ struct ConnectDiscoverDeckView: View {
                 }
             }
         }
-    }
-
-    // MARK: - Actions
-
-    private var actionBar: some View {
-        HStack(spacing: CLSpacing.lg) {
-            deckCircleButton(
-                systemImage: "xmark",
-                title: "Pass",
-                isEmphasis: false,
-                size: 64
-            ) {
-                animateExit(direction: -1, then: onPass)
-            }
-            .disabled(isExiting)
-            .accessibilityLabel("Pass \(top.displayName)")
-
-            deckCircleButton(
-                systemImage: "heart.fill",
-                title: "Say Hi",
-                isEmphasis: true,
-                size: 72
-            ) {
-                guard !isSendingConnect else { return }
-                animateExit(direction: 1, then: onSayHi)
-            }
-            .disabled(isSendingConnect || isExiting)
-            .accessibilityLabel("Say Hi to \(top.displayName)")
-
-            deckCircleButton(
-                systemImage: "arrow.counterclockwise",
-                title: "Back",
-                isEmphasis: false,
-                size: 64
-            ) {
-                onUndo()
-            }
-            .opacity(canUndo ? 1 : 0.35)
-            .disabled(!canUndo || isExiting)
-            .accessibilityLabel("Undo last pass")
-        }
-        .padding(.vertical, CLSpacing.md)
-        .frame(maxWidth: .infinity)
-        .background(CLColor.canvas)
-    }
-
-    private func deckCircleButton(
-        systemImage: String,
-        title: String,
-        isEmphasis: Bool,
-        size: CGFloat,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(spacing: CLSpacing.xs) {
-                ZStack {
-                    if isSendingConnect && isEmphasis {
-                        ProgressView()
-                            .tint(CLColor.onPrimaryStrong)
-                    } else {
-                        Image(systemName: systemImage)
-                            .font(.system(size: size * 0.3, weight: .semibold))
-                            .foregroundStyle(isEmphasis ? CLColor.onPrimaryStrong : CLColor.ink)
-                    }
-                }
-                .frame(width: size, height: size)
-                .background(isEmphasis ? CLColor.primary : CLColor.surface)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(CLColor.hairline, lineWidth: isEmphasis ? 0 : 1)
-                )
-
-                Text(title)
-                    .font(CLTypography.caption)
-                    .foregroundStyle(isEmphasis ? CLColor.primary : CLColor.inkSecondary)
-            }
-        }
-        .buttonStyle(DeckCircleButtonStyle())
     }
 
     // MARK: - Drag
@@ -253,7 +224,10 @@ struct ConnectDiscoverDeckView: View {
         }
 
         if dx <= -swipeThreshold {
-            animateExit(direction: -1, then: onPass)
+            animateExit(direction: -1) { userId in
+                onPass(userId)
+                return true
+            }
         } else if dx >= swipeThreshold {
             guard !isSendingConnect else {
                 snapCardBack()
@@ -272,8 +246,9 @@ struct ConnectDiscoverDeckView: View {
         }
     }
 
-    private func animateExit(direction: CGFloat, then action: @escaping () -> Void) {
+    private func animateExit(direction: CGFloat, then action: @escaping (String) -> Bool) {
         guard !isExiting else { return }
+        let outgoingUserId = top.id
         isExiting = true
         exitTask?.cancel()
         let travel = direction * 480
@@ -288,9 +263,25 @@ struct ConnectDiscoverDeckView: View {
         exitTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
             guard !Task.isCancelled else { return }
-            resetDragWithoutAnimation()
             exitTask = nil
-            action()
+            if !action(outgoingUserId) {
+                resetDragWithoutAnimation()
+            }
+        }
+    }
+
+    private var preloadTaskID: String {
+        [next?.id, following?.id].compactMap { $0 }.joined(separator: "|")
+    }
+
+    private func preloadUpcomingImages() async {
+        let urls = [next?.avatarURL, following?.avatarURL].compactMap { $0 }
+        await withTaskGroup(of: Void.self) { group in
+            for url in urls {
+                group.addTask {
+                    _ = try? await ImageLoader.shared.load(from: url)
+                }
+            }
         }
     }
 

@@ -18,7 +18,7 @@ function directChatId(a, b) {
  */
 async function fcmTokenForUser(userId) {
   const db = ensureFirebase().firestore();
-  const snap = await db.collection('users').doc(userId).get();
+  const snap = await db.collection('users').doc(userId).collection('private').doc('account').get();
   if (!snap.exists) return null;
   const token = snap.get('fcmToken');
   return typeof token === 'string' && token.length > 0 ? token : null;

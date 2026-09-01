@@ -7,6 +7,9 @@ struct ChatThreadView: View {
     let onOpenChatInfo: () -> Void
 
     @State private var presentedPeer: ChatThreadPeerItem?
+    @State private var presentedMedia: ChatThreadMediaItem?
+    @State private var showBlockConfirmation = false
+    @Environment(\.dismiss) private var dismiss
 
     init(
         viewModel: @autoclosure @escaping () -> ChatViewModel,
@@ -26,6 +29,9 @@ struct ChatThreadView: View {
                     userId: userId,
                     communityId: viewModel.communityId
                 )
+            },
+            onImageAttachmentTapped: { url, data in
+                presentedMedia = ChatThreadMediaItem(url: url, data: data)
             }
         )
         .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -48,14 +54,43 @@ struct ChatThreadView: View {
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                Button(action: onOpenChatInfo) {
-                    Image(systemName: viewModel.isGroupChat ? "person.3" : "info.circle")
+                Menu {
+                    Button(action: onOpenChatInfo) {
+                        Label(viewModel.isGroupChat ? "Members" : "Chat info", systemImage: "info.circle")
+                    }
+                    if viewModel.canModeratePeer {
+                        Button("Block…", role: .destructive) {
+                            viewModel.prepareBlockConfirmation()
+                            showBlockConfirmation = true
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
-                .accessibilityLabel(viewModel.isGroupChat ? "Members" : "Chat info")
+                .accessibilityLabel("Chat options")
             }
         }
         .sheet(item: $presentedPeer) { item in
             makePeerProfileSheet(item.userId, .social)
+        }
+        .fullScreenCover(item: $presentedMedia) { item in
+            ChatMediaFullscreenView(url: item.url, localImageData: item.data)
+        }
+        .sheet(isPresented: $showBlockConfirmation) {
+            BlockConfirmationView(
+                peerName: viewModel.chatTitle,
+                isBlocking: viewModel.isBlockingPeer,
+                errorMessage: viewModel.moderationErrorMessage,
+                onCancel: { showBlockConfirmation = false },
+                onBlock: {
+                    Task {
+                        if await viewModel.blockPeer() {
+                            showBlockConfirmation = false
+                            dismiss()
+                        }
+                    }
+                }
+            )
         }
     }
 }
@@ -64,4 +99,10 @@ private struct ChatThreadPeerItem: Identifiable {
     let userId: String
     let communityId: String?
     var id: String { userId }
+}
+
+private struct ChatThreadMediaItem: Identifiable {
+    let id = UUID()
+    let url: URL?
+    let data: Data?
 }

@@ -7,12 +7,13 @@ final class ChatsViewModel: ObservableObject {
     @Published private(set) var hiddenChats: [ChatSummary] = []
     @Published private(set) var leaveErrorMessage: String?
     @Published private(set) var actionErrorMessage: String?
+    @Published private(set) var isPinMutationInFlight = false
     /// Bound to `.searchable` — filters the main (visible) list locally.
     @Published var searchText: String = ""
 
     private let chatRepository: ChatRepository
     private let currentUserId: String
-    private static let previewMessageLimit = 12
+    private static let previewMessageLimit = 5
     /// Bumps on every load start so stale fetches cannot overwrite newer optimistic state.
     private var loadGeneration = 0
 
@@ -22,6 +23,20 @@ final class ChatsViewModel: ObservableObject {
     }
 
     var hiddenCount: Int { hiddenChats.count }
+
+    private var hasLoadedContent: Bool {
+        if case .loaded = state { return true }
+        if case .empty = state { return true }
+        return false
+    }
+
+    var pinnedChats: [ChatSummary] {
+        filteredVisibleChats.filter(\.isPinned)
+    }
+
+    var unpinnedChats: [ChatSummary] {
+        filteredVisibleChats.filter { !$0.isPinned }
+    }
 
     /// Visible chats filtered by title / last message (case-insensitive).
     var filteredVisibleChats: [ChatSummary] {
@@ -34,26 +49,42 @@ final class ChatsViewModel: ObservableObject {
     }
 
     func loadChats(showLoading: Bool = true) async {
+        // A refresh that begins during an optimistic pin transaction could replace
+        // the optimistic snapshot with pre-write server data. The next normal
+        // refresh will pick up the persisted result.
+        guard !isPinMutationInFlight else { return }
         loadGeneration += 1
         let generation = loadGeneration
 
-        if showLoading {
+        let preservesExistingState = hasLoadedContent
+        if showLoading && !preservesExistingState {
             state = .loading
         }
+        actionErrorMessage = nil
 
         do {
             let organized = try await chatRepository.fetchOrganizedChats()
             guard generation == loadGeneration else { return }
-            hiddenChats = organized.hidden
+            hiddenChats = organized.hidden.map { chat in
+                var chat = chat
+                chat.isPinned = false
+                chat.pinOrder = nil
+                return chat
+            }
+            let visible = Self.sortedVisibleChats(organized.visible)
             // Empty visible + some hidden → still `.loaded` so the footer can show.
-            if organized.visible.isEmpty && organized.hidden.isEmpty {
+            if visible.isEmpty && organized.hidden.isEmpty {
                 state = .empty
             } else {
-                state = .loaded(organized.visible)
+                state = .loaded(visible)
             }
         } catch {
             guard generation == loadGeneration else { return }
-            state = .error(error.localizedDescription)
+            if preservesExistingState {
+                actionErrorMessage = error.localizedDescription
+            } else {
+                state = .error(error.localizedDescription)
+            }
         }
     }
 
@@ -75,6 +106,8 @@ final class ChatsViewModel: ObservableObject {
 
     func setMuted(chatId: String, muted: Bool) async {
         actionErrorMessage = nil
+        let stateSnapshot = state
+        let hiddenSnapshot = hiddenChats
         applyLocalMute(chatId: chatId, muted: muted)
         // Invalidate in-flight list fetches so they cannot resurrect pre-mute rows.
         loadGeneration += 1
@@ -82,9 +115,72 @@ final class ChatsViewModel: ObservableObject {
         do {
             try await chatRepository.setChatMuted(chatId: chatId, muted: muted)
         } catch {
+            state = stateSnapshot
+            hiddenChats = hiddenSnapshot
             actionErrorMessage = error.localizedDescription
-            await loadChats(showLoading: false)
         }
+    }
+
+    func setPinned(chatId: String, pinned: Bool) async {
+        guard !isPinMutationInFlight, case let .loaded(chats) = state else { return }
+        guard let index = chats.firstIndex(where: { $0.id == chatId }), chats[index].isPinned != pinned else {
+            return
+        }
+
+        actionErrorMessage = nil
+        isPinMutationInFlight = true
+        let snapshot = chats
+        var updated = chats
+        updated[index].isPinned = pinned
+        updated[index].pinOrder = pinned
+            ? (updated.compactMap(\.pinOrder).max().map { $0 + 1 } ?? 0)
+            : nil
+        state = .loaded(Self.sortedVisibleChats(updated))
+        loadGeneration += 1
+
+        do {
+            try await chatRepository.setChatPinned(chatId: chatId, pinned: pinned)
+        } catch {
+            state = .loaded(snapshot)
+            actionErrorMessage = error.localizedDescription
+        }
+        isPinMutationInFlight = false
+    }
+
+    func reorderPinnedChats(chatIds: [String]) async {
+        guard !isPinMutationInFlight, case let .loaded(chats) = state else { return }
+        let currentIDs = Self.sortedVisibleChats(chats).filter(\.isPinned).map(\.id)
+        guard chatIds != currentIDs,
+              chatIds.count == currentIDs.count,
+              Set(chatIds) == Set(currentIDs) else { return }
+
+        actionErrorMessage = nil
+        isPinMutationInFlight = true
+        let snapshot = chats
+        let ranks = Dictionary(uniqueKeysWithValues: chatIds.enumerated().map { ($0.element, $0.offset) })
+        var updated = chats
+        for index in updated.indices where updated[index].isPinned {
+            updated[index].pinOrder = ranks[updated[index].id]
+        }
+        state = .loaded(Self.sortedVisibleChats(updated))
+        loadGeneration += 1
+
+        do {
+            try await chatRepository.reorderPinnedChats(chatIds: chatIds)
+        } catch {
+            state = .loaded(snapshot)
+            actionErrorMessage = error.localizedDescription
+        }
+        isPinMutationInFlight = false
+    }
+
+    func movePinnedChat(chatId: String, by offset: Int) async {
+        var ids = pinnedChats.map(\.id)
+        guard let source = ids.firstIndex(of: chatId) else { return }
+        let destination = source + offset
+        guard ids.indices.contains(destination) else { return }
+        ids.swapAt(source, destination)
+        await reorderPinnedChats(chatIds: ids)
     }
 
     func hideChat(chatId: String) async {
@@ -92,7 +188,9 @@ final class ChatsViewModel: ObservableObject {
         // Optimistic: drop from visible, bump into hidden bucket if we still have the row.
         if case var .loaded(chats) = state,
            let index = chats.firstIndex(where: { $0.id == chatId }) {
-            let removed = chats.remove(at: index)
+            var removed = chats.remove(at: index)
+            removed.isPinned = false
+            removed.pinOrder = nil
             if !hiddenChats.contains(where: { $0.id == chatId }) {
                 hiddenChats.insert(removed, at: 0)
             }
@@ -114,9 +212,9 @@ final class ChatsViewModel: ObservableObject {
             let restored = hiddenChats.remove(at: index)
             if case var .loaded(chats) = state {
                 if !chats.contains(where: { $0.id == chatId }) {
-                    chats.insert(restored, at: 0)
+                    chats.append(restored)
                 }
-                state = .loaded(chats)
+                state = .loaded(Self.sortedVisibleChats(chats))
             } else if case .empty = state {
                 state = .loaded([restored])
             }
@@ -160,6 +258,7 @@ final class ChatsViewModel: ObservableObject {
         searchText = ""
         leaveErrorMessage = nil
         actionErrorMessage = nil
+        isPinMutationInFlight = false
     }
 
     // MARK: - Private
@@ -181,6 +280,25 @@ final class ChatsViewModel: ObservableObject {
         return chats.filter { chat in
             chat.title.localizedCaseInsensitiveContains(trimmed)
                 || (chat.lastMessageText?.localizedCaseInsensitiveContains(trimmed) ?? false)
+        }
+    }
+
+    private static func sortedVisibleChats(_ chats: [ChatSummary]) -> [ChatSummary] {
+        chats.sorted { lhs, rhs in
+            if lhs.isPinned != rhs.isPinned { return lhs.isPinned }
+            if lhs.isPinned {
+                let lhsOrder = lhs.pinOrder ?? Int.max
+                let rhsOrder = rhs.pinOrder ?? Int.max
+                if lhsOrder != rhsOrder { return lhsOrder < rhsOrder }
+            } else if lhs.lastMessageAt != rhs.lastMessageAt {
+                switch (lhs.lastMessageAt, rhs.lastMessageAt) {
+                case let (lhsDate?, rhsDate?): return lhsDate > rhsDate
+                case (.some, .none): return true
+                case (.none, .some): return false
+                case (.none, .none): break
+                }
+            }
+            return lhs.id < rhs.id
         }
     }
 }

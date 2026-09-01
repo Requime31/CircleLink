@@ -258,7 +258,7 @@ struct AuthView: View {
 }
 
 /// Keeps the existing repository/presenter flow while using Apple's official button chrome.
-private struct SystemAppleSignInButton: UIViewRepresentable {
+struct SystemAppleSignInButton: UIViewRepresentable {
     let isEnabled: Bool
     let action: () -> Void
 

@@ -20,15 +20,30 @@ service cloud.firestore {
         && request.auth.uid in chatDoc(chatId).data.get('participantIds', []);
     }
 
-    // Allow reads when chat is new (not created yet), user is a participant,
-    // or user is a member of the community that owns this group chat
-    // (needed so joiners can open/leave before they are in participantIds).
+    // Existing chat access is limited to participants or members of the
+    // community that owns a group chat. Missing parents never grant access:
+    // Firestore subcollections can outlive their parent document.
     function canAccessChat(chatId) {
       return isSignedIn()
+        && chatExists(chatId)
         && (
-          !chatExists(chatId)
-          || request.auth.uid in chatDoc(chatId).data.get('participantIds', [])
+          request.auth.uid in chatDoc(chatId).data.get('participantIds', [])
           || isGroupChatCommunityMember(chatId)
+        );
+    }
+
+    // Direct-chat creation probes its deterministic chat id before creating it.
+    // Permit that missing-document get only for the two users in an accepted
+    // connection whose pair key is the same as the requested chat id.
+    function canGetMissingAcceptedDirectChat(chatId) {
+      let connectionPath = /databases/$(database)/documents/connectionRequests/$(chatId);
+      return isSignedIn()
+        && !chatExists(chatId)
+        && exists(connectionPath)
+        && get(connectionPath).data.status == 'accepted'
+        && (
+          request.auth.uid == get(connectionPath).data.fromUserId
+          || request.auth.uid == get(connectionPath).data.toUserId
         );
     }
 
@@ -48,6 +63,263 @@ service cloud.firestore {
       return isSignedIn()
         && exists(/databases/$(database)/documents/communities/$(communityId))
         && get(/databases/$(database)/documents/communities/$(communityId)).data.createdBy == request.auth.uid;
+    }
+
+    function isActiveUser(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId))
+        && get(/databases/$(database)/documents/users/$(userId)).data.get('accountState', 'active') == 'active';
+    }
+
+    function hasRecentAuthentication() {
+      return isSignedIn()
+        && request.auth.token.auth_time is int
+        && request.auth.token.auth_time >= (request.time.toMillis() / 1000) - 300;
+    }
+
+    function privateAccountAfter(userId) {
+      return getAfter(/databases/$(database)/documents/users/$(userId)/private/account);
+    }
+
+    function birthdayHasOccurredThisYear(birthDate) {
+      return birthDate.month() < request.time.month()
+        || (
+          birthDate.month() == request.time.month()
+          && (
+            birthDate.day() <= request.time.day()
+            || (
+              birthDate.month() == 2
+              && birthDate.day() == 29
+              && request.time.day() == 28
+              && !isLeapYear(request.time.year())
+            )
+          )
+        );
+    }
+
+    function isLeapYear(year) {
+      return year % 400 == 0 || (year % 4 == 0 && year % 100 != 0);
+    }
+
+    function validInitialAgeConfirmation(userId) {
+      let birthDate = privateAccountAfter(userId).data.birthDate;
+      let expectedAge = request.time.year() - birthDate.year()
+        - (birthdayHasOccurredThisYear(birthDate) ? 0 : 1);
+      return resource.data.get('ageConfirmedAt', null) == null
+        && birthDate is timestamp
+        && birthDate <= request.time
+        && expectedAge >= 18
+        && expectedAge <= 120
+        && request.resource.data.age == expectedAge
+        && request.resource.data.ageConfirmedAt == request.time;
+    }
+
+    function validAcceptedDirectConnection() {
+      let connectionId = request.resource.data.get('connectionRequestId', '');
+      let connection = get(/databases/$(database)/documents/connectionRequests/$(connectionId));
+      let participants = request.resource.data.get('participantIds', []);
+      return connectionId is string
+        && connectionId.size() > 0
+        && exists(/databases/$(database)/documents/connectionRequests/$(connectionId))
+        && connection.data.status == 'accepted'
+        && participants.size() == 2
+        && (
+          (
+            participants[0] == connection.data.fromUserId
+            && participants[1] == connection.data.toUserId
+          )
+          || (
+            participants[1] == connection.data.fromUserId
+            && participants[0] == connection.data.toUserId
+          )
+        );
+    }
+
+    function validAccountStateUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let oldState = resource.data.get('accountState', 'active');
+      let newState = request.resource.data.get('accountState', 'active');
+      return !request.resource.data.keys().hasAny([
+          'deletionRequestedAt', 'scheduledDeletionAt', 'cleanupClaimedAt',
+          'fcmToken', 'fcmTokenUpdatedAt', 'birthDate'
+        ])
+        && (!changed.hasAny(['accountState'])
+        || (
+          oldState == 'active'
+          && newState == 'deactivated'
+          && hasRecentAuthentication()
+          && privateAccountAfter(request.auth.uid).data.accountState == 'deactivated'
+          && privateAccountAfter(request.auth.uid).data.deletionRequestedAt == request.time
+        )
+        || (
+          oldState == 'deactivated'
+          && newState == 'active'
+          && request.time < get(/databases/$(database)/documents/users/$(request.auth.uid)/private/account).data.deletionRequestedAt + duration.value(30, 'd')
+          && !privateAccountAfter(request.auth.uid).data.keys().hasAny([
+            'accountState', 'deletionRequestedAt', 'cleanupClaimedAt'
+          ])
+        ));
+    }
+
+    function validPublicUserProfile() {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'displayName', 'avatarURL', 'avatarBase64', 'interests', 'age',
+          'aboutMe', 'ageConfirmedAt', 'accountState', 'createdAt'
+        ])
+        && data.keys().hasAll([
+          'displayName', 'interests', 'aboutMe', 'accountState', 'createdAt'
+        ])
+        && data.displayName is string
+        && data.displayName.size() <= 80
+        && (data.get('avatarURL', null) == null
+          || (data.avatarURL is string && data.avatarURL.size() <= 2048))
+        && (data.get('avatarBase64', null) == null
+          || (data.avatarBase64 is string && data.avatarBase64.size() <= 2000000))
+        && data.interests is list
+        && data.interests.size() <= 20
+        && data.aboutMe is string
+        && data.aboutMe.size() <= 500
+        && data.accountState in ['active', 'deactivated']
+        && data.createdAt is timestamp
+        && (data.get('age', null) == null
+          || (data.age is int && data.age >= 18 && data.age <= 120))
+        && (data.get('ageConfirmedAt', null) == null
+          || (
+            data.ageConfirmedAt is timestamp
+            && data.age is int
+          ));
+    }
+
+    function validMemberCountTransition(communityId) {
+      let memberPath = /databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid);
+      let oldCount = resource.data.memberCount;
+      let newCount = request.resource.data.memberCount;
+      return oldCount is int
+        && newCount is int
+        && newCount >= 0
+        && (
+          (!exists(memberPath) && existsAfter(memberPath) && newCount == oldCount + 1)
+          || (exists(memberPath) && !existsAfter(memberPath) && newCount == oldCount - 1)
+        );
+    }
+
+    function validChatPreviewFields() {
+      return (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastMessageText'])
+          || request.resource.data.get('lastMessageText', null) == null
+          || (request.resource.data.lastMessageText is string
+            && request.resource.data.lastMessageText.size() <= 4000))
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastMessageAt'])
+          || (request.resource.data.lastMessageAt is timestamp
+            && request.resource.data.lastMessageAt <= request.time + duration.value(1, 'm')
+            && request.resource.data.lastMessageAt >= request.time - duration.value(1, 'm')));
+    }
+
+    function validChatSchema() {
+      return request.resource.data.keys().hasOnly([
+          'type', 'title', 'participantIds', 'connectionRequestId', 'communityId',
+          'lastMessageText', 'lastMessageAt', 'unreadCount'
+        ])
+        && request.resource.data.type in ['direct', 'group']
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.participantIds is list
+        && request.resource.data.participantIds.size() <= 500
+        && (request.resource.data.get('lastMessageText', null) == null
+          || (request.resource.data.lastMessageText is string
+            && request.resource.data.lastMessageText.size() <= 4000))
+        && (!('lastMessageAt' in request.resource.data)
+          || request.resource.data.lastMessageAt is timestamp)
+        && (!('unreadCount' in request.resource.data)
+          || (request.resource.data.unreadCount is int && request.resource.data.unreadCount >= 0));
+    }
+
+    function validMessagePayload(messageId) {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'senderId', 'text', 'imageURL', 'createdAt', 'clientMessageId', 'status'
+        ])
+        && data.keys().hasAll([
+          'senderId', 'text', 'imageURL', 'createdAt', 'clientMessageId', 'status'
+        ])
+        && data.senderId == request.auth.uid
+        && data.clientMessageId == messageId
+        && data.clientMessageId is string
+        && data.clientMessageId.size() > 0
+        && data.clientMessageId.size() <= 128
+        && data.status == 'sent'
+        && data.createdAt is timestamp
+        && data.createdAt <= request.time + duration.value(1, 'm')
+        && data.createdAt >= request.time - duration.value(1, 'm')
+        && (data.text == null
+          || (data.text is string && data.text.size() > 0 && data.text.size() <= 4000))
+        && (data.imageURL == null
+          || (data.imageURL is string && data.imageURL.size() > 0 && data.imageURL.size() <= 2048))
+        && (data.text != null || data.imageURL != null);
+    }
+
+    function canCreateChatForActiveUsers() {
+      let type = request.resource.data.get('type', '');
+      return type in ['direct', 'group']
+        && (type == 'group'
+        || (
+          request.resource.data.participantIds.size() == 2
+          && isActiveUser(request.resource.data.participantIds[0])
+          && isActiveUser(request.resource.data.participantIds[1])
+        ));
+    }
+
+    function validChatRefPinMetadata() {
+      let hasPinned = request.resource.data.keys().hasAny(['pinned']);
+      let hasPinOrder = request.resource.data.keys().hasAny(['pinOrder']);
+      let pinned = request.resource.data.get('pinned', false);
+      let hidden = request.resource.data.get('hidden', false);
+      return (!hasPinned || pinned is bool)
+        && (!hasPinOrder || request.resource.data.pinOrder is int)
+        && (!hasPinOrder || request.resource.data.pinOrder >= 0)
+        && (!hasPinOrder || pinned == true)
+        && (!hidden || (pinned == false && !hasPinOrder));
+    }
+
+    function validChatRefSchema() {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+          'lastMessageText', 'lastMessageAt', 'muted', 'hidden', 'hiddenAt',
+          'pinned', 'pinOrder', 'clearedAt'
+        ])
+        && (data.get('lastMessageText', null) == null
+          || (data.lastMessageText is string && data.lastMessageText.size() <= 4000))
+        && (!('lastMessageAt' in data) || data.lastMessageAt is timestamp)
+        && (!('muted' in data) || data.muted is bool)
+        && (!('hidden' in data) || data.hidden is bool)
+        && (!('hiddenAt' in data) || data.hiddenAt is timestamp)
+        && (!('pinned' in data) || data.pinned is bool)
+        && (!('pinOrder' in data) || (data.pinOrder is int && data.pinOrder >= 0))
+        && (!('clearedAt' in data) || data.clearedAt is timestamp);
+    }
+
+    function validChatRefTimestampChanges(chatId) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return (!changed.hasAny(['lastMessageAt'])
+          || request.resource.data.lastMessageAt == chatDoc(chatId).data.lastMessageAt)
+        && (!changed.hasAny(['hiddenAt'])
+          || (request.resource.data.hiddenAt <= request.time + duration.value(1, 'm')
+            && request.resource.data.hiddenAt >= request.time - duration.value(1, 'm')))
+        && (!changed.hasAny(['clearedAt'])
+          || (request.resource.data.clearedAt <= request.time + duration.value(1, 'm')
+            && request.resource.data.clearedAt >= request.time - duration.value(1, 'm')));
+    }
+
+    function validChatRefCreateTimestamps(chatId) {
+      let data = request.resource.data;
+      return (!('lastMessageAt' in data)
+          || data.lastMessageAt == chatDoc(chatId).data.lastMessageAt)
+        && (!('hiddenAt' in data)
+          || (data.hiddenAt <= request.time + duration.value(1, 'm')
+            && data.hiddenAt >= request.time - duration.value(1, 'm')))
+        && (!('clearedAt' in data)
+          || (data.clearedAt <= request.time + duration.value(1, 'm')
+            && data.clearedAt >= request.time - duration.value(1, 'm')));
     }
 
     function isValidCommunityPost() {
@@ -90,44 +362,190 @@ service cloud.firestore {
         );
     }
 
-    function canUpdateExistingGroupChat(chatId) {
-      return !chatExists(chatId)
-        || chatDoc(chatId).data.get('type', 'direct') != 'group'
-        || (
-          chatDoc(chatId).data.keys().hasAll(['communityId'])
-          && isCommunityMember(chatDoc(chatId).data.communityId)
+    function canUpdateExistingChat(chatId) {
+      let oldType = resource.data.get('type', 'direct');
+      let newType = request.resource.data.get('type', 'direct');
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let oldParticipants = resource.data.get('participantIds', []);
+      let newParticipants = request.resource.data.get('participantIds', []);
+      return chatExists(chatId)
+        && validChatSchema()
+        && oldType == newType
+        && changed.hasOnly(['lastMessageText', 'lastMessageAt', 'participantIds', 'title'])
+        && validChatPreviewFields()
+        && (
+          (
+            oldType == 'direct'
+            && isChatParticipant(chatId)
+            && newParticipants == oldParticipants
+            && request.resource.data.get('connectionRequestId', '')
+              == resource.data.get('connectionRequestId', '')
+            && request.resource.data.title == resource.data.title
+          )
+          || (
+            oldType == 'group'
+            && resource.data.keys().hasAll(['communityId'])
+            && request.resource.data.get('communityId', '') == resource.data.communityId
+            && (
+              (
+                isCommunityMember(resource.data.communityId)
+                &&
+                newParticipants == oldParticipants
+                && (
+                  request.resource.data.title == resource.data.title
+                  || (
+                    isCommunityCreator(resource.data.communityId)
+                    && request.resource.data.title
+                      == get(/databases/$(database)/documents/communities/$(resource.data.communityId)).data.name
+                  )
+                )
+              )
+              || (
+                isCommunityMember(resource.data.communityId)
+                && !(request.auth.uid in oldParticipants)
+                && request.auth.uid in newParticipants
+                && newParticipants.size() == oldParticipants.size() + 1
+                && newParticipants.hasAll(oldParticipants)
+                && newParticipants.hasAll([request.auth.uid])
+              )
+              || (
+                request.auth.uid in oldParticipants
+                && !(request.auth.uid in newParticipants)
+                && newParticipants.size() == oldParticipants.size() - 1
+                && newParticipants.hasOnly(oldParticipants)
+              )
+            )
+          )
         );
     }
 
-    // Phase 2–3: user profiles (+ Phase 9 fcmToken on same doc, owner-only write)
+    // Public profile data only. Tokens, birth date, and account lifecycle timestamps
+    // live in the owner-only private/account document.
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && !request.resource.data.keys().hasAny([
+          'birthDate', 'deletionRequestedAt', 'scheduledDeletionAt', 'cleanupClaimedAt',
+          'fcmToken', 'fcmTokenUpdatedAt'
+        ])
+        && request.resource.data.get('accountState', 'active') == 'active'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.get('age', null) == null
+        && request.resource.data.get('ageConfirmedAt', null) == null
+        && validPublicUserProfile();
+      allow update: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validPublicUserProfile()
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['age', 'ageConfirmedAt'])
+          || validInitialAgeConfirmation(userId)
+        )
+        && validAccountStateUpdate();
 
-      // Phase 8: per-user chat references (+ Phase 6 muted / hidden + clearedAt)
-      // Owner: full write (mute / hide / unhide / clear history / leave delete).
-      // Peer participant: preview fields only — must not touch muted / hidden / clearedAt.
+      // Owner-only account data. Keeping birthDate in a separate document prevents
+      // signed-in peer/profile reads from accessing the full date.
+      match /private/{privateDocument} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn()
+          && request.auth.uid == userId
+          && privateDocument == 'account'
+          && request.resource.data.keys().hasOnly([
+            'birthDate', 'fcmToken', 'fcmTokenUpdatedAt',
+            'accountState', 'deletionRequestedAt'
+          ])
+          && (!('birthDate' in request.resource.data) || request.resource.data.birthDate is timestamp)
+          && (!('fcmToken' in request.resource.data) || request.resource.data.fcmToken is string)
+          && (
+            !request.resource.data.keys().hasAny(['accountState', 'deletionRequestedAt'])
+            || (
+              hasRecentAuthentication()
+              && request.resource.data.accountState == 'deactivated'
+              && request.resource.data.deletionRequestedAt == request.time
+              && getAfter(/databases/$(database)/documents/users/$(userId)).data.accountState == 'deactivated'
+            )
+          );
+        allow update: if isSignedIn()
+          && request.auth.uid == userId
+          && privateDocument == 'account'
+          && request.resource.data.keys().hasOnly([
+            'birthDate', 'fcmToken', 'fcmTokenUpdatedAt',
+            'accountState', 'deletionRequestedAt'
+          ])
+          && (!('birthDate' in request.resource.data) || request.resource.data.birthDate is timestamp)
+          && (!resource.data.keys().hasAny(['birthDate'])
+            || request.resource.data.birthDate == resource.data.birthDate)
+          && (!('fcmToken' in request.resource.data) || request.resource.data.fcmToken is string)
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'accountState', 'deletionRequestedAt'
+            ])
+            || (
+              (
+                (
+                  hasRecentAuthentication()
+                  &&
+                  request.resource.data.accountState == 'deactivated'
+                  && request.resource.data.deletionRequestedAt == request.time
+                  && getAfter(/databases/$(database)/documents/users/$(userId)).data.accountState == 'deactivated'
+                )
+                || (
+                  !request.resource.data.keys().hasAny(['accountState', 'deletionRequestedAt'])
+                  && getAfter(/databases/$(database)/documents/users/$(userId)).data.accountState == 'active'
+                  && request.time < resource.data.deletionRequestedAt + duration.value(30, 'd')
+                )
+              )
+            )
+          );
+        allow delete: if isSignedIn()
+          && request.auth.uid == userId
+          && privateDocument == 'account'
+          && getAfter(/databases/$(database)/documents/users/$(userId)).data.get('accountState', 'active') == 'active'
+          && !resource.data.keys().hasAny(['accountState', 'deletionRequestedAt', 'cleanupClaimedAt']);
+      }
+
+      // Per-user chat references: preview + owner-only mute/hide/clear/pin metadata.
+      // Peer participant writes remain preview-only and cannot change personal fields.
       match /chatRefs/{chatId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
 
         allow create: if isSignedIn() && (
-          request.auth.uid == userId
+          (
+            request.auth.uid == userId
+            && chatExists(chatId)
+            && request.auth.uid in chatDoc(chatId).data.get('participantIds', [])
+            && validChatRefSchema()
+            && validChatRefPinMetadata()
+            && validChatRefCreateTimestamps(chatId)
+          )
           || (
             chatExists(chatId)
             && request.auth.uid in chatDoc(chatId).data.get('participantIds', [])
             && userId in chatDoc(chatId).data.get('participantIds', [])
             && request.resource.data.keys().hasOnly(['lastMessageText', 'lastMessageAt'])
+            && validChatRefSchema()
+            && validChatRefCreateTimestamps(chatId)
           )
         );
 
         allow update: if isSignedIn() && (
-          request.auth.uid == userId
+          (
+            request.auth.uid == userId
+            && chatExists(chatId)
+            && request.auth.uid in chatDoc(chatId).data.get('participantIds', [])
+            && validChatRefSchema()
+            && validChatRefPinMetadata()
+            && validChatRefTimestampChanges(chatId)
+          )
           || (
             chatExists(chatId)
             && request.auth.uid in chatDoc(chatId).data.get('participantIds', [])
             && userId in chatDoc(chatId).data.get('participantIds', [])
             && request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['lastMessageText', 'lastMessageAt'])
+            && validChatRefSchema()
+            && validChatRefTimestampChanges(chatId)
           )
         );
 
@@ -218,13 +636,14 @@ service cloud.firestore {
         && request.resource.data.memberCount == 1
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 60
+        && request.resource.data.name.size() <= 30
         && request.resource.data.description is string
-        && request.resource.data.description.size() <= 280
+        && request.resource.data.description.size() <= 500
         && request.resource.data.interestTag is string
         && request.resource.data.interestTag.size() > 0
         && request.resource.data.interestTag.size() <= 40
-        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdAt == request.time
+        && getAfter(/databases/$(database)/documents/communities/$(communityId)/members/$(request.auth.uid)).data.role == 'admin'
         && (
           !('coverImageURL' in request.resource.data)
           || (
@@ -236,10 +655,20 @@ service cloud.firestore {
 
       allow update: if isSignedIn()
         && (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount'])
+          (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberCount'])
+            && validMemberCountTransition(communityId)
+          )
           || (
             request.auth.uid == resource.data.createdBy
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coverImageURL'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'coverImageURL', 'name', 'description'
+            ])
+            && request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.name.size() <= 30
+            && request.resource.data.description is string
+            && request.resource.data.description.size() <= 500
           )
         );
 
@@ -259,40 +688,76 @@ service cloud.firestore {
 
       match /members/{userId} {
         allow read: if isSignedIn();
-        allow create: if isSignedIn() && request.auth.uid == userId;
-        // Own leave, or clean up membership when the user profile was deleted.
-        allow delete: if isSignedIn() && (
-          request.auth.uid == userId
-          || !exists(/databases/$(database)/documents/users/$(userId))
-        );
+        allow create: if isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(['joinedAt', 'role'])
+          && request.resource.data.joinedAt is timestamp
+          && request.resource.data.joinedAt <= request.time + duration.value(1, 'm')
+          && request.resource.data.joinedAt >= request.time - duration.value(1, 'm')
+          && request.resource.data.role in ['member', 'admin']
+          && (
+            (
+              !exists(/databases/$(database)/documents/communities/$(communityId))
+              && getAfter(/databases/$(database)/documents/communities/$(communityId)).data.createdBy == userId
+              && request.resource.data.role == 'admin'
+            )
+            || (
+              exists(/databases/$(database)/documents/communities/$(communityId))
+              && request.resource.data.role == 'member'
+              && getAfter(/databases/$(database)/documents/communities/$(communityId)).data.memberCount
+                == get(/databases/$(database)/documents/communities/$(communityId)).data.memberCount + 1
+            )
+          );
+        allow update: if false;
+        allow delete: if isSignedIn()
+          && request.auth.uid == userId
+          && getAfter(/databases/$(database)/documents/communities/$(communityId)).data.memberCount
+            == get(/databases/$(database)/documents/communities/$(communityId)).data.memberCount - 1;
       }
     }
 
     // Phase 6 / 10: chat messages (+ group chat membership)
     match /chats/{chatId} {
-      allow read: if canAccessChat(chatId);
+      allow get: if canAccessChat(chatId) || canGetMissingAcceptedDirectChat(chatId);
+      allow list: if canAccessChat(chatId);
 
       allow create: if isSignedIn()
         && request.auth.uid in request.resource.data.get('participantIds', [])
-        && canWriteGroupChat();
-
-      // Participant can update metadata.
-      // Self-join via arrayUnion is allowed only for direct chats, or group chats
-      // when the user is a current community member.
-      allow update: if isSignedIn()
-        && canUpdateExistingGroupChat(chatId)
+        && validChatSchema()
+        && canWriteGroupChat()
+        && canCreateChatForActiveUsers()
         && (
-          isChatParticipant(chatId)
-          || request.auth.uid in request.resource.data.get('participantIds', [])
+          request.resource.data.get('type', '') == 'group'
+          || validAcceptedDirectConnection()
+        )
+        && (
+          (
+            request.resource.data.type == 'direct'
+            && request.resource.data.keys().hasAll([
+              'type', 'title', 'participantIds', 'connectionRequestId',
+              'lastMessageText', 'lastMessageAt', 'unreadCount'
+            ])
+          )
+          || (
+            request.resource.data.type == 'group'
+            && request.resource.data.keys().hasAll(['type', 'title', 'participantIds', 'communityId'])
+            && request.resource.data.participantIds == [request.auth.uid]
+            && request.resource.data.title
+              == get(/databases/$(database)/documents/communities/$(request.resource.data.communityId)).data.name
+          )
         );
+
+      // Direct chat membership is immutable after creation. Group membership in
+      // participantIds may change only for a current member of the owning community.
+      allow update: if isSignedIn()
+        && canUpdateExistingChat(chatId);
 
       match /messages/{messageId} {
         allow read: if canAccessChat(chatId);
 
         allow create: if isSignedIn()
-          && request.auth.uid == request.resource.data.senderId
           && canAccessChat(chatId)
-          && canUpdateExistingGroupChat(chatId);
+          && validMessagePayload(messageId);
 
         allow update, delete: if false;
       }
@@ -314,12 +779,18 @@ service cloud.firestore {
       );
 
       allow create: if isSignedIn()
+        && isActiveUser(request.auth.uid)
+        && isActiveUser(request.resource.data.toUserId)
         && request.auth.uid == request.resource.data.fromUserId
         && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
         && request.resource.data.fromUserId != request.resource.data.toUserId
         && request.resource.data.pairKey == requestId
         && request.resource.data.keys().hasAll([
           'fromUserId', 'toUserId', 'status', 'createdAt', 'pairKey'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'fromUserId', 'toUserId', 'status', 'createdAt', 'pairKey', 'communityId'
         ])
         // communityId is legacy/optional — older clients may still send it.
         && (
@@ -337,6 +808,20 @@ service cloud.firestore {
           request.auth.uid == resource.data.toUserId
           && resource.data.status == 'pending'
           && request.resource.data.status in ['accepted', 'declined']
+          && (
+            request.resource.data.status == 'declined'
+            || (
+              isActiveUser(resource.data.fromUserId)
+              && isActiveUser(resource.data.toUserId)
+            )
+          )
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        )
+        // Sender withdraws a pending request.
+        || (
+          request.auth.uid == resource.data.fromUserId
+          && resource.data.status == 'pending'
+          && request.resource.data.status == 'declined'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         )
         // Either party may unmatch (accepted → declined). Status-only; chats stay.
@@ -350,10 +835,29 @@ service cloud.firestore {
         // Either party may reopen a declined request as a new pending connect.
         || (
           resource.data.status == 'declined'
+          && isActiveUser(request.resource.data.fromUserId)
+          && isActiveUser(request.resource.data.toUserId)
           && request.auth.uid == request.resource.data.fromUserId
           && request.resource.data.status == 'pending'
+          && request.resource.data.createdAt == request.time
           && request.resource.data.fromUserId != request.resource.data.toUserId
           && request.resource.data.pairKey == requestId
+          && request.resource.data.pairKey == resource.data.pairKey
+          && request.resource.data.keys().hasOnly([
+            'fromUserId', 'toUserId', 'status', 'createdAt', 'pairKey', 'communityId'
+          ])
+          && (
+            (
+              request.resource.data.fromUserId == resource.data.fromUserId
+              && request.resource.data.toUserId == resource.data.toUserId
+            )
+            || (
+              request.resource.data.fromUserId == resource.data.toUserId
+              && request.resource.data.toUserId == resource.data.fromUserId
+            )
+          )
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['fromUserId', 'toUserId', 'status', 'createdAt', 'communityId'])
         )
       );
 

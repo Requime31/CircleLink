@@ -1,0 +1,92 @@
+import SwiftUI
+
+/// SwiftUI chrome around the UIKit chat screen (close + report/block for direct chats).
+struct ChatSheetView: View {
+    @ObservedObject var viewModel: ChatViewModel
+    let onClose: () -> Void
+
+    @State private var showReportReasons = false
+    @State private var showBlockConfirm = false
+
+    var body: some View {
+        ChatViewControllerWrapper(viewModel: viewModel)
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .toolbar {
+                if viewModel.canModeratePeer {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button("Report…") {
+                                showReportReasons = true
+                            }
+                            Button("Block…", role: .destructive) {
+                                viewModel.prepareBlockConfirmation()
+                                showBlockConfirm = true
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .accessibilityLabel("Chat options")
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Close", action: onClose)
+                        .accessibilityLabel("Close chat")
+                }
+            }
+            .confirmationDialog(
+                "Why are you reporting this user?",
+                isPresented: $showReportReasons,
+                titleVisibility: .visible
+            ) {
+                ForEach(ReportReason.allCases, id: \.self) { reason in
+                    Button(reason.title) {
+                        Task { await viewModel.reportPeer(reason: reason) }
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+            .sheet(isPresented: $showBlockConfirm) {
+                BlockConfirmationView(
+                    peerName: viewModel.chatTitle,
+                    isBlocking: viewModel.isBlockingPeer,
+                    errorMessage: viewModel.moderationErrorMessage,
+                    onCancel: { showBlockConfirm = false },
+                    onBlock: {
+                        Task {
+                            if await viewModel.blockPeer() {
+                                showBlockConfirm = false
+                                onClose()
+                            }
+                        }
+                    }
+                )
+            }
+            .alert(
+                "Report sent",
+                isPresented: Binding(
+                    get: { viewModel.moderationMessage != nil },
+                    set: { if !$0 { viewModel.clearModerationFeedback() } }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    viewModel.clearModerationFeedback()
+                }
+            } message: {
+                Text(viewModel.moderationMessage ?? "")
+            }
+            .alert(
+                "Something went wrong",
+                isPresented: Binding(
+                    get: { viewModel.moderationErrorMessage != nil },
+                    set: { if !$0 { viewModel.clearModerationFeedback() } }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    viewModel.clearModerationFeedback()
+                }
+            } message: {
+                Text(viewModel.moderationErrorMessage ?? "")
+            }
+    }
+}

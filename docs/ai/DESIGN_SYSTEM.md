@@ -3,9 +3,7 @@
 **Source of truth:** root [`DESIGN.md`](../../DESIGN.md).  
 This file is a short working memory for agents. If anything conflicts, **follow `DESIGN.md`**.
 
-Stitch brief (screen PNGs / HTML):  
-`/Users/romanshevchenko/Desktop/iOS/stitch_circlelink_visual_redesign_brief`  
-(see `.cursor/rules/ui-redisign-design-source.mdc`)
+Optional local Stitch brief (screen PNGs / HTML): `stitch_circlelink_visual_redesign_brief/` (see `.cursor/rules/ui-redisign-design-source.mdc` when present).
 
 Swift tokens: `CircleLink/Shared/Design/CLTheme.swift` (`CLColor`, `CLSpacing`, `CLRadius`, …).
 
@@ -23,8 +21,7 @@ Warm **parchment** canvas + white surfaces + **Sunset Clay** accent — soft-nat
 
 | Rule | Spec |
 |------|------|
-| Default avatars | **Squircle** (`radiusMd` / continuous) — Profile, Connect, Communities |
-| Chats avatars | **Circle** — list / thread / chat info |
+| Avatars | **Squircle everywhere** (`radiusMd` / continuous), including Chats |
 | Connect action row | Pass / Say Hi / Back = **circle** buttons |
 | Connect Discover hero | **Name + age only** on the card; bio in About |
 | Default CTA | Soft: `accentSoft` + `ink` (or secondary hairline) |
@@ -68,7 +65,7 @@ Never use purple as brand accent. No neon / glow.
 - **Buttons:** soft CTA by default; solid clay rare; Connect Pass/Say Hi/Back stay circles; Sign in with Apple stays system black.
 - **Cards:** `surface` + `radiusXl` (24) + 1px hairline; shadow off unless floating / Connect hero deck.
 - **Chips:** Capsule (`CLChip`); unselected `surfaceSoft`; selected `primarySoft` + clay text.
-- **Avatars:** squircle default; **circle only in Chats** (and Connect action circles as above). No decorative circle clay badge on Profile squircle avatar.
+- **Avatars:** squircle everywhere, including Chats. Connect action circles are controls, not avatars. No decorative circle clay badge on Profile avatar.
 - **Chat bubbles:** soft fills; radius ~18; same-sender gap 4, different 16.
 - **Tab bar:** system feel; selected clay; unselected `inkMuted`. Profile tab uses `person` (not `person.circle`).
 - **Typography:** SF Pro (system). Do not embed Inter.
@@ -78,8 +75,18 @@ Never use purple as brand accent. No neon / glow.
 | Mode | Where |
 |------|--------|
 | **Large** | Communities, Profile (calm tab hubs) |
+| **Static content header** | Chats; pinned above its list and independent of Hidden Chats navigation search |
 | **Inline** | Connect + all push/secondary screens |
-| **Clay principal** | Chats root only |
+
+Do not use a custom/clay principal title on tab roots. Chats' ink content header is not a
+toolbar principal. A chat thread may use a custom principal name/subtitle because it opens
+Chat Info.
+
+### Loading
+
+The bootstrap screen uses the parchment canvas, ambient low-opacity circles and a three-node
+connection mark. Motion is calm and time-driven; Reduce Motion freezes the mark. Keep the
+system Launch Screen visually aligned when it is customized, but never attempt animation there.
 
 Full table: `DESIGN.md` → Navigation → Nav title policy.
 
@@ -103,4 +110,4 @@ Suggested defaults (from `DESIGN.md`):
 2. Open Stitch `screen.png` for that screen when doing redesign work.
 3. Use `CLColor` / `CLSpacing` / `CLRadius` — don’t invent one-off hex.
 4. Keep design logic out of Domain.
-5. Do not unify all shapes “for consistency.”
+5. Keep avatars as squircles; preserve Connect's intentional circular action controls.

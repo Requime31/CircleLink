@@ -80,29 +80,25 @@ struct AgeGateView: View {
                     .multilineTextAlignment(.center)
             }
 
-            TextField(
-                "Year of birth (YYYY)",
-                text: Binding(
-                    get: { viewModel.birthYearText },
-                    set: { viewModel.updateBirthYearText($0) }
-                )
+            DatePicker(
+                "Date of birth",
+                selection: $viewModel.selectedBirthDate,
+                in: viewModel.minimumBirthDate...viewModel.maximumBirthDate,
+                displayedComponents: .date
             )
-                .keyboardType(.numberPad)
-                .multilineTextAlignment(.center)
-                .font(CLTypography.body)
-                .foregroundStyle(CLColor.ink)
-                .padding(.vertical, CLSpacing.sm)
-                .padding(.horizontal, CLSpacing.md)
-                .frame(minHeight: 56)
-                .background(CLColor.surface)
-                .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
-                        .stroke(fieldBorderColor, lineWidth: 1)
-                )
-                .modifier(BirthYearTextContentTypeModifier())
-                .accessibilityLabel("Year of birth")
-                .accessibilityHint("Enter a four-digit year")
+            .datePickerStyle(.compact)
+            .font(CLTypography.body)
+            .foregroundStyle(CLColor.ink)
+            .padding(.vertical, CLSpacing.sm)
+            .padding(.horizontal, CLSpacing.md)
+            .frame(minHeight: 56)
+            .background(CLColor.surface)
+            .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
+                    .stroke(fieldBorderColor, lineWidth: 1)
+            )
+            .accessibilityHint("Choose your full date of birth. You must be at least 18.")
 
             Button {
                 Task { await viewModel.confirmAge() }
@@ -112,18 +108,43 @@ struct AgeGateView: View {
             .buttonStyle(CLPrimaryButtonStyle())
             .disabled(!viewModel.canContinue || isBusy)
             .accessibilityLabel("Continue after confirming age")
-            .accessibilityHint(viewModel.canContinue ? "Confirms you are 18 or older" : "Enter a valid year of birth first")
+            .accessibilityHint(viewModel.canContinue ? "Saves your date of birth and confirms you are 18 or older" : "Choose a valid date of birth first")
             .clSoftSpring(value: viewModel.canContinue)
 
             statusBlock
 
-            Text("By continuing, you confirm that you meet our age requirements and agree to our Terms of Service.")
-                .font(CLTypography.caption)
-                .foregroundStyle(CLColor.inkMuted)
-                .multilineTextAlignment(.center)
+            VStack(spacing: CLSpacing.xxs) {
+                Text("By continuing, you confirm that you meet our age requirements and agree to:")
+                    .font(CLTypography.caption)
+                    .foregroundStyle(CLColor.inkMuted)
+                    .multilineTextAlignment(.center)
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: CLSpacing.xs) { legalLinks }
+                    VStack(spacing: CLSpacing.xs) { legalLinks }
+                }
+            }
         }
         .padding(CLSpacing.lg)
         .clCardStyle(padded: false)
+    }
+
+    @ViewBuilder
+    private var legalLinks: some View {
+        NavigationLink("Terms of Service") {
+            LegalDocumentView(document: LegalDocuments.termsOfService)
+        }
+        .accessibilityLabel("Read Terms of Service")
+
+        Text("and")
+            .font(CLTypography.caption)
+            .foregroundStyle(CLColor.inkMuted)
+            .accessibilityHidden(true)
+
+        NavigationLink("Privacy Policy") {
+            LegalDocumentView(document: LegalDocuments.privacyPolicy)
+        }
+        .accessibilityLabel("Read Privacy Policy")
     }
 
     @ViewBuilder
@@ -151,16 +172,5 @@ struct AgeGateView: View {
     private var isBusy: Bool {
         if case .loading = viewModel.state { return true }
         return false
-    }
-}
-
-/// `.birthdateYear` is iOS 17+; keep AgeGate compiling for iOS 16.
-private struct BirthYearTextContentTypeModifier: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 17.0, *) {
-            content.textContentType(.birthdateYear)
-        } else {
-            content
-        }
     }
 }

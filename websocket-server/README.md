@@ -4,6 +4,14 @@
 
 The folder name is historical. iOS no longer uses WebSocket for chat (removed in Phase 10). Chat realtime on iOS is **Firestore listeners** only.
 
+### Transport security
+
+The active Firestore Admin/FCM calls use provider HTTPS/TLS. The legacy `ws` listener in
+`src/index.js` creates a plain HTTP server and does not load certificates itself. If that
+legacy endpoint is ever exposed, terminate TLS at the hosting platform/reverse proxy and
+accept only `wss://`; it is not used by the current iOS client. TLS is transport protection,
+not chat E2EE.
+
 ---
 
 ## What this process does (Phase 9)
@@ -11,7 +19,7 @@ The folder name is historical. iOS no longer uses WebSocket for chat (removed in
 ```
 iOS writes Firestore
   → this server listens (Admin SDK onSnapshot)
-  → messaging.send(FCM) to users/{uid}.fcmToken
+  → messaging.send(FCM) to users/{uid}/private/account.fcmToken
   → iOS shows notification / deep link
 ```
 
@@ -28,7 +36,11 @@ Payload `data` fields match iOS `PushDeepLink`: `type`, `chatId`, `requestId`, `
 1. Server process **must be running** (local or hosted). If it sleeps, pushes are not sent.
 2. Run **one instance** for push (or you may get duplicate notifications).
 3. APNs Auth Key (`.p8`) uploaded in Firebase Console → Cloud Messaging (for real devices).
-4. iOS app has stored `users/{uid}.fcmToken` after notification permission.
+4. iOS app has stored `users/{uid}/private/account.fcmToken` after notification permission.
+
+Before deploying the private-account rules over an existing database, preview the one-time
+migration with `npm run migrate:private-account`. Apply it only after reviewing the count:
+`npm run migrate:private-account -- --apply`.
 5. Service account must be able to use FCM + read Firestore (default Firebase Admin key is enough).
 
 ### Disable push
@@ -121,3 +133,46 @@ This package still contains an old **WebSocket chat** protocol from Phase 4 (roo
 - For junior work: ignore the WS chat code; focus on the **push worker** (`src/push/`).
 
 Historical baseline with the old iOS WebSocket client: git branch `websocketlocal`.
+
+---
+
+## Scheduled account cleanup
+
+The cleanup CLI is a separate, repeatable job. It does not use Cloud Functions and does
+not alter the always-on FCM listener process.
+
+```bash
+# Safe production connectivity/schema check: performs reads and logs counts only.
+npm run cleanup:accounts:dry-run
+
+# Destructive run after reviewing the dry-run summary.
+npm run cleanup:accounts
+```
+
+The host scheduler contract is: run one invocation at a time (recommended daily), provide
+the same Firebase Admin environment as the push worker, set a timeout longer than the
+largest expected page, and alert on a non-zero exit status. Railway Cron, Render Cron Job,
+or a host cron may invoke `npm run cleanup:accounts`; this repository does not deploy or
+configure the schedule.
+
+Optional tuning: `ACCOUNT_CLEANUP_PAGE_SIZE` (default 25) and
+`ACCOUNT_CLEANUP_CONCURRENCY` (default 3). Optional Supabase server cleanup uses
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_STORAGE_BUCKET`. Never expose
+the service-role key to the iOS app or commit it.
+
+### Deletion and anonymization matrix
+
+| Data | Cleanup policy |
+|---|---|
+| Firebase Auth user | Delete; missing user is an idempotent success |
+| `users/{uid}` | Delete last, only after a transactional state/deadline recheck and cleanup claim |
+| `private`, `chatRefs`, own `blocked` | Delete recursively |
+| Connections, reports, memberships, references from other block lists | Delete in bounded queries |
+| Community/profile posts | Preserve content and stable `authorId`; replace author snapshot with `Deleted User`, remove email/avatar snapshots |
+| Chat messages | Preserve content and stable `senderId`; replace sender snapshot with `Deleted User`, remove email/avatar snapshots |
+| Chat/community/profile-post media | Preserve with their content |
+| `profiles/{uid}/...` Supabase prefix | Delete when server storage credentials are configured; current iOS avatars are Firestore base64 |
+
+Structured logs contain aggregate counts only. User IDs, email addresses, tokens, storage
+keys, and service credentials are never logged. A partial failure leaves the claimed due
+profile as a retry marker; rerunning the command safely continues cleanup.

@@ -5,8 +5,11 @@ struct ProfileView: View {
     private static let showsHowOthersSeeYouPreview = false
 
     @ObservedObject var viewModel: ProfileViewModel
-    let pushHandler: PushNotificationHandler
+    let makeSettingsViewModel: () -> SettingsViewModel
+    let makeSupportViewModel: () -> SupportViewModel
     let onSignOut: () -> Void
+    let makeAccountDeletionViewModel: () -> AccountDeletionViewModel
+    let makeBlockedPeopleViewModel: () -> BlockedPeopleViewModel
 
     @State private var isEditing = false
     @State private var composeMode: ComposeProfilePostSheet.Mode?
@@ -33,7 +36,12 @@ struct ProfileView: View {
                 ProfileEditView(viewModel: viewModel)
             }
             .navigationDestination(for: SettingsRoute.self) { _ in
-                SettingsView(pushHandler: pushHandler)
+                SettingsView(
+                    viewModel: makeSettingsViewModel(),
+                    makeSupportViewModel: makeSupportViewModel,
+                    makeBlockedPeopleViewModel: makeBlockedPeopleViewModel,
+                    makeAccountDeletionViewModel: makeAccountDeletionViewModel
+                )
             }
             .sheet(item: $composeMode) { mode in
                 ComposeProfilePostSheet(viewModel: viewModel, mode: mode) {
@@ -205,12 +213,12 @@ struct ProfileView: View {
 
                 Spacer(minLength: CLSpacing.xs)
 
-                Button("Edit") {
-                    isEditing = true
-                }
-                .font(CLTypography.subheadline.weight(.semibold))
-                .foregroundStyle(CLColor.primaryPressed)
-                .accessibilityLabel("Edit interests")
+//                Button("Edit") {
+//                    isEditing = true
+//                }
+//                .font(CLTypography.subheadline.weight(.semibold))
+//                .foregroundStyle(CLColor.primaryPressed)
+//                .accessibilityLabel("Edit interests")
             }
 
             publicInterests(user.interests)
@@ -254,6 +262,7 @@ struct ProfileView: View {
                     posts: viewModel.posts,
                     author: user,
                     localAvatarPreview: viewModel.localAvatarPreview,
+                    currentUserId: user.id,
                     onDelete: { post in
                         Task { await viewModel.deletePost(post) }
                     },

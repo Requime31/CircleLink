@@ -284,12 +284,15 @@ Overlay scrim behind modals: ~35–45% black.
 
 | Mode | When | Where |
 |------|------|--------|
-| **Large** | Tab root that is a calm scroll hub, no crowded trailing toolbar | Communities, Chats, Profile |
+| **Large** | Tab root that is a calm scroll hub, no crowded trailing toolbar | Communities, Profile |
+| **Static content header** | Root title must stay visible while list/navigation chrome changes | Chats |
 | **Inline (system)** | Push / secondary screens, or a tab root with trailing toolbar chrome | Connect + all push destinations (Settings, Edit Profile, Liked You, Matches, Chat Info, Community Detail, …) |
 
 Rules:
 
-- Do **not** use clay / custom `.principal` titles on tab roots. Brand lives in tint, chips, and rare CTAs — not in the nav title.
+- Do **not** use clay / custom `.principal` titles on tab roots. Chats uses an ink-colored
+  content header above the list (not a toolbar principal) so Hidden Chats search/navigation
+  cannot clear it.
 - Prefer system `navigationTitle` over custom principal chrome.
 - Auth / Age Gate / Profile Setup stay **inline** (onboarding, not main-tab hubs).
 - Chat **thread** may keep a custom `.principal` (name + “Tap for info”) because that title is a control, not a screen name.
@@ -324,6 +327,7 @@ Rules:
 
 ### Chat list
 - Clean rows, inset hairline separators
+- Keep the large `Chats` content header static above the scrolling list.
 - Airy row padding (`14` vertical in the row) so conversations don’t feel packed
 - Squircle avatars; compact clay numeric unread badge/capsule (`99+` for 100 or more)
 - Optional FAB compose (floating)

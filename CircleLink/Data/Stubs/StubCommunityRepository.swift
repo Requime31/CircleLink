@@ -21,15 +21,28 @@ final class StubCommunityRepository: CommunityRepository, @unchecked Sendable {
         )
     }
 
+    func updateCommunityMetadata(communityId: String, name: String, description: String) async throws {
+        let content = try CommunityContentPolicy.validate(name: name, description: description)
+        guard let index = communities.firstIndex(where: { $0.id == communityId }) else { return }
+        let community = communities[index]
+        communities[index] = Community(
+            id: community.id, name: content.name, description: content.description,
+            interestTag: community.interestTag, memberCount: community.memberCount,
+            coverImageURL: community.coverImageURL, createdAt: community.createdAt,
+            creatorId: community.creatorId
+        )
+    }
+
     func createCommunity(
         name: String,
         description: String,
         interestTag: String
     ) async throws -> Community {
+        let content = try CommunityContentPolicy.validate(name: name, description: description)
         let community = Community(
             id: UUID().uuidString,
-            name: name,
-            description: description,
+            name: content.name,
+            description: content.description,
             interestTag: interestTag,
             memberCount: 1
         )

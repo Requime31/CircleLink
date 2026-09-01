@@ -2,7 +2,10 @@ import PhotosUI
 import SwiftUI
 
 struct ProfileFormFields: View {
+    enum Mode: Equatable { case setup, edit }
+
     @ObservedObject var viewModel: ProfileViewModel
+    let mode: Mode
 
     @State private var selectedPhotoItem: PhotosPickerItem?
     @FocusState private var focusedField: Field?
@@ -17,7 +20,9 @@ struct ProfileFormFields: View {
         VStack(alignment: .leading, spacing: CLSpacing.lg) {
             avatarSection
             displayNameSection
-            ageSection
+            if mode == .edit {
+                ageSection
+            }
             aboutMeSection
             interestsSection
         }
@@ -104,16 +109,56 @@ struct ProfileFormFields: View {
 
     private var ageSection: some View {
         VStack(alignment: .leading, spacing: CLSpacing.xs) {
-            Text("Age")
+            Text(viewModel.usesBirthDate ? "Date of Birth" : "Age")
                 .font(CLTypography.headline)
                 .foregroundStyle(CLColor.ink)
 
-            TextField("e.g. 28", text: $viewModel.ageText)
-                .keyboardType(.numberPad)
-                .foregroundStyle(CLColor.ink)
-                .focused($focusedField, equals: .age)
-                .clTextFieldChrome(isFocused: focusedField == .age)
-                .accessibilityLabel("Age")
+            if viewModel.usesBirthDate {
+                if mode == .edit {
+                    DatePicker(
+                        "Date of birth",
+                        selection: $viewModel.selectedBirthDate,
+                        in: viewModel.minimumBirthDate...viewModel.maximumBirthDate,
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.compact)
+                    .clTextFieldChrome(isFocused: false)
+                    .accessibilityHint("Changing this date changes the public age after confirmation.")
+                } else {
+                    VStack(alignment: .leading, spacing: CLSpacing.xs) {
+                        Text(viewModel.selectedBirthDate, format: .dateTime.year().month(.wide).day())
+                        if let age = viewModel.calculatedAge {
+                            Text("Age \(age)")
+                                .foregroundStyle(CLColor.inkSecondary)
+                        }
+                    }
+                    .font(CLTypography.body)
+                    .foregroundStyle(CLColor.ink)
+                    .padding(.horizontal, CLSpacing.md)
+                    .frame(minHeight: 56)
+                    .background(CLColor.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Date of birth and calculated age")
+                }
+            } else {
+                TextField("e.g. 28", text: $viewModel.ageText)
+                    .keyboardType(.numberPad)
+                    .foregroundStyle(CLColor.ink)
+                    .focused($focusedField, equals: .age)
+                    .clTextFieldChrome(isFocused: focusedField == .age)
+                    .accessibilityLabel("Age")
+
+                if mode == .edit {
+                    Button("Add date of birth instead") {
+                        viewModel.offerBirthDateEntry()
+                    }
+                    .font(CLTypography.callout)
+                    .foregroundStyle(CLColor.primaryPressed)
+                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                    .accessibilityHint("Uses your date of birth to calculate public age automatically.")
+                }
+            }
         }
     }
 

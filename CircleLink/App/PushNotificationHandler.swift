@@ -29,6 +29,8 @@ final class PushNotificationHandler: NSObject {
     var onDeepLink: ((PushDeepLink) -> Void)?
 
     private var isRegistering = false
+    private var hasAPNSToken = false
+    private var pendingFCMToken: String?
 
     init(
         userRepository: UserRepository,
@@ -134,7 +136,6 @@ final class PushNotificationHandler: NSObject {
             }
             defaults.set(true, forKey: Self.notificationsEnabledKey)
             registerForRemoteNotifications()
-            await uploadCurrentFCMToken()
         } catch {
             #if DEBUG
             print("[Push] requestAuthorization failed: \(error.localizedDescription)")
@@ -151,7 +152,6 @@ final class PushNotificationHandler: NSObject {
             || settings.authorizationStatus == .provisional
             || settings.authorizationStatus == .ephemeral else { return }
         registerForRemoteNotifications()
-        await uploadCurrentFCMToken()
     }
 
     func registerForRemoteNotifications() {
@@ -170,6 +170,15 @@ final class PushNotificationHandler: NSObject {
         #if canImport(FirebaseMessaging)
         Messaging.messaging().apnsToken = deviceToken
         #endif
+        hasAPNSToken = true
+
+        if let pendingFCMToken {
+            self.pendingFCMToken = nil
+            Task { await storeFCMToken(pendingFCMToken) }
+            return
+        }
+
+        // FCM must only be requested after APNs has supplied and mapped its device token.
         Task { await uploadCurrentFCMToken() }
     }
 
@@ -181,6 +190,10 @@ final class PushNotificationHandler: NSObject {
 
     func didReceiveFCMToken(_ token: String?) {
         guard let token, !token.isEmpty else { return }
+        guard hasAPNSToken else {
+            pendingFCMToken = token
+            return
+        }
         Task { await storeFCMToken(token) }
     }
 

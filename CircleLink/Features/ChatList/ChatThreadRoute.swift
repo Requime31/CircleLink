@@ -6,6 +6,14 @@ struct ChatThreadRoute: Hashable {
     let title: String
     /// Group chats only — forwarded to Peer Profile for Connect.
     let communityId: String?
+
+    static func direct(chatId: String, title: String) -> Self {
+        Self(chatId: chatId, title: title, communityId: nil)
+    }
+
+    static func group(chatId: String, title: String, communityId: String) -> Self {
+        Self(chatId: chatId, title: title, communityId: communityId)
+    }
 }
 
 /// Push destination for Chat Info / Members (from inside a thread).

@@ -144,6 +144,34 @@ struct ChatInfoViewModelTests {
         #expect(fetched?.first?.id == "new")
     }
 
+    @Test func messagePaginationDoesNotSkipEqualTimestamps() async throws {
+        let repo = MockChatRepository()
+        let timestamp = Date()
+        repo.messages = ["a", "b", "c"].map { id in
+            Message(
+                id: id,
+                chatId: "chat-1",
+                senderId: "peer-1",
+                text: id,
+                imageURL: nil,
+                createdAt: timestamp,
+                clientMessageId: id,
+                status: .sent
+            )
+        }
+
+        let firstPage = try await repo.fetchMessages(chatId: "chat-1", limit: 2, before: nil)
+        let oldest = try #require(firstPage.first)
+        let secondPage = try await repo.fetchMessages(
+            chatId: "chat-1",
+            limit: 2,
+            before: MessagePageCursor(message: oldest)
+        )
+
+        #expect(Set(firstPage.map(\.id)) == ["b", "c"])
+        #expect(secondPage.map(\.id) == ["a"])
+    }
+
     private func waitForLoaded(_ viewModel: ChatInfoViewModel) async {
         for _ in 0..<40 {
             if case .loaded = viewModel.state { return }

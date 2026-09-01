@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// CircleLink design tokens from local `DESIGN.md` (Sunset Parchment).
 /// View chrome only — no Domain / networking.
@@ -7,41 +8,104 @@ import SwiftUI
 
 enum CLColor {
     // Surfaces
-    static let canvas = Color(red: 0.988, green: 0.976, blue: 0.973)       // #FCF9F8
-    static let surface = Color.white                                         // #FFFFFF
-    static let surfaceSoft = Color(red: 0.965, green: 0.953, blue: 0.949)   // #F6F3F2
-    static let hairline = Color(red: 0.910, green: 0.894, blue: 0.875)      // #E8E4DF
-    static let hairlineStrong = Color(red: 0.863, green: 0.757, blue: 0.725) // #DCC1B9
+    static let canvas = dynamic(light: 0xFCF9F8, dark: 0x1C1716)
+    static let surface = dynamic(light: 0xFFFFFF, dark: 0x251F1D)
+    static let surfaceSoft = dynamic(light: 0xF6F3F2, dark: 0x302724)
+    static let hairline = dynamic(
+        light: 0xE8E4DF,
+        dark: 0x4A3D38,
+        lightHighContrast: 0x9B8178,
+        darkHighContrast: 0x8F746A
+    )
+    static let hairlineStrong = dynamic(
+        light: 0xDCC1B9,
+        dark: 0x6A5148,
+        lightHighContrast: 0x7C5D53,
+        darkHighContrast: 0xB58C7D
+    )
 
     // Ink
-    static let ink = Color(red: 0.110, green: 0.106, blue: 0.106)           // #1C1B1B
-    static let inkSecondary = Color(red: 0.333, green: 0.259, blue: 0.239)  // #55423D
-    static let inkMuted = Color(red: 0.533, green: 0.447, blue: 0.424)      // #88726C
-    static let inkDisabled = Color(red: 0.722, green: 0.698, blue: 0.659)   // #B8B2A8
+    static let ink = dynamic(light: 0x1C1B1B, dark: 0xFFF8F5)
+    static let inkSecondary = dynamic(light: 0x55423D, dark: 0xE4D4CE)
+    static let inkMuted = dynamic(
+        light: 0x88726C,
+        dark: 0xBBA39A,
+        lightHighContrast: 0x6B554E,
+        darkHighContrast: 0xD0B8AF
+    )
+    static let inkDisabled = dynamic(light: 0xB8B2A8, dark: 0x806F69)
 
     // Primary (Sunset Clay)
-    static let primary = Color(red: 0.902, green: 0.494, blue: 0.373)       // #E67E5F
-    static let primaryPressed = Color(red: 0.608, green: 0.267, blue: 0.165) // #9B442A
+    static let primary = dynamic(
+        light: 0xE67E5F,
+        dark: 0xFF9D7D,
+        lightHighContrast: 0x9B442A,
+        darkHighContrast: 0xFFAD91
+    )
+    static let primaryPressed = dynamic(light: 0x9B442A, dark: 0xE67E5F)
     /// Quieter soft CTA fill (DESIGN.md default). Prefer over `primarySoft` for buttons.
-    static let accentSoft = Color(red: 0.973, green: 0.902, blue: 0.878)    // #F8E6E0
+    static let accentSoft = dynamic(light: 0xF8E6E0, dark: 0x4B2E28)
     /// Selected chips / stronger soft highlight (`primary-fixed`).
-    static let primarySoft = Color(red: 1.000, green: 0.859, blue: 0.820)   // #FFDBD1
-    static let primaryStrong = Color(red: 0.608, green: 0.267, blue: 0.165) // #9B442A
+    static let primarySoft = dynamic(light: 0xFFDBD1, dark: 0x5B342B)
+    static let primaryStrong = dynamic(light: 0x9B442A, dark: 0xFFAD91)
     /// Label on soft fills (`accentSoft` / `primarySoft`).
-    static let onPrimary = Color(red: 0.110, green: 0.106, blue: 0.106)     // #1C1B1B
-    static let onPrimaryStrong = Color.white
+    static let onPrimary = dynamic(light: 0x1C1B1B, dark: 0xFFF8F5)
+    static let onPrimaryStrong = dynamic(light: 0xFFFFFF, dark: 0x27130E)
 
     // Soft tints — light use only
-    static let tintPeach = Color(red: 1.000, green: 0.859, blue: 0.820)     // #FFDBD1
-    static let tintCream = Color(red: 0.965, green: 0.953, blue: 0.949)     // #F6F3F2
-    static let tintMint = Color(red: 0.894, green: 0.953, blue: 0.925)      // #E4F3EC
-    static let tintRose = Color(red: 1.000, green: 0.855, blue: 0.839)      // #FFDAD6
+    static let tintPeach = dynamic(light: 0xFFDBD1, dark: 0x5B342B)
+    static let tintCream = dynamic(light: 0xF6F3F2, dark: 0x302724)
+    static let tintMint = dynamic(light: 0xE4F3EC, dark: 0x213A30)
+    static let tintRose = dynamic(light: 0xFFDAD6, dark: 0x4D2927)
 
     // Semantic
-    static let error = Color(red: 0.729, green: 0.102, blue: 0.102)         // #BA1A1A
-    static let errorSoft = Color(red: 1.000, green: 0.855, blue: 0.839)     // #FFDAD6
-    static let success = Color(red: 0.239, green: 0.608, blue: 0.431)       // #3D9B6E
-    static let warning = Color(red: 0.831, green: 0.627, blue: 0.090)       // #D4A017
+    static let error = dynamic(light: 0xBA1A1A, dark: 0xFFB4AB)
+    static let errorSoft = dynamic(light: 0xFFDAD6, dark: 0x4D2927)
+    static let success = dynamic(light: 0x3D9B6E, dark: 0x75D6A6)
+    static let warning = dynamic(light: 0xD4A017, dark: 0xF4C95D)
+
+    private static func dynamic(
+        light: UInt32,
+        dark: UInt32,
+        lightHighContrast: UInt32? = nil,
+        darkHighContrast: UInt32? = nil
+    ) -> Color {
+        Color(UIColor { traits in
+            let isDark = traits.userInterfaceStyle == .dark
+            let standard = isDark ? dark : light
+            let highContrast = isDark ? darkHighContrast : lightHighContrast
+            let hex = traits.accessibilityContrast == .high ? highContrast ?? standard : standard
+            return UIColor(hex: hex)
+        })
+    }
+}
+
+/// UIKit bridge for the shared semantic palette. Keep UIKit features free of raw RGB values.
+enum CLUIColor {
+    static let canvas = UIColor(CLColor.canvas)
+    static let surface = UIColor(CLColor.surface)
+    static let surfaceSoft = UIColor(CLColor.surfaceSoft)
+    static let hairline = UIColor(CLColor.hairline)
+    static let hairlineStrong = UIColor(CLColor.hairlineStrong)
+    static let ink = UIColor(CLColor.ink)
+    static let inkSecondary = UIColor(CLColor.inkSecondary)
+    static let inkMuted = UIColor(CLColor.inkMuted)
+    static let inkDisabled = UIColor(CLColor.inkDisabled)
+    static let primary = UIColor(CLColor.primary)
+    static let primaryPressed = UIColor(CLColor.primaryPressed)
+    static let primarySoft = UIColor(CLColor.primarySoft)
+    static let onPrimaryStrong = UIColor(CLColor.onPrimaryStrong)
+}
+
+private extension UIColor {
+    convenience init(hex: UInt32) {
+        self.init(
+            red: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: 1
+        )
+    }
 }
 
 // MARK: - Spacing / Radius / Shadow

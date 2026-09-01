@@ -6,8 +6,6 @@ enum FirestoreCommunityError: LocalizedError {
     case notAuthenticated
     case communityNotFound
     case invalidData
-    case invalidName
-    case nameTooLong
 
     var errorDescription: String? {
         switch self {
@@ -17,10 +15,6 @@ enum FirestoreCommunityError: LocalizedError {
             return "Community could not be found."
         case .invalidData:
             return "Community data is invalid."
-        case .invalidName:
-            return "Enter a community name."
-        case .nameTooLong:
-            return "Name must be 60 characters or fewer."
         }
     }
 }
@@ -40,8 +34,7 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
     }
 
     func fetchMembers(communityId: String) async throws -> [User] {
-        // Heal orphans + sync count here (detail path), not on every list fetch.
-        try await reconcileMembership(communityId: communityId)
+        try await fetchActiveMembers(communityId: communityId)
     }
 
     func join(communityId: String) async throws {
@@ -157,17 +150,32 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
         }
     }
 
-    // MARK: - Membership reconcile
+    func updateCommunityMetadata(communityId: String, name: String, description: String) async throws {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            throw FirestoreCommunityError.notAuthenticated
+        }
+        let content = try CommunityContentPolicy.validate(name: name, description: description)
+        let ref = db.collection(communitiesCollection).document(communityId)
+        let snapshot = try await ref.getDocument()
+        guard snapshot.exists else { throw FirestoreCommunityError.communityNotFound }
+        guard snapshot.data()?["createdBy"] as? String == userId else {
+            throw FirestoreCommunityError.notAuthenticated
+        }
+        try await ref.updateData([
+            "name": content.name,
+            "description": content.description
+        ])
+    }
 
-    /// Removes memberships whose user profile no longer exists, syncs `memberCount`,
-    /// and returns the remaining real members (single pass — no double user fetch).
-    private func reconcileMembership(communityId: String) async throws -> [User] {
+    // MARK: - Membership fetch
+
+    /// Membership cleanup/count repair is server-owned. Clients only resolve active profiles.
+    private func fetchActiveMembers(communityId: String) async throws -> [User] {
         let communityRef = db.collection(communitiesCollection).document(communityId)
         let memberSnapshot = try await communityRef.collection(membersCollection).getDocuments()
 
-        var users: [User] = []
-        users.reserveCapacity(memberSnapshot.documents.count)
-        var orphanRefs: [DocumentReference] = []
+        var activeUsers: [User] = []
+        activeUsers.reserveCapacity(memberSnapshot.documents.count)
 
         for memberDoc in memberSnapshot.documents {
             let userDoc = try await db.collection(usersCollection)
@@ -175,33 +183,12 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
                 .getDocument()
 
             if userDoc.exists {
-                users.append(try FirestoreUserMapper.user(from: userDoc))
-            } else {
-                orphanRefs.append(memberDoc.reference)
+                let user = try FirestoreUserMapper.user(from: userDoc)
+                if user.isSociallyAvailable { activeUsers.append(user) }
             }
         }
 
-        // Best-effort: delete orphans (rules allow delete when user doc is gone).
-        if !orphanRefs.isEmpty {
-            do {
-                let batch = db.batch()
-                for ref in orphanRefs {
-                    batch.deleteDocument(ref)
-                }
-                try await batch.commit()
-            } catch {
-                // Count sync below still corrects the UI even if orphan delete is denied.
-            }
-        }
-
-        let validCount = users.count
-        let communityDoc = try await communityRef.getDocument()
-        let storedCount = FirestoreCommunityMapper.memberCount(from: communityDoc.data() ?? [:])
-        if communityDoc.exists, storedCount != validCount {
-            try await communityRef.updateData(["memberCount": validCount])
-        }
-
-        return users.sorted {
+        return activeUsers.sorted {
             $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
     }
@@ -253,17 +240,7 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
             throw FirestoreCommunityError.notAuthenticated
         }
 
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else {
-            throw FirestoreCommunityError.invalidName
-        }
-        guard trimmedName.count <= 60 else {
-            throw FirestoreCommunityError.nameTooLong
-        }
-
-        let trimmedDescription = String(
-            description.trimmingCharacters(in: .whitespacesAndNewlines).prefix(280)
-        )
+        let content = try CommunityContentPolicy.validate(name: name, description: description)
         let trimmedTag = interestTag.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTag.isEmpty else {
             throw FirestoreCommunityError.invalidData
@@ -275,8 +252,8 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
         let batch = db.batch()
         batch.setData(
             FirestoreCommunityMapper.createCommunityData(
-                name: trimmedName,
-                description: trimmedDescription,
+                name: content.name,
+                description: content.description,
                 interestTag: trimmedTag,
                 createdBy: userId
             ),
@@ -290,8 +267,8 @@ final class FirestoreCommunityRepository: CommunityRepository, @unchecked Sendab
 
         return Community(
             id: communityRef.documentID,
-            name: trimmedName,
-            description: trimmedDescription,
+            name: content.name,
+            description: content.description,
             interestTag: trimmedTag,
             memberCount: 1,
             createdAt: Date(),

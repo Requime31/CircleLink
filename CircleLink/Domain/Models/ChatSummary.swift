@@ -16,4 +16,8 @@ struct ChatSummary: Codable, Equatable, Sendable, Identifiable {
     var peerUserId: String?
     /// Per-user: suppress push only (chat stays in the list).
     var isMuted: Bool
+    /// Per-user favorite metadata stored only in the owner's chatRef.
+    var isPinned: Bool = false
+    /// Stable manual rank among pinned, visible chats. Lower values appear first.
+    var pinOrder: Int? = nil
 }

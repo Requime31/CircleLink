@@ -11,6 +11,7 @@ enum FirestoreChatError: LocalizedError {
     case notCommunityMember
     case emptyParticipants
     case notDirectChat
+    case deactivatedAccount
 
     var errorDescription: String? {
         switch self {
@@ -30,6 +31,8 @@ enum FirestoreChatError: LocalizedError {
             return "Group chat needs at least one member."
         case .notDirectChat:
             return "This action is only available for direct chats."
+        case .deactivatedAccount:
+            return "This account is no longer available for new chats."
         }
     }
 }
@@ -45,11 +48,16 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     private let communitiesCollection = "communities"
     private let chatRefsCollection = "chatRefs"
     private let imageStorage: ChatImageStorage
+    private let currentUserID: @Sendable () -> String?
 
     private var db: Firestore { Firestore.firestore() }
 
-    init(imageStorage: ChatImageStorage) {
+    init(
+        imageStorage: ChatImageStorage,
+        currentUserID: @escaping @Sendable () -> String? = { Auth.auth().currentUser?.uid }
+    ) {
         self.imageStorage = imageStorage
+        self.currentUserID = currentUserID
     }
 
     // MARK: - ChatRepository
@@ -108,12 +116,103 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         try await updateOwnChatRef(chatId: chatId, data: ["muted": muted])
     }
 
+    func setChatPinned(chatId: String, pinned: Bool) async throws {
+        guard let userId = currentUserID() else {
+            throw FirestoreChatError.notAuthenticated
+        }
+
+        let refs = db.collection(usersCollection)
+            .document(userId)
+            .collection(chatRefsCollection)
+        let target = refs.document(chatId)
+        let targetSnapshot = try await target.getDocument()
+        guard targetSnapshot.exists else { throw ChatPinningError.unknownChat(chatId) }
+        let targetData = targetSnapshot.data() ?? [:]
+
+        if !pinned {
+            let metadata = FirestoreChatMapper.pinMetadata(from: targetData)
+            guard metadata.isPinned || targetData.keys.contains("pinOrder") else { return }
+            try await target.setData(
+                ["pinned": false, "pinOrder": FieldValue.delete()],
+                merge: true
+            )
+            return
+        }
+
+        guard !FirestoreChatMapper.isHiddenChatRef(targetData) else {
+            throw ChatPinningError.hiddenChat(chatId)
+        }
+        try await validateParticipant(userId: userId, chatId: chatId)
+
+        let existingMetadata = FirestoreChatMapper.pinMetadata(from: targetData)
+        if existingMetadata.isPinned, existingMetadata.pinOrder != nil { return }
+
+        let snapshot = try await refs.getDocuments()
+        let nextOrder = snapshot.documents.reduce(-1) { currentMax, document in
+            let metadata = FirestoreChatMapper.pinMetadata(from: document.data())
+            return max(currentMax, metadata.pinOrder ?? -1)
+        } + 1
+        try await target.setData(
+            ["pinned": true, "pinOrder": nextOrder],
+            merge: true
+        )
+    }
+
+    func reorderPinnedChats(chatIds: [String]) async throws {
+        guard let userId = currentUserID() else {
+            throw FirestoreChatError.notAuthenticated
+        }
+        guard Set(chatIds).count == chatIds.count else {
+            throw ChatPinningError.duplicateChatIDs
+        }
+
+        let refs = db.collection(usersCollection)
+            .document(userId)
+            .collection(chatRefsCollection)
+        let snapshot = try await refs.getDocuments()
+        let documentsByID = Dictionary(uniqueKeysWithValues: snapshot.documents.map { ($0.documentID, $0) })
+
+        for chatId in chatIds {
+            guard let document = documentsByID[chatId] else {
+                throw ChatPinningError.unknownChat(chatId)
+            }
+            guard !FirestoreChatMapper.isHiddenChatRef(document.data()) else {
+                throw ChatPinningError.hiddenChat(chatId)
+            }
+        }
+
+        let currentPinnedIDs = Set(snapshot.documents.compactMap { document -> String? in
+            FirestoreChatMapper.pinMetadata(from: document.data()).isPinned
+                ? document.documentID
+                : nil
+        })
+        guard currentPinnedIDs == Set(chatIds) else {
+            throw ChatPinningError.incompletePinnedSet
+        }
+
+        for chatId in chatIds {
+            try await validateParticipant(userId: userId, chatId: chatId)
+        }
+
+        let batch = db.batch()
+        for (order, chatId) in chatIds.enumerated() {
+            batch.setData(
+                ["pinned": true, "pinOrder": order],
+                forDocument: refs.document(chatId),
+                merge: true
+            )
+        }
+        try await batch.commit()
+    }
+
     func hideChat(chatId: String) async throws {
         try await updateOwnChatRef(
             chatId: chatId,
             data: [
                 "hidden": true,
-                "hiddenAt": Timestamp(date: Date())
+                "hiddenAt": Timestamp(date: Date()),
+                "pinned": false,
+                "pinOrder": FieldValue.delete()
             ]
         )
     }
@@ -175,7 +274,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         )
     }
 
-    func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
+    func fetchMessages(chatId: String, limit: Int, before: MessagePageCursor?) async throws -> [Message] {
         guard let senderId = Auth.auth().currentUser?.uid else {
             throw FirestoreChatError.notAuthenticated
         }
@@ -194,10 +293,11 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                 .document(chatId)
                 .collection(messagesCollection)
                 .order(by: "createdAt", descending: true)
+                .order(by: FieldPath.documentID(), descending: true)
                 .limit(to: fetchLimit)
 
             if let cursor {
-                query = query.start(after: [Timestamp(date: cursor)])
+                query = query.start(after: [Timestamp(date: cursor.createdAt), cursor.messageId])
             }
 
             let snapshot = try await query.getDocuments()
@@ -210,7 +310,9 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                 collected.append(message)
             }
 
-            cursor = page.last?.createdAt
+            if let lastMessage = page.last {
+                cursor = MessagePageCursor(message: lastMessage)
+            }
             if collected.count == beforeCount {
                 pagesWithoutProgress += 1
             } else {
@@ -224,10 +326,12 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             if page.count < fetchLimit { break }
         }
 
-        return collected.sorted { $0.createdAt < $1.createdAt }
+        return collected.sorted {
+            $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
+        }
     }
 
-    func fetchChatMedia(chatId: String, limit: Int, before: Date?) async throws -> [Message] {
+    func fetchChatMedia(chatId: String, limit: Int, before: MessagePageCursor?) async throws -> [Message] {
         guard let senderId = Auth.auth().currentUser?.uid else {
             throw FirestoreChatError.notAuthenticated
         }
@@ -245,10 +349,11 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                 .document(chatId)
                 .collection(messagesCollection)
                 .order(by: "createdAt", descending: true)
+                .order(by: FieldPath.documentID(), descending: true)
                 .limit(to: pageSize)
 
             if let cursor {
-                query = query.start(after: [Timestamp(date: cursor)])
+                query = query.start(after: [Timestamp(date: cursor.createdAt), cursor.messageId])
             }
 
             let snapshot = try await query.getDocuments()
@@ -263,7 +368,9 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                 if collected.count >= limit { break }
             }
 
-            cursor = page.last?.createdAt
+            if let lastMessage = page.last {
+                cursor = MessagePageCursor(message: lastMessage)
+            }
             if collected.count == beforeCount {
                 pagesWithoutProgress += 1
             } else {
@@ -326,7 +433,6 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         }
 
         let messageId = clientMessageId
-        let createdAt = Date()
 
         try await ensureChatAccess(chatId: chatId, senderId: senderId)
 
@@ -345,6 +451,14 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             .collection(messagesCollection)
             .document(messageId)
 
+        let previewText = hasText ? trimmedText : "Photo"
+
+        // Ensure participant list is known before updating peer chatRefs (security rules).
+        let participantIds = try await resolveParticipantIds(chatId: chatId, fallback: [senderId])
+        // Compression/upload can be slow, so capture the persisted timestamp only
+        // immediately before the authoritative Firestore write.
+        let createdAt = Date()
+        let createdAtTimestamp = Timestamp(date: createdAt)
         let data = FirestoreChatMapper.messageData(
             senderId: senderId,
             text: hasText ? trimmedText : nil,
@@ -352,11 +466,6 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             clientMessageId: clientMessageId,
             createdAt: createdAt
         )
-
-        let previewText = hasText ? trimmedText : "Photo"
-
-        // Ensure participant list is known before updating peer chatRefs (security rules).
-        let participantIds = try await resolveParticipantIds(chatId: chatId, fallback: [senderId])
 
         // Message + chat metadata in one batch (small). ChatRefs are chunked separately
         // so large group chats stay under Firestore's 500-writes-per-batch limit.
@@ -368,7 +477,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         batch.setData(
             [
                 "lastMessageText": previewText ?? NSNull(),
-                "lastMessageAt": Timestamp(date: createdAt),
+                "lastMessageAt": createdAtTimestamp,
                 "participantIds": FieldValue.arrayUnion([senderId])
             ],
             forDocument: chatRef,
@@ -383,7 +492,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             chatId: chatId,
             participantIds: participantIds,
             lastMessageText: previewText,
-            lastMessageAt: createdAt
+            lastMessageAt: createdAtTimestamp
         )
     }
 
@@ -500,23 +609,41 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         }
 
         let chatId = FirestoreChatMapper.directChatId(userIdA: currentUserId, userIdB: userId)
+        let connectionRequestId = [currentUserId, userId].sorted().joined(separator: "_")
         let chatRef = db.collection(chatsCollection).document(chatId)
         let existing = try await chatRef.getDocument()
 
         if existing.exists {
+            let existingData = existing.data() ?? [:]
+            let lastMessageAt: Timestamp
+            if let persistedTimestamp = existingData["lastMessageAt"] as? Timestamp {
+                // Preserve Firestore nanoseconds exactly. Timestamp -> Date -> Timestamp
+                // can lose precision and fail the rules' equality check selectively.
+                lastMessageAt = persistedTimestamp
+            } else {
+                let fallbackTimestamp = Timestamp(date: Date())
+                try await chatRef.updateData(["lastMessageAt": fallbackTimestamp])
+                lastMessageAt = fallbackTimestamp
+            }
             try await ensureChatRefsExist(
                 chatId: chatId,
                 participantIds: [currentUserId, userId],
-                lastMessageText: existing.data()?["lastMessageText"] as? String,
-                lastMessageAt: (existing.data()?["lastMessageAt"] as? Timestamp)?.dateValue() ?? Date()
+                lastMessageText: existingData["lastMessageText"] as? String,
+                lastMessageAt: lastMessageAt
             )
             return chatId
         }
 
+        let currentUser = try await fetchUser(userId: currentUserId)
         let peer = try await fetchUser(userId: userId)
+        guard currentUser?.isSociallyAvailable == true,
+              peer?.isSociallyAvailable == true else {
+            throw FirestoreChatError.deactivatedAccount
+        }
         let peerName = peer?.displayName.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let title = peerName.isEmpty ? "Chat" : peerName
         let now = Date()
+        let nowTimestamp = Timestamp(date: now)
 
         // Step 1: write chat first so security rules can see participantIds
         // when we write the peer's chatRef in step 2.
@@ -525,8 +652,9 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                 "type": ChatType.direct.rawValue,
                 "title": title,
                 "participantIds": [currentUserId, userId],
+                "connectionRequestId": connectionRequestId,
                 "lastMessageText": NSNull(),
-                "lastMessageAt": Timestamp(date: now),
+                "lastMessageAt": nowTimestamp,
                 "unreadCount": 0
             ],
             merge: true
@@ -534,7 +662,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
 
         // Step 2: mirror refs for both participants (needed for chat list).
         let batch = db.batch()
-        let refPayload = FirestoreChatMapper.chatRefData(lastMessageText: nil, lastMessageAt: now)
+        let refPayload = FirestoreChatMapper.chatRefData(lastMessageText: nil, lastMessageAt: nowTimestamp)
         for participantId in [currentUserId, userId] {
             let userChatRef = db.collection(usersCollection)
                 .document(participantId)
@@ -552,12 +680,11 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             throw FirestoreChatError.notAuthenticated
         }
 
-        let uniqueParticipants = Array(Set(participantIds)).sorted()
-        guard !uniqueParticipants.isEmpty else {
+        guard !participantIds.isEmpty else {
             throw FirestoreChatError.emptyParticipants
         }
 
-        guard uniqueParticipants.contains(currentUserId) else {
+        guard participantIds.contains(currentUserId) else {
             throw FirestoreChatError.notCommunityMember
         }
 
@@ -575,6 +702,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         let chatRef = db.collection(chatsCollection).document(chatId)
         let title = try await fetchCommunityName(communityId: communityId)
         let now = Date()
+        let nowTimestamp = Timestamp(date: now)
 
         // Write-first (merge + arrayUnion). Do not getDocument before join —
         // older rules denied reads for community members not yet in participantIds.
@@ -583,7 +711,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
                 "type": ChatType.group.rawValue,
                 "communityId": communityId,
                 "title": title,
-                "participantIds": FieldValue.arrayUnion(uniqueParticipants)
+                "participantIds": FieldValue.arrayUnion([currentUserId])
             ],
             merge: true
         )
@@ -592,13 +720,13 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         let existing = try await chatRef.getDocument()
         let existingData = existing.data() ?? [:]
         let lastMessageText = existingData["lastMessageText"] as? String
-        let lastMessageAt = (existingData["lastMessageAt"] as? Timestamp)?.dateValue()
+        let lastMessageAt = existingData["lastMessageAt"] as? Timestamp
 
         if lastMessageAt == nil {
             try await chatRef.setData(
                 [
                     "lastMessageText": NSNull(),
-                    "lastMessageAt": Timestamp(date: now)
+                    "lastMessageAt": nowTimestamp
                 ],
                 merge: true
             )
@@ -608,7 +736,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             chatId: chatId,
             participantIds: [currentUserId],
             lastMessageText: lastMessageText,
-            lastMessageAt: lastMessageAt ?? now
+            lastMessageAt: lastMessageAt ?? nowTimestamp
         )
         return chatId
     }
@@ -685,7 +813,9 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             avatarURL: avatarURL,
             avatarBase64: avatarBase64,
             peerUserId: peerUserId,
-            isMuted: FirestoreChatMapper.isMutedChatRef(refData)
+            isMuted: FirestoreChatMapper.isMutedChatRef(refData),
+            isPinned: FirestoreChatMapper.pinMetadata(from: refData).isPinned,
+            pinOrder: FirestoreChatMapper.pinMetadata(from: refData).pinOrder
         )
 
         // Prefer ref timestamps when chat doc is missing lastMessageAt.
@@ -725,6 +855,15 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         return FirestoreChatMapper.clearedAt(from: data)
     }
 
+    private func validateParticipant(userId: String, chatId: String) async throws {
+        let snapshot = try await db.collection(chatsCollection).document(chatId).getDocument()
+        guard snapshot.exists else { throw ChatPinningError.unknownChat(chatId) }
+        let participantIDs = FirestoreChatMapper.participantIds(from: snapshot.data() ?? [:])
+        guard participantIDs.contains(userId) else {
+            throw ChatPinningError.notParticipant(chatId)
+        }
+    }
+
     private static func isVisibleAfterClear(_ message: Message, clearedAt: Date?) -> Bool {
         guard let clearedAt else { return true }
         return message.createdAt > clearedAt
@@ -736,10 +875,12 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
     /// Firestore read rules deny non-participants on existing chats.
     private func ensureChatAccess(chatId: String, senderId: String) async throws {
         let chatRef = db.collection(chatsCollection).document(chatId)
+        let now = Date()
+        let nowTimestamp = Timestamp(date: now)
         try await chatRef.setData(
             [
                 "participantIds": FieldValue.arrayUnion([senderId]),
-                "lastMessageAt": Timestamp(date: Date())
+                "lastMessageAt": nowTimestamp
             ],
             merge: true
         )
@@ -749,7 +890,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
             .collection(chatRefsCollection)
             .document(chatId)
         try await ref.setData(
-            FirestoreChatMapper.chatRefData(lastMessageText: nil, lastMessageAt: Date()),
+            FirestoreChatMapper.chatRefData(lastMessageText: nil, lastMessageAt: nowTimestamp),
             merge: true
         )
     }
@@ -783,7 +924,7 @@ final class FirestoreChatRepository: ChatRepository, @unchecked Sendable {
         chatId: String,
         participantIds: [String],
         lastMessageText: String?,
-        lastMessageAt: Date
+        lastMessageAt: Timestamp
     ) async throws {
         let payload = FirestoreChatMapper.chatRefData(
             lastMessageText: lastMessageText,

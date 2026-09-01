@@ -1,6 +1,9 @@
 import Foundation
 
 final class StubAuthRepository: AuthRepository, @unchecked Sendable {
+    var reauthenticationMethod: ReauthenticationMethod { .unavailable }
+    func reauthenticateWithApple() async throws {}
+    func reauthenticateWithEmail(password: String) async throws {}
     private var storedUser: User?
 
     var currentUser: User? { storedUser }

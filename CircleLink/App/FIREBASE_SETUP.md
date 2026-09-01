@@ -56,9 +56,33 @@ Create Firestore database (test mode OK for development).
 
 User documents path: `users/{userId}`
 
-Fields used in Phase 2–3:
+Public profile fields:
 
-- `displayName`, `avatarURL`, `avatarBase64`, `interests`, `ageConfirmedAt`, `createdAt`
+- `displayName`, `avatarURL`, `avatarBase64`, `interests`, `age`, `ageConfirmedAt`, `createdAt`
+- `accountState` — `active` or `deactivated`; missing legacy values mean `active`
+
+Account deletion request atomically changes `accountState` to `deactivated`, records the
+request time, and schedules cleanup 30 Gregorian UTC calendar days later. Restore changes
+the state back to `active` and removes the lifecycle marker. Only the authenticated owner may
+change these fields. Physical cleanup and Firebase Auth deletion are handled outside the
+iOS client. The external worker adds server-only `cleanupClaimedAt` immediately before
+destructive work; this closes the restore/delete race and leaves a retry marker after a
+partial failure. See `websocket-server/README.md` for its scheduler contract.
+
+Private account document path: `users/{userId}/private/account`
+
+- `birthDate` — full date stored as a canonical Gregorian UTC-noon Firestore Timestamp; owner-only read/write
+- `deletionRequestedAt` — authoritative server commit time; the cleanup deadline is derived as +30 days
+- `fcmToken`, `fcmTokenUpdatedAt` — owner-only push delivery data
+
+Convert this stored value with `AgeCalculator.localDate(fromPersistedBirthDate:)` before
+binding it to a local `DatePicker`; convert picker input back with
+`canonicalBirthDate(fromLocalDate:)`.
+
+Age confirmation writes the private `birthDate` and public derived `age` + `ageConfirmedAt`
+in one Firestore batch. Legacy profiles without `birthDate` continue using the public `age`
+field and an existing `ageConfirmedAt`; no migration job is required. Never copy `birthDate`
+into connection, chat, or other public profile documents.
 
 ### Avatars (Phase 3, no Storage required)
 
@@ -72,13 +96,32 @@ Firestore message documents store only `imageURL`.
 
 See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for bucket and API key setup.
 
-### Communities (Phase 5)
+### Per-user chat metadata
+
+Chat list preferences live at `users/{userId}/chatRefs/{chatId}` and never on the
+shared `chats/{chatId}` document:
+
+- `muted`, `hidden`, `hiddenAt`, `clearedAt` — existing owner preferences
+- `pinned: Bool` — whether a visible chat is pinned
+- `pinOrder: Int` — optional zero-based manual order for pinned chats
+
+Unpinning and hiding remove `pinOrder`. Reordering writes the complete pinned set in
+one Firestore batch. A peer may update only preview fields (`lastMessageText` and
+`lastMessageAt`) and cannot change another user's pin metadata.
+
+`chatRefs.lastMessageAt` must be the exact `Timestamp` from the parent
+`chats/{chatId}.lastMessageAt`. Do not convert an existing Firestore timestamp through Swift
+`Date` before writing a ref: nanosecond precision can change and the strict rules equality check
+will reject only the affected documents. For a legacy chat without `lastMessageAt`, write the
+parent timestamp first and reuse that same value for its refs.
+
+### Communities
 
 Community documents path: `communities/{communityId}`
 
 Fields:
 
-- `name`, `description`, `interestTag`, `memberCount`
+- `name`, `description`, `interestTag`, `memberCount`, `coverImageURL`, `createdAt`, `creatorId`
 
 Member documents path: `communities/{communityId}/members/{userId}`
 
@@ -90,7 +133,9 @@ Fields:
 
 ### Firestore Security Rules (required for Phase 5)
 
-If the app shows **"Missing or insufficient permissions"**, Firestore rules do not allow reads on `communities` yet.
+If the app shows **"Missing or insufficient permissions"**, use the failing path in the Xcode
+console to identify the relevant rule. A failure under `users/{uid}/chatRefs/{chatId}` can indicate
+a legacy schema or a timestamp that does not exactly match the parent chat.
 
 **Option A — Firebase Console (fastest)**
 
@@ -112,7 +157,9 @@ Rules summary:
 | `communities/{id}` | signed-in user | read list/detail; update `memberCount` only |
 | `communities/{id}/members/{userId}` | signed-in user | read members; create/delete **own** membership |
 
-Communities are seeded manually in Console (no client-side create in MVP).
+Communities can be created and edited in the client. Firestore stores metadata; Supabase
+stores cover/post image binaries. The checked-in rules restrict metadata edits to the creator
+and membership count transitions to matching member-document writes.
 
 ## 6. Verify
 
@@ -142,7 +189,7 @@ Create a test user in Firebase Console → Authentication → Users → Add user
 ### App behavior
 
 - Permission is requested when the user reaches **main tabs** after sign-in / age gate / profile setup (not on cold launch)
-- On grant: APNs device token → FCM → `users/{userId}.fcmToken`
+- On grant: APNs device token → FCM → `users/{userId}/private/account.fcmToken`
 - Notification tap is routed only through `AppCoordinator` (Chat / Connect)
 
 ### Cloud Functions
@@ -156,3 +203,5 @@ The `functions/` folder is kept only as an unused Blaze-era reference — do not
 - Firebase ID tokens stored in **Keychain** via `KeychainTokenStorage`
 - **No tokens in UserDefaults**
 - `signOut()` clears Keychain + Firebase session + FCM token
+- Firebase SDK traffic is protected in transit by TLS, but chat text and `lastMessageText`
+  are not end-to-end encrypted and remain readable to authorized project infrastructure.

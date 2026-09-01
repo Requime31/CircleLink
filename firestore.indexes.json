@@ -1,11 +1,28 @@
 {
   "indexes": [
     {
+      "collectionGroup": "private",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "accountState", "order": "ASCENDING" },
+        { "fieldPath": "deletionRequestedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "connectionRequests",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "fromUserId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "connectionRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fromUserId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
     {

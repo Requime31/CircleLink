@@ -1,4 +1,3 @@
-import PhotosUI
 import SwiftUI
 
 struct CommunityDetailView: View {
@@ -13,7 +12,9 @@ struct CommunityDetailView: View {
     @State private var showLeaveConfirmation = false
     @State private var composeMode: CommunityPost?
     @State private var isCreatingPost = false
-    @State private var selectedCover: PhotosPickerItem?
+    @State private var showsCommunityEditor = false
+    @State private var presentedMedia: IdentifiedURL?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Group {
@@ -29,16 +30,22 @@ struct CommunityDetailView: View {
             }
         }
         .clCanvasBackground()
-        .navigationTitle(viewModel.communityState.loadedValue?.name ?? initialTitle)
+        .navigationTitle(
+            CommunityContentPolicy.safeDisplayName(
+                viewModel.communityState.loadedValue?.name ?? initialTitle
+            )
+        )
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(CLColor.canvas.opacity(0.92), for: .navigationBar)
         .toolbar {
             if viewModel.canEditCover {
                 ToolbarItem(placement: .topBarTrailing) {
-                    PhotosPicker(selection: $selectedCover, matching: .images) {
-                        Image(systemName: "photo")
+                    Button {
+                        showsCommunityEditor = true
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
-                    .accessibilityLabel("Change community cover")
+                    .accessibilityLabel("Edit community")
                 }
             }
         }
@@ -46,11 +53,11 @@ struct CommunityDetailView: View {
             makePeerProfileSheet(peer.userId, .social)
         }
         .task { await viewModel.load() }
-        .onChange(of: selectedCover) { item in
-            Task {
-                guard let item, let data = try? await item.loadTransferable(type: Data.self) else { return }
-                await viewModel.updateCover(image: data)
-                selectedCover = nil
+        .sheet(isPresented: $showsCommunityEditor) {
+            if let community = viewModel.communityState.loadedValue {
+                EditCommunitySheet(viewModel: viewModel, community: community) {
+                    showsCommunityEditor = false
+                }
             }
         }
         .sheet(isPresented: $isCreatingPost) {
@@ -59,10 +66,9 @@ struct CommunityDetailView: View {
         .sheet(item: $composeMode) { post in
             CommunityComposePostSheet(viewModel: viewModel, post: post) { composeMode = nil }
         }
-        .confirmationDialog(
+        .alert(
             "Leave this community?",
             isPresented: $showLeaveConfirmation,
-            titleVisibility: .visible
         ) {
             Button("Leave Community", role: .destructive) {
                 Task { await viewModel.leave() }
@@ -70,6 +76,9 @@ struct CommunityDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You’ll lose access to the group chat until you join again.")
+        }
+        .fullScreenCover(item: $presentedMedia) { item in
+            ChatMediaFullscreenView(url: item.url)
         }
     }
 
@@ -100,14 +109,16 @@ struct CommunityDetailView: View {
 
     private func headerSection(community: Community) -> some View {
         VStack(alignment: .leading, spacing: CLSpacing.xs) {
-            HStack(alignment: .center, spacing: CLSpacing.md) {
-                Text(community.name)
-                    .font(CLTypography.title)
-                    .foregroundStyle(CLColor.ink)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityAddTraits(.isHeader)
-
-                membershipButton
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: CLSpacing.md) {
+                    communityName(community.name)
+                    membershipButton
+                }
+            } else {
+                HStack(alignment: .top, spacing: CLSpacing.md) {
+                    communityName(community.name)
+                    membershipButton
+                }
             }
 
             Text(memberCountLabel(for: community.memberCount))
@@ -118,31 +129,37 @@ struct CommunityDetailView: View {
 
     @ViewBuilder
     private var membershipButton: some View {
-        if viewModel.isMember {
-            Button { showLeaveConfirmation = true } label: {
-                membershipButtonLabel(title: "Joined", isLoading: viewModel.isMembershipActionInFlight)
+        Button {
+            if viewModel.isMember {
+                showLeaveConfirmation = true
+            } else {
+                Task { await viewModel.join() }
             }
-            .buttonStyle(CLPrimaryButtonStyle())
-            .frame(width: 112, height: AccessibilityHelpers.minimumTouchTarget)
-            .disabled(viewModel.isMembershipActionInFlight)
-            .accessibilityLabel("Joined. Double tap to leave community")
-        } else {
-            Button { Task { await viewModel.join() } } label: {
-                membershipButtonLabel(title: "Join", isLoading: viewModel.isMembershipActionInFlight)
-            }
-            .buttonStyle(CLPrimaryButtonStyle())
-            .frame(width: 112, height: AccessibilityHelpers.minimumTouchTarget)
-            .disabled(viewModel.isMembershipActionInFlight)
-            .accessibilityLabel("Join community")
+        } label: {
+            membershipButtonLabel(
+                title: viewModel.isMember ? "Joined" : "Join",
+                isLoading: viewModel.isMembershipActionInFlight
+            )
+            .id(viewModel.isMembershipActionInFlight ? "loading" : viewModel.isMember ? "joined" : "join")
+            .transition(.opacity.combined(with: .scale(scale: 0.92)))
         }
+        .buttonStyle(CLPrimaryButtonStyle())
+        .frame(width: 112, height: AccessibilityHelpers.minimumTouchTarget)
+        .disabled(viewModel.isMembershipActionInFlight)
+        .animation(CLMotion.soft, value: viewModel.isMember)
+        .animation(CLMotion.micro, value: viewModel.isMembershipActionInFlight)
+        .accessibilityLabel(
+            viewModel.isMember
+                ? "Joined. Double tap to leave community"
+                : "Join community"
+        )
     }
 
     private func aboutSection(community: Community) -> some View {
-        Text(community.description.isEmpty ? "No description yet." : community.description)
-            .font(CLTypography.body)
-            .foregroundStyle(community.description.isEmpty ? CLColor.inkMuted : CLColor.inkSecondary)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        CommunityDescriptionSection(
+            communityName: community.name,
+            description: community.description
+        )
     }
 
     private var groupChatButton: some View {
@@ -251,6 +268,13 @@ struct CommunityDetailView: View {
                         post: post,
                         author: viewModel.author(for: post),
                         canManage: viewModel.canManage(post),
+                        currentUserId: viewModel.currentUserId,
+                        onSelectAuthor: { userId in
+                            presentedPeer = PeerSheetItem(userId: userId)
+                        },
+                        onSelectMedia: { url in
+                            presentedMedia = IdentifiedURL(url)
+                        },
                         onEdit: { composeMode = post },
                         onDelete: { Task { await viewModel.deletePost(post) } }
                     )
@@ -276,10 +300,18 @@ struct CommunityDetailView: View {
                 if imagePosts.isEmpty {
                     placeholderTab(systemImage: "photo.on.rectangle.angled", title: "No photos yet", message: "Photos from community posts will appear here.")
                 } else {
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: CLSpacing.sm) {
+                    LazyVGrid(columns: galleryColumns, spacing: CLSpacing.sm) {
                         ForEach(imagePosts) { post in
-                            CommunityPostImage(url: post.imageURL!)
-                                .aspectRatio(1, contentMode: .fit)
+                            if let imageURL = post.imageURL {
+                                Button {
+                                    presentedMedia = IdentifiedURL(imageURL)
+                                } label: {
+                                    CommunityGalleryThumbnail(url: imageURL)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(galleryAccessibilityLabel(for: post))
+                            }
                         }
                     }
                 }
@@ -382,6 +414,182 @@ struct CommunityDetailView: View {
 
     private func memberCountLabel(for count: Int) -> String {
         count == 1 ? "1 member" : "\(count) members"
+    }
+
+    private func communityName(_ name: String) -> some View {
+        let normalizedName = CommunityContentPolicy.trimmed(name)
+        let displayName = normalizedName.isEmpty ? "Community" : normalizedName
+
+        return Text(displayName)
+            .font(CLTypography.title)
+            .foregroundStyle(CLColor.ink)
+            .lineLimit(3)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var galleryColumns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: CLSpacing.sm),
+            GridItem(.flexible(), spacing: CLSpacing.sm)
+        ]
+    }
+
+    private func galleryAccessibilityLabel(for post: CommunityPost) -> String {
+        let authorName = viewModel.author(for: post)?.displayName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = authorName.flatMap { $0.isEmpty ? nil : $0 } ?? "Member"
+        let relativeDate = post.createdAt.formatted(.relative(presentation: .named))
+        return "Photo by \(displayName), \(relativeDate)"
+    }
+}
+
+private struct CommunityDescriptionSection: View {
+    let communityName: String
+    let description: String
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var compactHeight: CGFloat = 0
+    @State private var fullHeight: CGFloat = 0
+    @State private var showsFullDescription = false
+
+    private var text: String {
+        CommunityContentPolicy.displayDescription(description)
+    }
+
+    private var compactLineLimit: Int {
+        dynamicTypeSize.isAccessibilitySize ? 5 : 3
+    }
+
+    private var isTruncated: Bool {
+        fullHeight > compactHeight + 1
+    }
+
+    var body: some View {
+        Group {
+            if text.isEmpty {
+                EmptyView()
+            } else {
+                VStack(alignment: .leading, spacing: CLSpacing.xs) {
+                    Text(text)
+                        .font(CLTypography.body)
+                        .foregroundStyle(CLColor.inkSecondary)
+                        .lineLimit(showsFullDescription ? nil : compactLineLimit)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(compactHeightReader)
+                        .background(fullHeightReader)
+
+                    if isTruncated || showsFullDescription {
+                        Button(showsFullDescription ? "Hide" : "More") {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showsFullDescription.toggle()
+                            }
+                        }
+                        .font(CLTypography.callout.weight(.medium))
+                        .foregroundStyle(CLColor.primary)
+                        .accessibilityLabel(
+                            showsFullDescription
+                                ? "Hide full community description"
+                                : "Read full community description"
+                        )
+                    }
+                }
+            }
+        }
+        .onPreferenceChange(CompactDescriptionHeightKey.self) { newValue in
+            if abs(compactHeight - newValue) > 0.5 { compactHeight = newValue }
+        }
+        .onPreferenceChange(FullDescriptionHeightKey.self) { newValue in
+            if abs(fullHeight - newValue) > 0.5 { fullHeight = newValue }
+        }
+    }
+
+    private var compactHeightReader: some View {
+        GeometryReader { proxy in
+            Color.clear.preference(
+                key: CompactDescriptionHeightKey.self,
+                value: proxy.size.height
+            )
+        }
+    }
+
+    private var fullHeightReader: some View {
+        Text(text)
+            .font(CLTypography.body)
+            .fixedSize(horizontal: false, vertical: true)
+            .hidden()
+            .accessibilityHidden(true)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: FullDescriptionHeightKey.self,
+                        value: proxy.size.height
+                    )
+                }
+            }
+    }
+}
+
+private struct CompactDescriptionHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct FullDescriptionHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+private struct CommunityGalleryThumbnail: View {
+    let url: URL
+
+    var body: some View {
+        GeometryReader { proxy in
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case let .success(image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                case .failure:
+                    placeholder(systemImage: "photo.badge.exclamationmark")
+                case .empty:
+                    placeholder()
+                @unknown default:
+                    placeholder()
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.width)
+            .clipped()
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .background(CLColor.surfaceSoft)
+        .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
+                .stroke(CLColor.hairline, lineWidth: 1)
+        }
+    }
+
+    private func placeholder(systemImage: String? = nil) -> some View {
+        ZStack {
+            CLColor.surfaceSoft
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .foregroundStyle(CLColor.inkMuted)
+            } else {
+                ProgressView()
+                    .tint(CLColor.primary)
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 

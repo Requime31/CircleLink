@@ -13,10 +13,13 @@ struct MainTabView: View {
     let makeChatViewModel: (String, String) -> ChatViewModel?
     let makeChatInfoViewModel: (String) -> ChatInfoViewModel
     let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
-    let pushHandler: PushNotificationHandler
+    let makeSettingsViewModel: () -> SettingsViewModel
+    let makeSupportViewModel: () -> SupportViewModel
     let onCommunitySelected: (String) -> Void
     let onOpenGroupChat: (String, String) -> Void
     let onSignOut: () -> Void
+    let makeAccountDeletionViewModel: () -> AccountDeletionViewModel
+    let makeBlockedPeopleViewModel: () -> BlockedPeopleViewModel
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -55,8 +58,11 @@ struct MainTabView: View {
 
             ProfileView(
                 viewModel: profileViewModel,
-                pushHandler: pushHandler,
-                onSignOut: onSignOut
+                makeSettingsViewModel: makeSettingsViewModel,
+                makeSupportViewModel: makeSupportViewModel,
+                onSignOut: onSignOut,
+                makeAccountDeletionViewModel: makeAccountDeletionViewModel,
+                makeBlockedPeopleViewModel: makeBlockedPeopleViewModel
             )
             .tabItem {
                 Label("Profile", systemImage: "person")
@@ -64,5 +70,7 @@ struct MainTabView: View {
             .tag(AppCoordinator.MainTab.profile)
         }
         .tint(CLColor.primary)
+        .toolbarBackground(CLColor.canvas, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
     }
 }

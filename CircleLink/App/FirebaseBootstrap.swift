@@ -11,7 +11,7 @@ import Foundation
 enum FirebaseBootstrap {
     static var isConfigured: Bool {
         #if canImport(FirebaseCore)
-        FirebaseApp.app() != nil
+        !(FirebaseApp.allApps?.isEmpty ?? true)
         #else
         false
         #endif
@@ -21,7 +21,7 @@ enum FirebaseBootstrap {
     /// Requires `GoogleService-Info.plist` in the app bundle (exact filename).
     static func configureIfNeeded() {
         #if canImport(FirebaseCore)
-        guard FirebaseApp.app() == nil else { return }
+        guard !isConfigured else { return }
 
         guard let plistPath = Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") else {
             #if DEBUG

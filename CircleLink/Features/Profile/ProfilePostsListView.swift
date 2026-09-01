@@ -18,6 +18,8 @@ struct ProfilePostsListView: View {
     let posts: [ProfilePost]
     let author: User
     let localAvatarPreview: UIImage?
+    let currentUserId: String?
+    var onSelectAuthor: ((String) -> Void)? = nil
     var onDelete: ((ProfilePost) -> Void)? = nil
     var onEdit: ((ProfilePost) -> Void)? = nil
 
@@ -37,6 +39,8 @@ struct ProfilePostsListView: View {
                     post: post,
                     author: author,
                     localAvatarPreview: localAvatarPreview,
+                    currentUserId: currentUserId,
+                    onSelectAuthor: onSelectAuthor,
                     onEdit: onEdit,
                     onDeleteRequest: onDelete == nil ? nil : { postPendingDelete = post }
                 )
@@ -71,6 +75,8 @@ private struct ProfilePostCardView: View {
     let post: ProfilePost
     let author: User
     let localAvatarPreview: UIImage?
+    let currentUserId: String?
+    var onSelectAuthor: ((String) -> Void)?
     var onEdit: ((ProfilePost) -> Void)?
     var onDeleteRequest: (() -> Void)?
 
@@ -82,9 +88,8 @@ private struct ProfilePostCardView: View {
         return text
     }
 
-    private var authorName: String {
-        let name = author.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? "Member" : name
+    private var authorPresentation: PostAuthorPresentation {
+        PostAuthorPresentation(author: author, currentUserId: currentUserId)
     }
 
     var body: some View {
@@ -119,29 +124,7 @@ private struct ProfilePostCardView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: CLSpacing.sm) {
-            AvatarImageView(
-                localPreview: localAvatarPreview,
-                avatarBase64: author.avatarBase64,
-                avatarURL: author.avatarURL,
-                size: 36
-            )
-            .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(authorName)
-                    .font(CLTypography.subheadline.weight(.semibold))
-                    .foregroundStyle(CLColor.ink)
-                    .lineLimit(1)
-
-                Text(post.createdAt, format: .relative(presentation: .named))
-                    .font(CLTypography.caption)
-                    .foregroundStyle(CLColor.inkMuted)
-                    .lineLimit(1)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(
-                "\(authorName), \(post.createdAt.formatted(.relative(presentation: .named)))"
-            )
+            authorControl
 
             Spacer(minLength: CLSpacing.xs)
 
@@ -169,6 +152,49 @@ private struct ProfilePostCardView: View {
                 .accessibilityLabel("Post actions")
             }
         }
+    }
+
+    @ViewBuilder
+    private var authorControl: some View {
+        if authorPresentation.selectableUserId != nil, let onSelectAuthor {
+            Button { authorPresentation.selectAuthor(perform: onSelectAuthor) } label: { authorLabel }
+                .buttonStyle(.plain)
+                .accessibilityLabel("View profile for \(authorPresentation.displayName)")
+        } else {
+            authorLabel
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(authorAccessibilityLabel)
+        }
+    }
+
+    private var authorLabel: some View {
+        HStack(alignment: .center, spacing: CLSpacing.sm) {
+            AvatarImageView(
+                localPreview: author.isSociallyAvailable ? localAvatarPreview : nil,
+                avatarBase64: author.isSociallyAvailable ? author.avatarBase64 : nil,
+                avatarURL: author.isSociallyAvailable ? author.avatarURL : nil,
+                size: 36
+            )
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(authorPresentation.displayName)
+                    .font(CLTypography.subheadline.weight(.semibold))
+                    .foregroundStyle(CLColor.ink)
+                    .lineLimit(1)
+
+                Text(post.createdAt, format: .relative(presentation: .named))
+                    .font(CLTypography.caption)
+                    .foregroundStyle(CLColor.inkMuted)
+                    .lineLimit(1)
+            }
+        }
+        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+        .contentShape(Rectangle())
+    }
+
+    private var authorAccessibilityLabel: String {
+        "\(authorPresentation.displayName), \(post.createdAt.formatted(.relative(presentation: .named)))"
     }
 
     private var contentAccessibilityLabel: String {

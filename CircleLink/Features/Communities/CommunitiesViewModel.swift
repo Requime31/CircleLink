@@ -1,29 +1,42 @@
 import Combine
 import Foundation
 
+enum CommunitySortOrder: String, CaseIterable, Hashable, Sendable {
+    case popular = "Popular"
+    case newest = "Newest"
+    case alphabetical = "A–Z"
+}
+
 @MainActor
 final class CommunitiesViewModel: ObservableObject {
     @Published private(set) var state: ViewState<[Community]> = .idle
     @Published private(set) var isCreating = false
     @Published private(set) var createErrorMessage: String?
+    @Published private(set) var hasPendingCreatedCommunity = false
     @Published var searchQuery = ""
     /// `nil` means All categories.
     @Published var selectedInterestTag: String?
+    @Published var sortOrder: CommunitySortOrder = .popular
 
     private let communityRepository: CommunityRepository
+    private let communityImageStorage: CommunityImageStorage
+    private var pendingCreatedCommunity: Community?
     private var refreshTask: Task<Void, Never>?
     private var createGeneration = 0
 
-    init(communityRepository: CommunityRepository) {
+    init(
+        communityRepository: CommunityRepository,
+        communityImageStorage: CommunityImageStorage? = nil
+    ) {
         self.communityRepository = communityRepository
+        self.communityImageStorage = communityImageStorage ?? StubCommunityImageStorage()
     }
 
     /// Unique interest tags from the loaded list, sorted A→Z.
     var availableInterestTags: [String] {
-        guard case let .loaded(communities) = state else { return [] }
         return Array(
             Set(
-                communities
+                allCommunities
                     .map(\.interestTag)
                     .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             )
@@ -31,37 +44,34 @@ final class CommunitiesViewModel: ObservableObject {
         .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
     }
 
+    /// Complete loaded catalog before search, category filtering, or sorting.
+    var allCommunities: [Community] {
+        guard case let .loaded(communities) = state else { return [] }
+        return communities
+    }
+
     /// Client-side filter over the full loaded list.
     var filteredCommunities: [Community] {
-        guard case let .loaded(communities) = state else { return [] }
         return Self.filter(
-            communities,
+            allCommunities,
             searchQuery: searchQuery,
             selectedInterestTag: selectedInterestTag
         )
     }
 
+    /// Filtered catalog in the user-selected presentation order.
+    var sortedCommunities: [Community] {
+        Self.sort(filteredCommunities, by: sortOrder)
+    }
+
     /// Most active circles first. The list screen caps this visually unless See all is selected.
     var suggestedCommunities: [Community] {
-        filteredCommunities.sorted {
-            if $0.memberCount == $1.memberCount {
-                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-            }
-            return $0.memberCount > $1.memberCount
-        }
+        Self.sort(filteredCommunities, by: .popular)
     }
 
     /// Newly created circles first. Legacy records without `createdAt` remain visible after dated ones.
     var newCommunities: [Community] {
-        filteredCommunities.sorted {
-            switch ($0.createdAt, $1.createdAt) {
-            case let (lhs?, rhs?): return lhs > rhs
-            case (.some, .none): return true
-            case (.none, .some): return false
-            case (.none, .none):
-                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-            }
-        }
+        Self.sort(filteredCommunities, by: .newest)
     }
 
     /// Cancels any in-flight refresh, then reloads with a spinner.
@@ -118,14 +128,17 @@ final class CommunitiesViewModel: ObservableObject {
     func createCommunity(
         name: String,
         description: String,
-        interestTag: String
+        interestTag: String,
+        coverImage: Data? = nil
     ) async -> Bool {
         guard !isCreating else { return false }
         createGeneration += 1
         let generation = createGeneration
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else {
-            createErrorMessage = "Enter a community name."
+        let content: ValidatedCommunityContent
+        do {
+            content = try CommunityContentPolicy.validate(name: name, description: description)
+        } catch {
+            createErrorMessage = error.localizedDescription
             return false
         }
 
@@ -138,12 +151,41 @@ final class CommunitiesViewModel: ObservableObject {
         createErrorMessage = nil
 
         do {
-            _ = try await communityRepository.createCommunity(
-                name: trimmedName,
-                description: description,
-                interestTag: interestTag
-            )
+            let community: Community
+            if let pendingCreatedCommunity {
+                try await communityRepository.updateCommunityMetadata(
+                    communityId: pendingCreatedCommunity.id,
+                    name: content.name,
+                    description: content.description
+                )
+                community = pendingCreatedCommunity
+            } else {
+                community = try await communityRepository.createCommunity(
+                    name: content.name,
+                    description: content.description,
+                    interestTag: interestTag
+                )
+                pendingCreatedCommunity = community
+                hasPendingCreatedCommunity = true
+            }
+
+            if let coverImage {
+                do {
+                    let url = try await communityImageStorage.uploadCover(
+                        data: ImageCompressor.compressForChat(coverImage),
+                        communityId: community.id
+                    )
+                    try await communityRepository.updateCoverURL(communityId: community.id, url: url)
+                } catch {
+                    guard generation == createGeneration, !Task.isCancelled else { return false }
+                    await loadCommunities()
+                    createErrorMessage = "The community was saved, but its cover wasn’t. Try Save again to retry the cover."
+                    return false
+                }
+            }
             guard generation == createGeneration, !Task.isCancelled else { return false }
+            pendingCreatedCommunity = nil
+            hasPendingCreatedCommunity = false
             await loadCommunities()
             guard generation == createGeneration, !Task.isCancelled else { return false }
             return true
@@ -170,24 +212,74 @@ final class CommunitiesViewModel: ObservableObject {
         state = .idle
         isCreating = false
         createErrorMessage = nil
+        pendingCreatedCommunity = nil
+        hasPendingCreatedCommunity = false
         clearFilters()
     }
 
-    /// Pure filter helper — easy to reason about and test later.
-    static func filter(
+    nonisolated static func sort(
+        _ communities: [Community],
+        by order: CommunitySortOrder
+    ) -> [Community] {
+        communities.sorted { lhs, rhs in
+            switch order {
+            case .popular:
+                if lhs.memberCount != rhs.memberCount {
+                    return lhs.memberCount > rhs.memberCount
+                }
+            case .newest:
+                switch (lhs.createdAt, rhs.createdAt) {
+                case let (lhsDate?, rhsDate?) where lhsDate != rhsDate:
+                    return lhsDate > rhsDate
+                case (.some, .none):
+                    return true
+                case (.none, .some):
+                    return false
+                default:
+                    break
+                }
+            case .alphabetical:
+                break
+            }
+
+            return isOrderedByName(lhs, before: rhs)
+        }
+    }
+
+    nonisolated static func filter(
         _ communities: [Community],
         searchQuery: String,
         selectedInterestTag: String?
     ) -> [Community] {
         let trimmed = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         return communities.filter { community in
-            if let selectedInterestTag, community.interestTag != selectedInterestTag {
-                return false
+            if let selectedInterestTag {
+                let normalizedSelection = selectedInterestTag.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+                let normalizedCommunityTag = community.interestTag.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+                if normalizedCommunityTag.localizedCaseInsensitiveCompare(normalizedSelection)
+                    != .orderedSame {
+                    return false
+                }
             }
             guard !trimmed.isEmpty else { return true }
             return community.name.localizedCaseInsensitiveContains(trimmed)
                 || community.description.localizedCaseInsensitiveContains(trimmed)
                 || community.interestTag.localizedCaseInsensitiveContains(trimmed)
         }
+    }
+
+    private nonisolated static func isOrderedByName(
+        _ lhs: Community,
+        before rhs: Community
+    ) -> Bool {
+        let comparison = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+        if comparison != .orderedSame {
+            return comparison == .orderedAscending
+        }
+        return lhs.id < rhs.id
     }
 }

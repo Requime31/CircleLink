@@ -92,7 +92,17 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([])
+        completionHandler(Self.foregroundPresentationOptions(
+            notificationIdentifier: notification.request.identifier
+        ))
+    }
+
+    static func foregroundPresentationOptions(
+        notificationIdentifier: String
+    ) -> UNNotificationPresentationOptions {
+        notificationIdentifier == UserNotificationReminderScheduler.identifier
+            ? [.banner, .sound]
+            : []
     }
 
     /// User tapped a notification — parse payload and forward to AppCoordinator.

@@ -53,7 +53,9 @@ enum FirestoreChatMapper {
         avatarURL: URL? = nil,
         avatarBase64: String? = nil,
         peerUserId: String? = nil,
-        isMuted: Bool = false
+        isMuted: Bool = false,
+        isPinned: Bool = false,
+        pinOrder: Int? = nil
     ) throws -> ChatSummary {
         let data = document.data() ?? [:]
         let typeRaw = data["type"] as? String ?? ChatType.direct.rawValue
@@ -72,7 +74,9 @@ enum FirestoreChatMapper {
             avatarBase64: avatarBase64,
             communityId: resolvedCommunityId,
             peerUserId: peerUserId,
-            isMuted: isMuted
+            isMuted: isMuted,
+            isPinned: isPinned,
+            pinOrder: pinOrder
         )
     }
 
@@ -80,11 +84,11 @@ enum FirestoreChatMapper {
     /// so peer merges cannot wipe the owner's mute/hide state.
     static func chatRefData(
         lastMessageText: String?,
-        lastMessageAt: Date
+        lastMessageAt: Timestamp
     ) -> [String: Any] {
         [
             "lastMessageText": lastMessageText as Any? ?? NSNull(),
-            "lastMessageAt": Timestamp(date: lastMessageAt)
+            "lastMessageAt": lastMessageAt
         ]
     }
 
@@ -94,6 +98,18 @@ enum FirestoreChatMapper {
 
     static func isMutedChatRef(_ data: [String: Any]) -> Bool {
         data["muted"] as? Bool == true
+    }
+
+    static func pinMetadata(
+        from data: [String: Any],
+        isHidden: Bool? = nil
+    ) -> (isPinned: Bool, pinOrder: Int?) {
+        let hidden = isHidden ?? isHiddenChatRef(data)
+        guard !hidden, data["pinned"] as? Bool == true else {
+            return (false, nil)
+        }
+        let order = data["pinOrder"] as? Int
+        return (true, order.flatMap { $0 >= 0 ? $0 : nil })
     }
 
     static func clearedAt(from data: [String: Any]) -> Date? {

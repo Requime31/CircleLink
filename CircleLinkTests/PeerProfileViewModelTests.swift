@@ -4,6 +4,32 @@ import Testing
 
 @MainActor
 struct PeerProfileViewModelTests {
+    @Test func blockSuccessNotifiesOwnerAndCompletes() async {
+        let moderation = MockModerationRepository()
+        var blockedId: String?
+        let viewModel = makeViewModel(
+            mode: .social,
+            moderationRepository: moderation,
+            onBlocked: { blockedId = $0 }
+        )
+        await viewModel.load()
+
+        #expect(await viewModel.block())
+        #expect(viewModel.didBlock)
+        #expect(blockedId == "peer-1")
+    }
+
+    @Test func blockFailureKeepsProfileAvailableForRetry() async {
+        let moderation = MockModerationRepository()
+        moderation.blockError = NSError(domain: "test", code: 2, userInfo: [NSLocalizedDescriptionKey: "Try again"])
+        let viewModel = makeViewModel(mode: .social, moderationRepository: moderation)
+        await viewModel.load()
+
+        #expect(await viewModel.block() == false)
+        #expect(viewModel.didBlock == false)
+        #expect(viewModel.blockErrorMessage == "Try again")
+    }
+
     @Test func likedYouLikeAcceptsAndCompletes() async {
         let connections = MockConnectionRepository()
         connections.incoming = [
@@ -183,7 +209,9 @@ struct PeerProfileViewModelTests {
         userRepository: MockUserRepository = MockUserRepository(),
         communityRepository: MockCommunityRepository = MockCommunityRepository(),
         profilePostRepository: MockProfilePostRepository = MockProfilePostRepository(),
-        chatRepository: MockChatRepository = MockChatRepository()
+        chatRepository: MockChatRepository = MockChatRepository(),
+        moderationRepository: MockModerationRepository = MockModerationRepository(),
+        onBlocked: @escaping (String) -> Void = { _ in }
     ) -> PeerProfileViewModel {
         PeerProfileViewModel(
             userId: "peer-1",
@@ -192,7 +220,9 @@ struct PeerProfileViewModelTests {
             connectionRepository: connectionRepository,
             communityRepository: communityRepository,
             profilePostRepository: profilePostRepository,
-            chatRepository: chatRepository
+            chatRepository: chatRepository,
+            moderationRepository: moderationRepository,
+            onBlocked: onBlocked
         )
     }
 }

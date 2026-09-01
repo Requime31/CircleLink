@@ -55,7 +55,7 @@ final class ChatMessageSearchViewModel: ObservableObject {
         }
 
         var matches: [Message] = []
-        var cursor: Date?
+        var cursor: MessagePageCursor?
         let lowered = term.lowercased()
 
         do {
@@ -75,7 +75,7 @@ final class ChatMessageSearchViewModel: ObservableObject {
                     }
                 }
 
-                cursor = page.first?.createdAt
+                cursor = page.first.map(MessagePageCursor.init(message:))
                 if page.count < pageSize { break }
                 if matches.count >= 40 { break }
             }

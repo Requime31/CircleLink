@@ -10,13 +10,18 @@ struct AvatarImageView: View {
     let size: CGFloat
 
     @State private var remoteImage: UIImage?
+    @State private var remoteImageURL: URL?
 
     var body: some View {
-        avatarContent
+        ZStack {
+            avatarContent
+                .frame(width: size, height: size)
+        }
             .frame(width: size, height: size)
+            .clipped()
             .clAvatarClip()
             .accessibilityHidden(true)
-            .task(id: avatarURL) {
+            .task(id: loadKey) {
                 await loadRemoteImage()
             }
     }
@@ -31,7 +36,7 @@ struct AvatarImageView: View {
             Image(uiImage: base64Image)
                 .resizable()
                 .scaledToFill()
-        } else if let remoteImage {
+        } else if let remoteImage, remoteImageURL == avatarURL {
             Image(uiImage: remoteImage)
                 .resizable()
                 .scaledToFill()
@@ -56,24 +61,38 @@ struct AvatarImageView: View {
     }
 
     private func loadRemoteImage() async {
+        // A reused SwiftUI row can keep its @State while the model changes.
+        // Clear pixels first so a previous person's avatar never flashes.
+        remoteImage = nil
+        remoteImageURL = nil
         guard localPreview == nil,
-              avatarBase64 == nil || avatarBase64?.isEmpty == true,
+              decodeBase64(avatarBase64) == nil,
               let avatarURL else {
             return
         }
 
-        // Keep current pixels if we already have them (or cache hit).
-        if remoteImage != nil { return }
         if let cached = ImageLoader.shared.cachedImage(for: avatarURL) {
             remoteImage = cached
+            remoteImageURL = avatarURL
             return
         }
 
         do {
-            remoteImage = try await ImageLoader.shared.load(from: avatarURL)
+            let loaded = try await ImageLoader.shared.load(from: avatarURL)
+            guard Task.isCancelled == false, self.avatarURL == avatarURL else { return }
+            remoteImage = loaded
+            remoteImageURL = loaded == nil ? nil : avatarURL
         } catch {
-            // Keep placeholder; don't clear a good image on transient failure.
+            // Keep the source-specific placeholder on failure.
         }
+    }
+
+    private var loadKey: AvatarLoadKey {
+        AvatarLoadKey(
+            localPreviewID: localPreview.map(ObjectIdentifier.init),
+            base64: avatarBase64,
+            url: avatarURL
+        )
     }
 
     private func decodeBase64(_ value: String?) -> UIImage? {
@@ -83,4 +102,10 @@ struct AvatarImageView: View {
         }
         return UIImage(data: data)
     }
+}
+
+private struct AvatarLoadKey: Hashable {
+    let localPreviewID: ObjectIdentifier?
+    let base64: String?
+    let url: URL?
 }

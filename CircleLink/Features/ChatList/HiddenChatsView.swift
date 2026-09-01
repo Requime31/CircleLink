@@ -10,30 +10,59 @@ struct HiddenChatsView: View {
     @State private var searchText = ""
     @State private var previewCache: [String: [ChatMessageItem]] = [:]
     @State private var previewLoadingIds: Set<String> = []
+    @FocusState private var isSearchFocused: Bool
 
     private var chats: [ChatSummary] {
         viewModel.filteredHiddenChats(matching: searchText)
     }
 
     var body: some View {
-        Group {
-            if chats.isEmpty {
-                emptyState
-            } else {
-                chatsList(chats)
+        VStack(spacing: 0) {
+            searchField
+
+            Group {
+                if chats.isEmpty {
+                    emptyState
+                } else {
+                    chatsList(chats)
+                }
             }
         }
         .clCanvasBackground()
         .navigationTitle("Hidden Chats")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(
-            text: $searchText,
-            placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Search hidden"
-        )
         .refreshable {
             await viewModel.loadChats(showLoading: false)
         }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: CLSpacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(CLColor.inkMuted)
+                .accessibilityHidden(true)
+
+            TextField("Search hidden", text: $searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($isSearchFocused)
+
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(CLColor.inkMuted)
+                }
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, CLSpacing.md)
+        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+        .background(CLColor.surfaceSoft)
+        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+        .padding(.horizontal, CLSpacing.screenHorizontal)
+        .padding(.vertical, CLSpacing.sm)
     }
 
     @ViewBuilder

@@ -6,6 +6,10 @@ Auth and database stay on Firebase — Supabase is **not** used for login or Fir
 Firestore / profile-post documents store only the public `imageURL` — not the binary.
 Firebase Storage is **not** required.
 
+> **Security:** uploads/downloads use HTTPS/TLS, but the current bucket and returned URLs are
+> public. Possession of an image URL is sufficient to fetch it. Private signed URLs require a
+> coordinated storage-policy and client change.
+
 ## 1. Create Supabase project
 
 1. Go to [supabase.com](https://supabase.com) → New project (free tier)

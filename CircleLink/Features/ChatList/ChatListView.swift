@@ -8,31 +8,53 @@ struct ChatListView: View {
     let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
 
     @State private var path = NavigationPath()
+    @State private var editMode: EditMode = .inactive
     @State private var previewCache: [String: [ChatMessageItem]] = [:]
     @State private var previewLoadingIds: Set<String> = []
+    @State private var isSearchPresented = false
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         NavigationStack(path: $path) {
-            Group {
-                switch viewModel.state {
-                case .idle, .loading:
-                    CLLoadingState(message: "Loading chats…")
-                case .empty:
-                    emptyState
-                case let .error(message):
-                    errorState(message: message)
-                case .loaded:
-                    mainListContent
+            VStack(spacing: 0) {
+                chatScreenTitle
+
+                if isSearchPresented {
+                    chatSearchField
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+
+                Group {
+                    switch viewModel.state {
+                    case .idle, .loading:
+                        CLLoadingState(message: "Loading chats…")
+                    case .empty:
+                        emptyState
+                    case let .error(message):
+                        errorState(message: message)
+                    case .loaded:
+                        mainListContent
+                    }
                 }
             }
             .clCanvasBackground()
-            .navigationTitle("Chats")
-            .navigationBarTitleDisplayMode(.large)
-            .searchable(
-                text: $viewModel.searchText,
-                placement: .navigationBarDrawer(displayMode: .automatic),
-                prompt: "Search chats"
-            )
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if viewModel.pinnedChats.count > 1,
+                       viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        EditButton()
+                    }
+
+                    Button {
+                        toggleSearch()
+                    } label: {
+                        Image(systemName: isSearchPresented ? "xmark" : "magnifyingglass")
+                    }
+                    .accessibilityLabel(isSearchPresented ? "Close search" : "Search chats")
+                }
+            }
             .toolbarBackground(CLColor.canvas, for: .navigationBar, .tabBar)
             .toolbarBackground(.visible, for: .navigationBar, .tabBar)
             .navigationDestination(for: ChatThreadRoute.self) { route in
@@ -61,13 +83,16 @@ struct ChatListView: View {
                 await viewModel.loadChats()
             }
             .refreshable {
-                await viewModel.loadChats()
+                await viewModel.loadChats(showLoading: false)
             }
             .onAppear {
                 consumePendingChatRoute()
             }
             .onChange(of: pendingChatRoute) { _ in
                 consumePendingChatRoute()
+            }
+            .onChange(of: path.count) { count in
+                if count > 0 { editMode = .inactive }
             }
             .onReceive(NotificationCenter.default.publisher(for: .circleLinkChatListShouldReload)) { _ in
                 Task { await viewModel.loadChats(showLoading: false) }
@@ -91,6 +116,61 @@ struct ChatListView: View {
                 Text(viewModel.actionErrorMessage ?? "")
             }
         }
+        .environment(\.editMode, $editMode)
+        .onDisappear { editMode = .inactive }
+    }
+
+    private var chatScreenTitle: some View {
+        Text("Chats")
+            .font(CLTypography.largeTitle)
+            .foregroundStyle(CLColor.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, CLSpacing.screenHorizontal)
+            .padding(.top, CLSpacing.xs)
+            .padding(.bottom, CLSpacing.md)
+            .background(CLColor.canvas)
+            .zIndex(1)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var chatSearchField: some View {
+        HStack(spacing: CLSpacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(CLColor.inkMuted)
+
+            TextField("Search chats", text: $viewModel.searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .focused($isSearchFocused)
+
+            if !viewModel.searchText.isEmpty {
+                Button {
+                    viewModel.searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(CLColor.inkMuted)
+                }
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, CLSpacing.md)
+        .frame(minHeight: 44)
+        .background(CLColor.surfaceSoft)
+        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+        .padding(.horizontal, CLSpacing.screenHorizontal)
+        .padding(.bottom, CLSpacing.sm)
+    }
+
+    private func toggleSearch() {
+        withAnimation(.easeOut(duration: 0.2)) {
+            isSearchPresented.toggle()
+        }
+        if isSearchPresented {
+            DispatchQueue.main.async { isSearchFocused = true }
+        } else {
+            isSearchFocused = false
+            viewModel.searchText = ""
+        }
     }
 
     @ViewBuilder
@@ -99,11 +179,11 @@ struct ChatListView: View {
 
         if chats.isEmpty && viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // Loaded but all hidden — still show hidden entry.
-            chatsList([])
+            chatsList
         } else if chats.isEmpty {
             searchEmptyState
         } else {
-            chatsList(chats)
+            chatsList
         }
     }
 
@@ -134,93 +214,52 @@ struct ChatListView: View {
     }
 
     @ViewBuilder
-    private func chatsList(_ chats: [ChatSummary]) -> some View {
+    private var chatsList: some View {
         List {
-            Section {
-                Button {
-                    path.append(HiddenChatsRoute())
-                } label: {
-                    hiddenChatsRow
-                }
-                .buttonStyle(.plain)
-                .listRowBackground(CLColor.canvas)
-                .listRowInsets(ChatListRowView.listRowInsets)
-                .listRowSeparatorTint(CLColor.hairline)
-                .accessibilityLabel(
-                    viewModel.hiddenCount > 0
-                        ? "Hidden chats, \(viewModel.hiddenCount) conversations"
-                        : "Hidden chats"
-                )
+            Button {
+                path.append(HiddenChatsRoute())
+            } label: {
+                hiddenChatsRow
             }
-            .listSectionSeparator(.hidden, edges: [.top, .bottom])
+            .buttonStyle(.plain)
+            .listRowBackground(CLColor.canvas)
+            .listRowInsets(ChatListRowView.listRowInsets)
+            .listRowSeparatorTint(CLColor.hairline)
+            .listRowSeparator(.visible, edges: .bottom)
+            .accessibilityLabel(
+                viewModel.hiddenCount > 0
+                    ? "Hidden chats, \(viewModel.hiddenCount) conversations"
+                    : "Hidden chats"
+            )
 
-            Section {
-                ForEach(chats) { chat in
-                    Button {
-                        openThread(
-                            ChatThreadRoute(
-                                chatId: chat.id,
-                                title: chat.title,
-                                communityId: chat.communityId
-                            )
-                        )
-                    } label: {
-                        ChatListRowView(chat: chat)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(ChatListAccessibility.label(for: chat))
+            if !viewModel.pinnedChats.isEmpty {
+                Text("Pinned")
+                    .font(CLTypography.caption.weight(.semibold))
+                    .foregroundStyle(CLColor.inkSecondary)
+                    .textCase(.uppercase)
                     .listRowBackground(CLColor.canvas)
-                    .listRowInsets(ChatListRowView.listRowInsets)
-                    .listRowSeparatorTint(CLColor.hairline)
-                    .contextMenu {
-                        Button {
-                            openThread(
-                                ChatThreadRoute(
-                                    chatId: chat.id,
-                                    title: chat.title,
-                                    communityId: chat.communityId
-                                )
-                            )
-                        } label: {
-                            Label("Open Chat", systemImage: "bubble.left")
-                        }
+                    .listRowInsets(EdgeInsets(
+                        top: CLSpacing.md,
+                        leading: CLSpacing.screenHorizontal,
+                        bottom: CLSpacing.xs,
+                        trailing: CLSpacing.screenHorizontal
+                    ))
+                    .listRowSeparator(.hidden)
 
-                        Button {
-                            Task {
-                                await viewModel.setMuted(chatId: chat.id, muted: !chat.isMuted)
-                            }
-                        } label: {
-                            Label(
-                                chat.isMuted ? "Unmute" : "Mute",
-                                systemImage: chat.isMuted ? "bell" : "bell.slash"
-                            )
-                        }
-
-                        Button {
-                            path.append(ChatInfoRoute(chatId: chat.id))
-                        } label: {
-                            Label("Info", systemImage: "info.circle")
-                        }
-
-                        Button {
-                            Task { await viewModel.hideChat(chatId: chat.id) }
-                        } label: {
-                            Label("Hide", systemImage: "eye.slash")
-                        }
-                    } preview: {
-                        ConversationPeekPreview(
-                            chatTitle: chat.title,
-                            isGroup: chat.type == .group,
-                            messages: previewCache[chat.id] ?? [],
-                            isLoading: previewLoadingIds.contains(chat.id)
-                        )
-                        .task {
-                            await loadPreviewIfNeeded(for: chat.id)
-                        }
-                    }
+                ForEach(Array(viewModel.pinnedChats.enumerated()), id: \.element.id) { index, chat in
+                    chatRow(chat, pinnedIndex: index, pinnedCount: viewModel.pinnedChats.count)
                 }
+                .onMove { source, destination in
+                    var ids = viewModel.pinnedChats.map(\.id)
+                    ids.move(fromOffsets: source, toOffset: destination)
+                    Task { await viewModel.reorderPinnedChats(chatIds: ids) }
+                }
+                .listRowSeparator(.visible, edges: .bottom)
             }
-            .listSectionSeparator(.hidden, edges: [.top, .bottom])
+
+            ForEach(viewModel.unpinnedChats) { chat in
+                chatRow(chat)
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -228,27 +267,98 @@ struct ChatListView: View {
         .clAppear()
     }
 
+    private func chatRow(
+        _ chat: ChatSummary,
+        pinnedIndex: Int? = nil,
+        pinnedCount: Int = 0
+    ) -> some View {
+        Button {
+            openThread(
+                ChatThreadRoute(chatId: chat.id, title: chat.title, communityId: chat.communityId)
+            )
+        } label: {
+            ChatListRowView(chat: chat)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(ChatListAccessibility.label(for: chat))
+        .accessibilityValue(chat.isPinned ? "Pinned" : "")
+        .accessibilityActions {
+            if let pinnedIndex, pinnedIndex > 0 {
+                Button("Move up") {
+                    Task { await viewModel.movePinnedChat(chatId: chat.id, by: -1) }
+                }
+            }
+            if let pinnedIndex, pinnedIndex < pinnedCount - 1 {
+                Button("Move down") {
+                    Task { await viewModel.movePinnedChat(chatId: chat.id, by: 1) }
+                }
+            }
+        }
+        .listRowBackground(CLColor.canvas)
+        .listRowInsets(ChatListRowView.listRowInsets)
+        .listRowSeparatorTint(CLColor.hairline)
+        .contextMenu {
+            Button {
+                openThread(ChatThreadRoute(chatId: chat.id, title: chat.title, communityId: chat.communityId))
+            } label: {
+                Label("Open Chat", systemImage: "bubble.left")
+            }
+
+            Button {
+                Task { await viewModel.setPinned(chatId: chat.id, pinned: !chat.isPinned) }
+            } label: {
+                Label(chat.isPinned ? "Unpin" : "Pin", systemImage: chat.isPinned ? "pin.slash" : "pin")
+            }
+            .disabled(viewModel.isPinMutationInFlight)
+
+            Button {
+                Task { await viewModel.setMuted(chatId: chat.id, muted: !chat.isMuted) }
+            } label: {
+                Label(chat.isMuted ? "Unmute" : "Mute", systemImage: chat.isMuted ? "bell" : "bell.slash")
+            }
+
+            Button {
+                path.append(ChatInfoRoute(chatId: chat.id))
+            } label: {
+                Label("Info", systemImage: "info.circle")
+            }
+
+            Button {
+                Task { await viewModel.hideChat(chatId: chat.id) }
+            } label: {
+                Label("Hide", systemImage: "eye.slash")
+            }
+        } preview: {
+            ConversationPeekPreview(
+                chatTitle: chat.title,
+                isGroup: chat.type == .group,
+                messages: previewCache[chat.id] ?? [],
+                isLoading: previewLoadingIds.contains(chat.id)
+            )
+            .task { await loadPreviewIfNeeded(for: chat.id) }
+        }
+    }
+
     private var hiddenChatsRow: some View {
         HStack(spacing: CLSpacing.md) {
-            Image(systemName: "archivebox")
-                .font(.system(size: 18, weight: .medium))
+            Image(systemName: "eye.slash")
+                .font(.system(size: 21, weight: .medium))
                 .foregroundStyle(CLColor.inkSecondary)
-                .frame(width: 40, height: 40)
+                .frame(width: 56, height: 56)
                 .background(
-                    RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
-                        .fill(CLColor.surfaceSoft)
+                    Circle().fill(CLColor.surfaceSoft)
                 )
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
                 Text("Hidden Chats")
-                    .font(CLTypography.footnote)
+                    .font(CLTypography.body)
                     .foregroundStyle(CLColor.ink)
                 Text(
                     viewModel.hiddenCount == 0
                         ? "No hidden conversations"
                         : "\(viewModel.hiddenCount) conversations"
                 )
-                .font(CLTypography.caption)
+                .font(CLTypography.subheadline)
                 .foregroundStyle(CLColor.inkSecondary)
             }
 
@@ -258,7 +368,7 @@ struct ChatListView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(CLColor.inkMuted)
         }
-        .padding(.vertical, CLSpacing.sm)
+        .padding(.vertical, ChatListRowView.rowVerticalPadding)
         .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         .contentShape(Rectangle())
     }

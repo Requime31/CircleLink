@@ -21,9 +21,9 @@ final class StubChatRepository: ChatRepository, @unchecked Sendable {
         )
     }
 
-    func fetchMessages(chatId: String, limit: Int, before: Date?) async throws -> [Message] { [] }
+    func fetchMessages(chatId: String, limit: Int, before: MessagePageCursor?) async throws -> [Message] { [] }
 
-    func fetchChatMedia(chatId: String, limit: Int, before: Date?) async throws -> [Message] { [] }
+    func fetchChatMedia(chatId: String, limit: Int, before: MessagePageCursor?) async throws -> [Message] { [] }
 
     func sendMessage(chatId: String, text: String?, image: Data?, clientMessageId: String) async throws {}
 
@@ -44,6 +44,10 @@ final class StubChatRepository: ChatRepository, @unchecked Sendable {
     func leaveGroupChat(communityId: String) async throws {}
 
     func setChatMuted(chatId: String, muted: Bool) async throws {}
+
+    func setChatPinned(chatId: String, pinned: Bool) async throws {}
+
+    func reorderPinnedChats(chatIds: [String]) async throws {}
 
     func hideChat(chatId: String) async throws {}
 

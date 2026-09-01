@@ -11,10 +11,8 @@ Related memory: [PROJECT.md](PROJECT.md) · [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md)
 1. **Analyze first** — understand the problem, propose architecture / boundaries, wait for approval on non-trivial work.
 2. **Do not implement the whole app or a full redesign in one shot** — small increments only.
 3. **UI work:** read root [`DESIGN.md`](../../DESIGN.md) first (especially §0). Summary: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).
-4. **UI redesign screens:** open the matching Stitch `screen.png` (and `code.html` if needed) from:
-   `/Users/romanshevchenko/Desktop/iOS/stitch_circlelink_visual_redesign_brief`  
-   Also follow `.cursor/rules/ui-redisign-design-source.mdc`.
-5. **New feature work:** create a **new local git branch** before implementing (easy reset). For redesign / visual work, branch from `ui-redisign` (or related redesign branches) — see [DECISIONS.md](DECISIONS.md).
+4. **UI redesign screens:** when the local Stitch export exists, open the matching `screen.png` (and `code.html` if needed) under `stitch_circlelink_visual_redesign_brief/`. Also follow `.cursor/rules/ui-redisign-design-source.mdc` when that rule exists.
+5. **Git branch:** obey the user's branch instruction. If none is given, confirm before creating or switching branches. The current visual-redesign integration line is `ui-redisign`; see [DECISIONS.md](DECISIONS.md).
 
 ---
 
@@ -47,9 +45,12 @@ There is **no UseCase layer** in this MVP.
 - **Source of truth:** root `DESIGN.md` (Sunset Parchment). `docs/ai/DESIGN_SYSTEM.md` is a short memory aid — do not invent a second system.
 - Tokens live in Swift as `CLColor` / `CLSpacing` / `CLRadius` / `CLTheme` under `CircleLink/Shared/Design/`.
 - Adapt Stitch layout to existing CircleLink architecture — **do not paste HTML as-is**.
-- Respect **§0 intentional exceptions** (circle avatars in Chats; circle Pass / Say Hi / Back on Connect). Do not “fix consistency” by converting them to squircles.
+- Avatars are **squircles everywhere, including Chats**. The intentional circle exception is Connect's Pass / Say Hi / Back action row.
 - Soft CTA (`accentSoft` + ink) is default; solid clay is rare (FAB, Say Hi, unread accents).
 - `screenHorizontal` = **20** everywhere.
+- Navigation roots: system large for Communities/Profile, inline for Connect, and a static
+  ink content header for Chats. A custom principal title is allowed only in a chat thread
+  because it is an info control.
 - Light-first; no purple brand accent; no neon/glow.
 
 ---
@@ -68,6 +69,8 @@ There is **no UseCase layer** in this MVP.
 - **Do not look inside `.env`.**
 - Do not commit secrets (`GoogleService-Info.plist`, `SupabaseSecrets.plist`, credentials). Use `*.example` files as templates.
 - Stay on Firebase **Spark** guidance in README: do not treat `functions/` as the active push path (push worker is `websocket-server/`).
+- Never describe chat as E2EE: current message text/previews are plaintext Firestore fields;
+  TLS protects transport only. Supabase chat images currently use public URLs.
 
 ---
 

@@ -2,13 +2,15 @@
 
 iOS community messenger MVP: interest-based communities, Connect matching, and chat.
 
-- **UI:** SwiftUI screens + UIKit chat
+- **UI:** SwiftUI screens + UIKit chat thread
 - **Backend:** Firebase Auth + Firestore (Spark plan)
 - **Chat images:** Supabase Storage
 - **Realtime chat:** Firestore listeners (not WebSocket on iOS)
 - **Push:** FCM via Node worker in `websocket-server/` (Spark — no Cloud Functions / Blaze)
 
 Minimum iOS: **16+**.
+
+Current integration branch: **`ui-redisign`**.
 
 ---
 
@@ -92,22 +94,21 @@ More detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
-## Phases
+## Current product surface
 
-| Phase | What | Status |
-|---|---|---|
-| 0–2 | App shell, Firebase auth, age gate | Done |
-| 3 | Profile setup / edit, avatars | Done |
-| 4 | WebSocket server foundation (iOS client later removed) | Done |
-| 5 | Communities (join / leave) | Done |
-| 6 | UIKit chat + Supabase image upload | Done |
-| 7–8 | Live messaging → chat list + Connect | Done |
-| 9 | FCM push + deep links | Done |
-| 10 | Stabilize MVP, a11y, remove iOS WebSocket | Done |
-| 11 | ViewModel unit tests (Swift Testing) | Done |
-| **12** | **Junior docs (this)** | **In progress** |
-| 13 | UI polish | Next |
-| 14+ | Product features | Later |
+| Area | Implemented behavior |
+|---|---|
+| Launch/auth | Branded bootstrap animation, Apple/email auth, age gate, profile setup |
+| Communities | Discovery, search, create/edit, join/leave, posts, media, members, group chat |
+| Chats | Visible/hidden lists, pin/reorder, mute, search, media, info and UIKit thread |
+| Connect | Discover, incoming/outgoing requests, matches, direct-chat entry, report/block |
+| Profile/settings | Profile posts, appearance, reminders, notifications, legal/help/rating, blocked people |
+| Account lifecycle | Soft deactivation, 30-day recovery, external cleanup worker |
+| Backend | Firestore realtime, FCM push worker, Supabase image storage, hardened rules/indexes |
+| Quality | Swift Testing coverage for ViewModels, data policies and navigation helpers |
+
+The old numbered phase plan is historical. Current implementation notes live in
+[`docs/ai/PROJECT.md`](docs/ai/PROJECT.md) and [`docs/ai/DECISIONS.md`](docs/ai/DECISIONS.md).
 
 ---
 
@@ -119,3 +120,4 @@ More detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 | [websocket-server/README.md](websocket-server/README.md) | FCM push worker |
 | [CircleLink/App/FIREBASE_SETUP.md](CircleLink/App/FIREBASE_SETUP.md) | Firebase Auth / Firestore / FCM |
 | [CircleLink/App/SUPABASE_SETUP.md](CircleLink/App/SUPABASE_SETUP.md) | Chat image storage |
+| [docs/ai/](docs/ai/) | LLM wiki: project map, decisions, design memory and agent rules |

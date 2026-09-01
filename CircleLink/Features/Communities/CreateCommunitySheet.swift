@@ -3,75 +3,78 @@ import SwiftUI
 struct CreateCommunitySheet: View {
     @ObservedObject var viewModel: CommunitiesViewModel
     let onDismiss: () -> Void
+    @State private var draft = CommunityFormDraft()
+    @State private var showsDiscardConfirmation = false
 
-    @State private var name = ""
-    @State private var description = ""
-    @State private var interestTag = ProfileInterests.presets.first ?? "Sports"
+    private var isValid: Bool {
+        (try? CommunityContentPolicy.validate(name: draft.name, description: draft.description)) != nil
+    }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("Name", text: $name)
-                        .accessibilityLabel("Community name")
-                    TextField("Description (optional)", text: $description, axis: .vertical)
-                        .lineLimit(3...6)
-                        .accessibilityLabel("Community description")
-                }
+            ScrollView {
+                CommunityFormContent(draft: $draft, showsInterest: true, isBusy: viewModel.isCreating)
+                    .padding(.horizontal, CLSpacing.screenHorizontal)
+                    .padding(.vertical, CLSpacing.lg)
 
-                Section("Interest") {
-                    Picker("Interest", selection: $interestTag) {
-                        ForEach(ProfileInterests.presets, id: \.self) { tag in
-                            Text(tag).tag(tag)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .accessibilityLabel("Community interest")
-                }
-
-                if let createErrorMessage = viewModel.createErrorMessage {
-                    Section {
-                        Text(createErrorMessage)
-                            .font(CLTypography.callout)
-                            .foregroundStyle(CLColor.error)
-                            .accessibilityLabel("Create error: \(createErrorMessage)")
-                    }
+                if let error = viewModel.createErrorMessage {
+                    Text(error)
+                        .font(CLTypography.callout)
+                        .foregroundStyle(CLColor.error)
+                        .padding(.horizontal, CLSpacing.screenHorizontal)
+                        .padding(.bottom, CLSpacing.lg)
+                        .accessibilityLabel("Create error: \(error)")
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
+            .clCanvasBackground()
             .navigationTitle("New Community")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onDismiss)
-                        .disabled(viewModel.isCreating)
+                    Button("Cancel", action: requestDismiss).disabled(viewModel.isCreating)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        Task {
-                            let didCreate = await viewModel.createCommunity(
-                                name: name,
-                                description: description,
-                                interestTag: interestTag
-                            )
-                            if didCreate {
-                                onDismiss()
-                            }
-                        }
+                    Button(viewModel.hasPendingCreatedCommunity ? "Retry Save" : "Create") {
+                        Task { await submit() }
                     }
-                    .disabled(viewModel.isCreating || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(viewModel.isCreating || !isValid)
                     .accessibilityLabel("Create community")
                 }
             }
             .overlay {
                 if viewModel.isCreating {
-                    ProgressView("Creating…")
+                    ProgressView(viewModel.hasPendingCreatedCommunity ? "Saving cover…" : "Creating…")
                         .padding(CLSpacing.md)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CLRadius.md))
                 }
             }
-            .onAppear {
-                viewModel.clearCreateError()
+            .interactiveDismissDisabled(draft.isDirty || viewModel.isCreating)
+            .confirmationDialog("Discard community draft?", isPresented: $showsDiscardConfirmation) {
+                Button("Discard Draft", role: .destructive, action: onDismiss)
+                Button("Keep Editing", role: .cancel) {}
+            } message: {
+                Text("Your unsaved changes will be lost.")
             }
+            .onAppear { viewModel.clearCreateError() }
         }
+    }
+
+    private func requestDismiss() {
+        if draft.isDirty || viewModel.hasPendingCreatedCommunity {
+            showsDiscardConfirmation = true
+        } else {
+            onDismiss()
+        }
+    }
+
+    private func submit() async {
+        let didCreate = await viewModel.createCommunity(
+            name: draft.name,
+            description: draft.description,
+            interestTag: draft.interestTag,
+            coverImage: draft.selectedCoverData
+        )
+        if didCreate { onDismiss() }
     }
 }
