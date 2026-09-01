@@ -10,7 +10,16 @@ iOS community messenger MVP: interest-based communities, Connect matching, and c
 
 Minimum iOS: **16+**.
 
-Current integration branch: **`ui-redisign`**.
+## Branches
+
+| Branch | Purpose |
+|---|---|
+| `main` | Canonical, current product state |
+| `develop` | Integration branch; currently aligned with `main` |
+| `ui-redisign` | Preserved source branch for the completed Sunset Parchment redesign |
+
+Start new work from `develop` unless a task explicitly requires another base. Do not
+rewrite or delete `ui-redisign`; it remains the traceable source of the redesign.
 
 ---
 
