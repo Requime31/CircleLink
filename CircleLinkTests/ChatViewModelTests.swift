@@ -236,4 +236,106 @@ struct ChatViewModelTests {
         #expect(didSuspendFetch)
         #expect(repo.liveContinuation == nil)
     }
+
+    @Test func livePeerProfileUpdateRedecoratesLoadedMessagesWithoutReloadingHistory() async throws {
+        let chatRepository = MockChatRepository()
+        chatRepository.chatInfoParticipants = [
+            User(id: "peer-1", displayName: "Old name", avatarBase64: "old-avatar")
+        ]
+        chatRepository.messages = [
+            Message(
+                id: "message-1",
+                chatId: "chat-1",
+                senderId: "peer-1",
+                text: "Hello",
+                imageURL: nil,
+                createdAt: Date(),
+                clientMessageId: "message-1",
+                status: .sent
+            )
+        ]
+        let users = LiveProfileTestRepository()
+        let viewModel = ChatViewModel(
+            chatId: "chat-1",
+            currentUserId: "user-1",
+            chatRepository: chatRepository,
+            chatTitle: "Old name",
+            peerUserId: "peer-1",
+            userRepository: users
+        )
+
+        await viewModel.loadInitialMessages()
+        viewModel.onAppear()
+        await users.waitUntilObserved()
+        users.yield(User(id: "peer-1", displayName: "New name", avatarBase64: "new-avatar"))
+
+        for _ in 0..<30 where viewModel.messages.first?.senderAvatarBase64 != "new-avatar" {
+            await Task.yield()
+        }
+
+        #expect(viewModel.messages.count == 1)
+        #expect(viewModel.messages.first?.text == "Hello")
+        #expect(viewModel.messages.first?.senderLabel == "New name")
+        #expect(viewModel.messages.first?.senderAvatarBase64 == "new-avatar")
+        #expect(viewModel.chatTitle == "New name")
+        viewModel.onDisappear()
+    }
+
+    @Test func peerProfileObservationStopsWhenChatDisappears() async {
+        let users = LiveProfileTestRepository()
+        let viewModel = ChatViewModel(
+            chatId: "chat-1",
+            currentUserId: "user-1",
+            chatRepository: MockChatRepository(),
+            chatTitle: "Original",
+            peerUserId: "peer-1",
+            userRepository: users
+        )
+
+        viewModel.onAppear()
+        await users.waitUntilObserved()
+        viewModel.onDisappear()
+        await Task.yield()
+        users.yield(User(id: "peer-1", displayName: "Too late"))
+        await Task.yield()
+
+        #expect(viewModel.chatTitle == "Original")
+    }
+}
+
+private final class LiveProfileTestRepository: UserRepository, @unchecked Sendable {
+    private let queue = DispatchQueue(label: "LiveProfileTestRepository")
+    private var continuation: AsyncThrowingStream<User, Error>.Continuation?
+
+    func waitUntilObserved() async {
+        for _ in 0..<100 {
+            let isObserved = queue.sync { continuation != nil }
+            if isObserved { return }
+            await Task.yield()
+        }
+    }
+
+    func yield(_ user: User) {
+        let streamContinuation = queue.sync { self.continuation }
+        streamContinuation?.yield(user)
+    }
+
+    func observeProfiles(userIds: Set<String>) -> AsyncThrowingStream<User, Error> {
+        AsyncThrowingStream { continuation in
+            queue.sync {
+                self.continuation = continuation
+            }
+        }
+    }
+
+    func fetchProfile(userId: String) async throws -> User { throw TestError.unsupported }
+    func updateProfile(_ user: User) async throws { throw TestError.unsupported }
+    func confirmAge(birthDate: Date) async throws { throw TestError.unsupported }
+    func confirmAge() async throws { throw TestError.unsupported }
+    func requestAccountDeletion(now: Date) async throws { throw TestError.unsupported }
+    func restoreAccount() async throws { throw TestError.unsupported }
+    func updateFCMToken(_ token: String) async throws { throw TestError.unsupported }
+    func clearFCMToken() async throws { throw TestError.unsupported }
+
+    private enum TestError: Error { case unsupported }
 }

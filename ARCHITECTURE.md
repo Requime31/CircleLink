@@ -43,10 +43,9 @@ View → ViewModel → Repository protocol ← Data implementation
 8. **Birth date stays private and date-only** — store it only at `users/{uid}/private/account` as Gregorian UTC noon; public profile documents contain derived `age`
 9. **Account deactivation is soft and reversible for 30 days** — `users/{uid}` owns `accountState`, `deletionRequestedAt`, and `scheduledDeletionAt`; new social interactions require active participants
 10. **Deactivated sessions are recovery-only** — the root coordinator routes them to account recovery before age/profile/main gates; restore refetches the profile before normal routing
-11. **Physical account cleanup is external and retryable** — the `websocket-server` CLI claims due profiles transactionally, anonymizes preserved content, deletes private/related records and Auth, then deletes the public profile last
-12. **No UseCase layer** — ViewModel calls the repository protocol directly
-13. **Firebase Spark only** — do not deploy `functions/` or require Blaze; FCM goes through `websocket-server/`
-14. **UI follows DESIGN.md** — read it before any visual work; do not invent colors, spacing, or components
+11. **No UseCase layer** — ViewModel calls the repository protocol directly
+12. **Firebase Spark only** — no Cloud Functions or Blaze-only services
+13. **UI follows DESIGN.md** — read it before any visual work; do not invent colors, spacing, or components
 
 ## Real-Time Model
 
@@ -54,7 +53,7 @@ View → ViewModel → Repository protocol ← Data implementation
 |---|---|---|
 | **Firestore listeners** | Instant delivery while the app process is alive (chat screen open) | Foreground / process alive |
 | **Firestore reads** | History and pagination (`fetchMessages`) | Always |
-| **FCM** | Push when app is backgrounded / killed | Node `websocket-server` push worker → Admin Messaging |
+| **FCM** | The client registers tokens and handles notification taps; delivery requires an external sender not included in this repository | Background / killed |
 
 Listeners do **not** replace push. If the process is dead, delivery waits for FCM.
 
@@ -70,13 +69,12 @@ FCM tap
 
 - Permission is requested when the user reaches the main tabs after auth / onboarding — not on cold launch.
 - Token stored at `users/{userId}/private/account.fcmToken` (not part of the public `User` document).
-- **Server (Spark / no Blaze):** `websocket-server` Firestore listeners → FCM. See `websocket-server/README.md`.
-- Cloud Functions under `functions/` are **not used** (would require Blaze).
+- The repository does not include a server-side FCM sender.
 
 ### Realtime path (current)
 
 Chat delivery uses **Firestore `addSnapshotListener`** on `chats/{chatId}/messages`.
-The iOS WebSocket client was removed in Phase 10. `websocket-server/` remains for the **FCM push worker** only (not for chat transport).
+The iOS WebSocket client and the legacy Node WebSocket server have been removed.
 
 Historical baseline: branch `websocketlocal` still has the old WebSocket chat path.
 
@@ -95,7 +93,6 @@ CircleLink/
     Stubs/       — stub repos
   Shared/        — ViewState, helpers
 CircleLinkTests/ — Swift Testing suites + mocks
-websocket-server/ — Node FCM push worker (Spark)
 ```
 
 ## State Management
@@ -179,5 +176,3 @@ change a direct-chat destination.
 - Message `text` and `lastMessageText` are stored as plaintext fields; CircleLink does **not**
   currently provide end-to-end encryption.
 - Supabase chat images currently use returned public URLs.
-- The legacy Node WebSocket listener creates HTTP/WS itself and is not the iOS message path;
-  production TLS for that endpoint requires an HTTPS/WSS reverse proxy.

@@ -27,21 +27,24 @@ final class ChatViewModel: ObservableObject {
 
     let chatId: String
     /// Navigation title — peer name for direct, community name for group.
-    let chatTitle: String
+    @Published private(set) var chatTitle: String
     /// Direct-chat peer only; `nil` for group chats.
     let peerUserId: String?
     private let chatRepository: ChatRepository
+    private let userRepository: UserRepository?
     private let moderationRepository: ModerationRepository?
     private let currentUserId: String
     private let onPeerBlocked: (() -> Void)?
     private let pageSize = 30
 
     private var liveMessagesTask: Task<Void, Never>?
+    private var peerProfileTask: Task<Void, Never>?
     private var historyClearedObserver: NSObjectProtocol?
     private var revealMessageObserver: NSObjectProtocol?
     private var knownMessageIds = Set<String>()
     private var knownClientMessageIds = Set<String>()
     private var participantsById: [String: User] = [:]
+    private var latestPeerProfile: User?
     /// Prevents overlapping report/block requests.
     private var isModerating = false
     private var pendingRevealMessageId: String?
@@ -59,6 +62,7 @@ final class ChatViewModel: ObservableObject {
         chatRepository: ChatRepository,
         chatTitle: String = "Chat",
         peerUserId: String? = nil,
+        userRepository: UserRepository? = nil,
         moderationRepository: ModerationRepository? = nil,
         onPeerBlocked: (() -> Void)? = nil
     ) {
@@ -67,6 +71,7 @@ final class ChatViewModel: ObservableObject {
         self.chatRepository = chatRepository
         self.chatTitle = chatTitle
         self.peerUserId = peerUserId
+        self.userRepository = userRepository
         self.moderationRepository = moderationRepository
         self.onPeerBlocked = onPeerBlocked
     }
@@ -74,6 +79,7 @@ final class ChatViewModel: ObservableObject {
     deinit {
         // Cancelling terminates observeLiveMessages AsyncStream → ListenerRegistration.remove().
         liveMessagesTask?.cancel()
+        peerProfileTask?.cancel()
         if let historyClearedObserver {
             NotificationCenter.default.removeObserver(historyClearedObserver)
         }
@@ -91,6 +97,7 @@ final class ChatViewModel: ObservableObject {
         if loadState == .loaded {
             startObservingLiveMessages()
         }
+        startObservingPeerProfile()
         // Keep observer for VM lifetime — Info push calls onDisappear and must not drop it.
         observeHistoryCleared()
         observeRevealMessage()
@@ -101,6 +108,8 @@ final class ChatViewModel: ObservableObject {
         isVisible = false
         liveMessagesTask?.cancel()
         liveMessagesTask = nil
+        peerProfileTask?.cancel()
+        peerProfileTask = nil
     }
 
     // MARK: - Moderation (direct chats)
@@ -421,6 +430,9 @@ final class ChatViewModel: ObservableObject {
             for user in info.participants {
                 map[user.id] = user
             }
+            if let latestPeerProfile {
+                map[latestPeerProfile.id] = latestPeerProfile
+            }
             participantsById = map
             // Refresh labels/avatars if messages already loaded.
             if !messages.isEmpty {
@@ -451,6 +463,56 @@ final class ChatViewModel: ObservableObject {
             .sorted {
                 $0.createdAt == $1.createdAt ? $0.id > $1.id : $0.createdAt > $1.createdAt
             }
+    }
+
+    private func startObservingPeerProfile() {
+        guard isVisible,
+              peerProfileTask == nil,
+              let peerUserId,
+              let userRepository else { return }
+
+        peerProfileTask = Task { [weak self, userRepository] in
+            do {
+                for try await profile in userRepository.observeProfiles(userIds: [peerUserId]) {
+                    guard let self, !Task.isCancelled, self.isVisible else { return }
+                    self.applyObservedPeerProfile(profile)
+                }
+            } catch is CancellationError {
+                // Expected when the chat leaves the screen.
+            } catch {
+                // The participant loaded with chat info remains the fallback.
+            }
+        }
+    }
+
+    private func applyObservedPeerProfile(_ profile: User) {
+        guard profile.id == peerUserId else { return }
+        latestPeerProfile = profile
+        participantsById[profile.id] = profile
+        let name = profile.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty {
+            chatTitle = name
+        }
+        redecorateMessages()
+    }
+
+    private func redecorateMessages() {
+        guard !messages.isEmpty else { return }
+        messages = messages.map { item in
+            decoratedItem(
+                message: Message(
+                    id: item.id,
+                    chatId: item.chatId,
+                    senderId: item.senderId,
+                    text: item.text,
+                    imageURL: item.imageURL,
+                    createdAt: item.createdAt,
+                    clientMessageId: item.clientMessageId,
+                    status: item.status
+                ),
+                localImageData: item.localImageData
+            )
+        }
     }
 
     private func decoratedItem(

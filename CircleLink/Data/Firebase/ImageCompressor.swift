@@ -1,9 +1,12 @@
 import UIKit
 
 enum ImageCompressor {
-    private static let avatarMaxDimension: CGFloat = 256
-    private static let avatarJpegQuality: CGFloat = 0.55
-    private static let avatarMaxBytes = 120_000
+    // Connect displays avatars as full-screen hero photos. Keep enough source
+    // resolution for modern Retina screens while staying below Firestore's
+    // document limit after base64 expansion.
+    private static let avatarMaxDimension: CGFloat = 1_024
+    private static let avatarJpegQuality: CGFloat = 0.75
+    private static let avatarMaxBytes = 600_000
 
     private static let chatMaxDimension: CGFloat = 1_200
     private static let chatJpegQuality: CGFloat = 0.7

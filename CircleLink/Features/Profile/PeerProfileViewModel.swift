@@ -49,6 +49,7 @@ final class PeerProfileViewModel: ObservableObject {
     private let moderationRepository: ModerationRepository
     private let onBlocked: (String) -> Void
     private var generation = 0
+    private var profileObservationTask: Task<Void, Never>?
 
     /// How many community chips to show before “+N”.
     static let visibleCommunityLimit = 3
@@ -73,6 +74,10 @@ final class PeerProfileViewModel: ObservableObject {
         self.chatRepository = chatRepository
         self.moderationRepository = moderationRepository
         self.onBlocked = onBlocked
+    }
+
+    deinit {
+        profileObservationTask?.cancel()
     }
 
     var visibleCommunities: [Community] {
@@ -117,6 +122,7 @@ final class PeerProfileViewModel: ObservableObject {
 
             state = .loaded(user)
             relationship = nextRelationship
+            startProfileObservation(expectedGeneration: currentGeneration)
 
             // Secondary public content soft-fails so one unavailable collection
             // never prevents the core profile from being viewed.
@@ -133,6 +139,26 @@ final class PeerProfileViewModel: ObservableObject {
         } catch {
             guard currentGeneration == generation, !Task.isCancelled else { return }
             state = .error(error.localizedDescription)
+        }
+    }
+
+    private func startProfileObservation(expectedGeneration: Int) {
+        profileObservationTask?.cancel()
+        profileObservationTask = Task { [weak self, userRepository, userId] in
+            do {
+                for try await user in userRepository.observeProfiles(userIds: [userId]) {
+                    guard let self,
+                          !Task.isCancelled,
+                          self.generation == expectedGeneration else { return }
+                    self.state = user.isSociallyAvailable
+                        ? .loaded(user)
+                        : .error("This profile is no longer available.")
+                }
+            } catch is CancellationError {
+                // Expected when the sheet closes or starts a new load.
+            } catch {
+                // Keep the last successfully loaded profile as a fallback.
+            }
         }
     }
 

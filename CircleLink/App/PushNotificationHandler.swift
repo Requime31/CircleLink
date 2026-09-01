@@ -58,7 +58,7 @@ final class PushNotificationHandler: NSObject {
         await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
-    /// Toggle from Settings. Off clears FCM so the push worker has nothing to send.
+    /// Toggle from Settings. Off clears the stored FCM token so external senders cannot target it.
     func setNotificationsEnabled(_ enabled: Bool) async -> NotificationsToggleResult {
         if enabled {
             let status = await authorizationStatus()

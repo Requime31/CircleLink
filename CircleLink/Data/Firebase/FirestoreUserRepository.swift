@@ -61,6 +61,49 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
         return try FirestoreUserMapper.user(from: created)
     }
 
+    func observeProfiles(userIds: Set<String>) -> AsyncThrowingStream<User, Error> {
+        let requestedIDs = Array(userIds.filter { !$0.isEmpty })
+        guard !requestedIDs.isEmpty else {
+            return AsyncThrowingStream { continuation in
+                continuation.finish()
+            }
+        }
+
+        return AsyncThrowingStream { continuation in
+            // Firestore `in` queries accept at most 30 comparison values. Keeping the
+            // chunks independent also lets screens observe an arbitrary targeted set.
+            let idChunks = stride(from: 0, to: requestedIDs.count, by: 30).map { start in
+                Array(requestedIDs[start..<min(start + 30, requestedIDs.count)])
+            }
+            let registrations = ListenerRegistrations()
+
+            continuation.onTermination = { @Sendable _ in
+                registrations.terminate()
+            }
+
+            for ids in idChunks {
+                let registration = db.collection(usersCollection)
+                    .whereField(FieldPath.documentID(), in: ids)
+                    .addSnapshotListener { snapshot, error in
+                        if let error {
+                            continuation.finish(throwing: error)
+                            registrations.terminate()
+                            return
+                        }
+
+                        guard let snapshot else { return }
+                        for change in snapshot.documentChanges where change.type != .removed {
+                            let document = change.document
+                            continuation.yield(
+                                FirestoreUserMapper.user(id: document.documentID, data: document.data())
+                            )
+                        }
+                    }
+                registrations.install(registration)
+            }
+        }
+    }
+
     func updateProfile(_ user: User) async throws {
         guard Auth.auth().currentUser?.uid == user.id else {
             throw FirestoreUserError.notAuthenticated
@@ -313,5 +356,37 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
         guard Date().timeIntervalSince(token.authDate) <= 5 * 60 else {
             throw AccountLifecycleError.requiresRecentLogin
         }
+    }
+}
+
+/// Listener installation can race with stream cancellation. This box guarantees that a
+/// registration installed after termination is removed immediately and never leaked.
+nonisolated private final class ListenerRegistrations: @unchecked Sendable {
+    private let lock = NSLock()
+    private var registrations: [ListenerRegistration] = []
+    private var isTerminated = false
+
+    func install(_ registration: ListenerRegistration) {
+        lock.lock()
+        guard !isTerminated else {
+            lock.unlock()
+            registration.remove()
+            return
+        }
+        registrations.append(registration)
+        lock.unlock()
+    }
+
+    func terminate() {
+        lock.lock()
+        guard !isTerminated else {
+            lock.unlock()
+            return
+        }
+        isTerminated = true
+        let registrations = self.registrations
+        self.registrations.removeAll()
+        lock.unlock()
+        registrations.forEach { $0.remove() }
     }
 }

@@ -64,6 +64,7 @@ final class ConnectViewModel: ObservableObject {
     private var blockedLoadGeneration = 0
     private var interestsLoadGeneration = 0
     private var sessionGeneration = 0
+    private var profileObservationTask: Task<Void, Never>?
     private var myInterests: [String] = []
     /// Avoid empty→loaded flicker when switching cards.
     private var communitiesByUserId: [String: [Community]] = [:]
@@ -120,6 +121,10 @@ final class ConnectViewModel: ObservableObject {
         self.onOpenChat = onOpenChat
     }
 
+    deinit {
+        profileObservationTask?.cancel()
+    }
+
     func load() async {
         let generation = sessionGeneration
         await loadBlockedUsers()
@@ -133,6 +138,7 @@ final class ConnectViewModel: ObservableObject {
         await loadOutgoingPending(showLoading: !hasOutgoingPendingContent)
         guard generation == sessionGeneration, !Task.isCancelled else { return }
         await loadCandidates(showLoading: !hasCandidatesContent)
+        restartProfileObservation()
     }
 
     /// First open → full load. Returning from Liked You / Matches → quiet refresh (no spinners).
@@ -157,6 +163,7 @@ final class ConnectViewModel: ObservableObject {
         await loadOutgoingPending(showLoading: false)
         guard generation == sessionGeneration, !Task.isCancelled else { return }
         await loadCandidates(showLoading: false)
+        restartProfileObservation()
     }
 
     private var hasIncomingContent: Bool {
@@ -443,6 +450,8 @@ final class ConnectViewModel: ObservableObject {
     }
 
     func resetForm() {
+        profileObservationTask?.cancel()
+        profileObservationTask = nil
         candidatesState = .idle
         incomingState = .idle
         matchedState = .idle
@@ -474,6 +483,78 @@ final class ConnectViewModel: ObservableObject {
     private func resetPassedCandidates() {
         passedCandidateIds = []
         passUndoStack = []
+    }
+
+    private var observedProfileIDs: Set<String> {
+        var ids = Set<String>()
+        if case let .loaded(candidates) = candidatesState {
+            ids.formUnion(candidates.map(\.id))
+        }
+        if case let .loaded(items) = incomingState {
+            ids.formUnion(items.map(\.peer.id))
+        }
+        if case let .loaded(items) = matchedState {
+            ids.formUnion(items.map(\.peer.id))
+        }
+        if case let .loaded(items) = outgoingPendingState {
+            ids.formUnion(items.map(\.peer.id))
+        }
+        return ids
+    }
+
+    private func restartProfileObservation() {
+        profileObservationTask?.cancel()
+        profileObservationTask = nil
+        let ids = observedProfileIDs
+        guard !ids.isEmpty else { return }
+        let expectedSession = sessionGeneration
+
+        profileObservationTask = Task { [weak self, userRepository] in
+            do {
+                for try await user in userRepository.observeProfiles(userIds: ids) {
+                    guard let self,
+                          !Task.isCancelled,
+                          self.sessionGeneration == expectedSession else { return }
+                    self.applyObservedProfile(user)
+                }
+            } catch is CancellationError {
+                // Expected when the visible set or signed-in session changes.
+            } catch {
+                // One-shot loads remain the fallback if the live listener fails.
+            }
+        }
+    }
+
+    private func applyObservedProfile(_ user: User) {
+        guard user.isSociallyAvailable, !blockedUserIds.contains(user.id) else {
+            removeLocally(userId: user.id)
+            return
+        }
+
+        if case let .loaded(candidates) = candidatesState,
+           let index = candidates.firstIndex(where: { $0.id == user.id }) {
+            var updated = candidates
+            updated[index] = user
+            candidatesState = .loaded(updated)
+        }
+        if case let .loaded(items) = incomingState,
+           let index = items.firstIndex(where: { $0.peer.id == user.id }) {
+            var updated = items
+            updated[index] = ConnectRequestItem(request: updated[index].request, peer: user)
+            incomingState = .loaded(updated)
+        }
+        if case let .loaded(items) = matchedState,
+           let index = items.firstIndex(where: { $0.peer.id == user.id }) {
+            var updated = items
+            updated[index] = MatchedConnectionItem(request: updated[index].request, peer: user)
+            matchedState = .loaded(updated)
+        }
+        if case let .loaded(items) = outgoingPendingState,
+           let index = items.firstIndex(where: { $0.peer.id == user.id }) {
+            var updated = items
+            updated[index] = OutgoingConnectRequestItem(request: updated[index].request, peer: user)
+            outgoingPendingState = .loaded(updated)
+        }
     }
 
     private func loadBlockedUsers() async {

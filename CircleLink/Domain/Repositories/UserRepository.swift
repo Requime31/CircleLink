@@ -10,6 +10,9 @@ enum AccountLifecycleError: LocalizedError, Equatable {
 
 protocol UserRepository: Sendable {
     func fetchProfile(userId: String) async throws -> User
+    /// Emits the initial value and subsequent changes for only the requested public profiles.
+    /// Cancelling the consuming task terminates the stream and its backing listeners.
+    func observeProfiles(userIds: Set<String>) -> AsyncThrowingStream<User, Error>
     func updateProfile(_ user: User) async throws
     /// Atomically stores the private birth date and public confirmation/derived age fields.
     func confirmAge(birthDate: Date) async throws
@@ -23,4 +26,14 @@ protocol UserRepository: Sendable {
 
     /// Clears the stored FCM token (e.g. on sign-out).
     func clearFCMToken() async throws
+}
+
+extension UserRepository {
+    /// Keeps lightweight preview and test repositories source-compatible when live updates
+    /// are not relevant to their scenario.
+    func observeProfiles(userIds: Set<String>) -> AsyncThrowingStream<User, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
 }

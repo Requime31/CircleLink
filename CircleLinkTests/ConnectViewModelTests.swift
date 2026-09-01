@@ -4,6 +4,35 @@ import Testing
 
 @MainActor
 struct ConnectViewModelTests {
+    @Test func observedProfileChangeUpdatesCandidateWithoutResettingDeck() async {
+        let connection = MockConnectionRepository()
+        connection.candidates = [
+            User(id: "peer-1", displayName: "Before", avatarBase64: "old"),
+            User(id: "peer-2", displayName: "Second")
+        ]
+        let users = MockUserRepository()
+        let viewModel = ConnectViewModel(
+            connectionRepository: connection,
+            chatRepository: MockChatRepository(),
+            communityRepository: MockCommunityRepository(),
+            userRepository: users,
+            authRepository: MockAuthRepository(currentUser: MockAuthRepository.sampleUser),
+            moderationRepository: MockModerationRepository(),
+            onOpenChat: { _, _ in }
+        )
+
+        await viewModel.load()
+        await Task.yield()
+        users.emitProfileChange(
+            User(id: "peer-1", displayName: "After", avatarBase64: "new")
+        )
+        await Task.yield()
+
+        #expect(viewModel.topCandidate?.id == "peer-1")
+        #expect(viewModel.topCandidate?.displayName == "After")
+        #expect(viewModel.topCandidate?.avatarBase64 == "new")
+    }
+
     @Test func blockImmediatelyRemovesPeerFromEveryConnectCollection() async {
         let connection = MockConnectionRepository()
         let peer = User(id: "peer-1", displayName: "Peer")

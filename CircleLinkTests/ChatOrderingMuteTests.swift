@@ -127,6 +127,36 @@ struct ChatOrderingMuteTests {
         #expect(viewModel.actionErrorMessage != nil)
     }
 
+    @Test func livePeerProfileUpdateChangesOnlyMatchingRowWithoutReordering() async {
+        let chats = MockChatRepository()
+        chats.visibleChats = [
+            chat(id: "first", date: Date(timeIntervalSince1970: 300)),
+            chat(id: "second", date: Date(timeIntervalSince1970: 200))
+        ]
+        chats.visibleChats[0].peerUserId = "peer"
+        chats.visibleChats[1].peerUserId = "someone-else"
+        let users = LiveChatUserRepository()
+        let viewModel = ChatsViewModel(
+            chatRepository: chats,
+            userRepository: users,
+            currentUserId: "user-1"
+        )
+
+        await viewModel.loadChats()
+        await waitUntil { users.observedUserIds == ["peer", "someone-else"] }
+        users.send(User(
+            id: "peer",
+            displayName: "Updated peer",
+            avatarURL: URL(string: "https://example.com/new-avatar.jpg"),
+            avatarBase64: "new-avatar"
+        ))
+        await waitUntil { viewModel.unpinnedChats.first?.title == "Updated peer" }
+
+        #expect(viewModel.unpinnedChats.map(\.id) == ["first", "second"])
+        #expect(viewModel.unpinnedChats.first?.avatarBase64 == "new-avatar")
+        #expect(viewModel.unpinnedChats.last?.title == "second")
+    }
+
     private var ordinaryChats: [ChatSummary] {
         [
             chat(id: "last", date: Date(timeIntervalSince1970: 100)),
@@ -137,6 +167,13 @@ struct ChatOrderingMuteTests {
 
     private func makeViewModel(_ repository: MockChatRepository) -> ChatsViewModel {
         ChatsViewModel(chatRepository: repository, currentUserId: "user-1")
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async {
+        for _ in 0..<100 where !condition() {
+            await Task.yield()
+        }
+        #expect(condition())
     }
 
     private func chat(
@@ -165,4 +202,31 @@ struct ChatOrderingMuteTests {
     private enum TestError: Error {
         case failed
     }
+}
+
+private final class LiveChatUserRepository: UserRepository, @unchecked Sendable {
+    private(set) var observedUserIds: Set<String> = []
+    private var continuation: AsyncThrowingStream<User, Error>.Continuation?
+
+    func observeProfiles(userIds: Set<String>) -> AsyncThrowingStream<User, Error> {
+        observedUserIds = userIds
+        return AsyncThrowingStream { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func send(_ user: User) {
+        continuation?.yield(user)
+    }
+
+    func fetchProfile(userId: String) async throws -> User { throw TestFailure() }
+    func updateProfile(_ user: User) async throws {}
+    func confirmAge(birthDate: Date) async throws {}
+    func confirmAge() async throws {}
+    func requestAccountDeletion(now: Date) async throws {}
+    func restoreAccount() async throws {}
+    func updateFCMToken(_ token: String) async throws {}
+    func clearFCMToken() async throws {}
+
+    private struct TestFailure: Error {}
 }

@@ -41,6 +41,9 @@ struct ProfileEditView: View {
         .onAppear {
             viewModel.resetSaveState()
         }
+        .onDisappear {
+            viewModel.discardUnsavedAvatarChanges()
+        }
         .alert("Confirm Date of Birth", isPresented: $showsBirthDateConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Save") { save(confirmBirthDateChange: true) }

@@ -4,6 +4,21 @@ import Testing
 
 @MainActor
 struct ProfileViewModelTests {
+    @Test func leavingEditorDiscardsUnsavedAvatarPreview() async {
+        let viewModel = makeViewModel()
+        await viewModel.loadProfile()
+
+        let imageData = Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+        )!
+        viewModel.setAvatarData(imageData)
+        #expect(viewModel.localAvatarPreview != nil)
+        viewModel.discardUnsavedAvatarChanges()
+
+        #expect(viewModel.localAvatarPreview == nil)
+        #expect(viewModel.profile?.avatarBase64 == MockAuthRepository.sampleUser.avatarBase64)
+    }
+
     @Test func canSaveRequiresNameAndInterestRange() {
         let viewModel = makeViewModel()
 

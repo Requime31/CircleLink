@@ -12,14 +12,27 @@ final class ChatsViewModel: ObservableObject {
     @Published var searchText: String = ""
 
     private let chatRepository: ChatRepository
+    private let userRepository: UserRepository?
     private let currentUserId: String
     private static let previewMessageLimit = 5
     /// Bumps on every load start so stale fetches cannot overwrite newer optimistic state.
     private var loadGeneration = 0
+    private var profileObservationGeneration = 0
+    private var profileObservationTask: Task<Void, Never>?
+    private var observedPeerUserIds: Set<String> = []
 
-    init(chatRepository: ChatRepository, currentUserId: String) {
+    init(
+        chatRepository: ChatRepository,
+        userRepository: UserRepository? = nil,
+        currentUserId: String
+    ) {
         self.chatRepository = chatRepository
+        self.userRepository = userRepository
         self.currentUserId = currentUserId
+    }
+
+    deinit {
+        profileObservationTask?.cancel()
     }
 
     var hiddenCount: Int { hiddenChats.count }
@@ -78,6 +91,7 @@ final class ChatsViewModel: ObservableObject {
             } else {
                 state = .loaded(visible)
             }
+            refreshProfileObservation()
         } catch {
             guard generation == loadGeneration else { return }
             if preservesExistingState {
@@ -195,6 +209,7 @@ final class ChatsViewModel: ObservableObject {
                 hiddenChats.insert(removed, at: 0)
             }
             state = chats.isEmpty && hiddenChats.isEmpty ? .empty : .loaded(chats)
+            refreshProfileObservation()
         }
         loadGeneration += 1
 
@@ -218,6 +233,7 @@ final class ChatsViewModel: ObservableObject {
             } else if case .empty = state {
                 state = .loaded([restored])
             }
+            refreshProfileObservation()
         }
         loadGeneration += 1
 
@@ -253,6 +269,7 @@ final class ChatsViewModel: ObservableObject {
 
     func resetForm() {
         loadGeneration += 1
+        stopProfileObservation()
         state = .idle
         hiddenChats = []
         searchText = ""
@@ -262,6 +279,78 @@ final class ChatsViewModel: ObservableObject {
     }
 
     // MARK: - Private
+
+    private func refreshProfileObservation() {
+        guard let userRepository else { return }
+
+        let peerUserIds = Set(allChats.compactMap { chat in
+            chat.type == .direct ? chat.peerUserId : nil
+        })
+        guard peerUserIds != observedPeerUserIds else { return }
+
+        stopProfileObservation()
+        guard !peerUserIds.isEmpty else { return }
+
+        observedPeerUserIds = peerUserIds
+        let generation = profileObservationGeneration
+        profileObservationTask = Task { [weak self] in
+            do {
+                for try await profile in userRepository.observeProfiles(userIds: peerUserIds) {
+                    guard !Task.isCancelled else { return }
+                    self?.applyProfileUpdate(profile, generation: generation)
+                }
+            } catch is CancellationError {
+                // Expected when the visible chat set changes or the session resets.
+            } catch {
+                // Chat rows retain their last resolved profile if live observation fails.
+            }
+        }
+    }
+
+    private var allChats: [ChatSummary] {
+        let visible: [ChatSummary]
+        if case let .loaded(chats) = state {
+            visible = chats
+        } else {
+            visible = []
+        }
+        return visible + hiddenChats
+    }
+
+    private func stopProfileObservation() {
+        profileObservationGeneration += 1
+        profileObservationTask?.cancel()
+        profileObservationTask = nil
+        observedPeerUserIds = []
+    }
+
+    private func applyProfileUpdate(_ profile: User, generation: Int) {
+        guard generation == profileObservationGeneration else { return }
+
+        if case let .loaded(chats) = state {
+            state = .loaded(chats.map { Self.updating($0, with: profile) })
+        }
+        hiddenChats = hiddenChats.map { Self.updating($0, with: profile) }
+    }
+
+    private static func updating(_ chat: ChatSummary, with profile: User) -> ChatSummary {
+        guard chat.type == .direct, chat.peerUserId == profile.id else { return chat }
+        return ChatSummary(
+            id: chat.id,
+            type: chat.type,
+            title: profile.displayName,
+            lastMessageText: chat.lastMessageText,
+            lastMessageAt: chat.lastMessageAt,
+            unreadCount: chat.unreadCount,
+            avatarURL: profile.avatarURL,
+            avatarBase64: profile.avatarBase64,
+            communityId: chat.communityId,
+            peerUserId: chat.peerUserId,
+            isMuted: chat.isMuted,
+            isPinned: chat.isPinned,
+            pinOrder: chat.pinOrder
+        )
+    }
 
     private func applyLocalMute(chatId: String, muted: Bool) {
         if case var .loaded(chats) = state,

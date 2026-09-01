@@ -394,6 +394,14 @@ final class ProfileViewModel: ObservableObject {
         saveState = .idle
     }
 
+    /// Edit Profile owns avatar changes as a draft until Save succeeds.
+    /// Leaving the editor must not leak its local preview onto Profile.
+    func discardUnsavedAvatarChanges() {
+        pendingAvatarData = nil
+        localAvatarPreview = nil
+        shouldRemoveAvatar = false
+    }
+
     /// Compact stats label: `124`, `8.2k`, `1.1M`.
     static func formattedCount(_ value: Int) -> String {
         let absValue = abs(value)

@@ -7,8 +7,6 @@
 Use this file as the single source of truth for visual decisions.  
 Before any UI work: read this file and follow it.
 
-Source brief: `stitch_circlelink_visual_redesign_brief` (Stitch export).
-
 ---
 
 ## 0. Design Rules (canonical)
@@ -45,7 +43,7 @@ These override local screen habits when in doubt. Intentional control-shape exce
 
 ## 2. Color Palette
 
-Map from Stitch “Sunset Parchment” → CircleLink tokens.
+CircleLink color tokens for the Sunset Parchment theme.
 
 ### Core surfaces
 
@@ -321,6 +319,7 @@ Rules:
 - Large candidate card (`radiusXl`), generous photo area
 - **Hero card content:** name + age only — **no bio on the card**; bio lives in About
 - Pass / Say Hi / Back action row — **circle** buttons; Say Hi = solid clay (rare emphasis)
+- Completed Pass / Say Hi gestures show a brief non-interactive surface banner with an action icon and the candidate name
 - Filter chips above tab bar
 - Empty state: warm, short copy, one next step
 - Elevated shadow only on the Discover hero deck (rare)
@@ -331,6 +330,7 @@ Rules:
 - Airy row padding (`14` vertical in the row) so conversations don’t feel packed
 - Squircle avatars; compact clay numeric unread badge/capsule (`99+` for 100 or more)
 - Optional FAB compose (floating)
+- Reordering pinned chats uses an explicit Edit / Done toolbar control tied to the list edit mode
 
 ### Chat thread
 - `canvas` background
@@ -421,25 +421,3 @@ Respect Reduce Motion: fall back to simple fades.
 - Honor Reduce Motion
 
 ---
-
-## 11. Agent Prompt Guide
-
-When generating or editing UI:
-
-1. Read `DESIGN.md` first — especially §0 Design Rules.
-2. Use tokens above (names + hex) via `CLColor` / `CLTheme`.
-3. Prefer SwiftUI system fonts and soft springs.
-4. Map flow: User action → View → ViewModel → … → UI update, without putting design logic in Domain.
-5. Keep screens light-first, parchment + clay, rounded, calmly animated.
-6. Use squircle avatars everywhere; keep the Connect action-row circle exception from §0.
-
-**Short prompt:**  
-“Build this CircleLink screen using DESIGN.md §0: parchment `#FCF9F8`, clay `#E67E5F`, soft CTA `accentSoft`+ink, cards radius 24 + hairline, squircle avatars everywhere, Connect Pass/Say Hi/Back = circles, screenHorizontal 20, SF Pro, spring motion.”
-
----
-
-## Sources
-
-- Stitch brief: **Sunset Parchment** (`stitch_circlelink_visual_redesign_brief`)
-- Material-style color YAML in the export is mapped into the simpler CL tokens above for SwiftUI
-- SF Pro replaces Inter on iOS

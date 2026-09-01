@@ -44,7 +44,13 @@ struct ChatListView: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     if viewModel.pinnedChats.count > 1,
                        viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        EditButton()
+                        Button(editMode.isEditing ? "Done" : "Edit") {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                editMode = editMode.isEditing ? .inactive : .active
+                            }
+                        }
+                        .disabled(viewModel.isPinMutationInFlight)
+                        .accessibilityLabel(editMode.isEditing ? "Finish reordering pinned chats" : "Reorder pinned chats")
                     }
 
                     Button {
@@ -264,6 +270,7 @@ struct ChatListView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(CLColor.canvas)
+        .environment(\.editMode, $editMode)
         .clAppear()
     }
 

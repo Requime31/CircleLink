@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Connect tab root = Discover (inline profile + swipe).
 /// Liked you / Matches are push destinations.
@@ -9,11 +10,23 @@ struct ConnectView: View {
     @State private var reportTarget: ModerationTarget?
     @State private var blockTarget: ModerationTarget?
     @State private var presentedPeer: PresentedPeer?
+    @State private var swipeFeedback: ConnectSwipeFeedback?
+    @State private var swipeFeedbackDismissTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
             discoverContent
                 .clCanvasBackground()
+                .overlay(alignment: .top) {
+                    if let swipeFeedback {
+                        ConnectSwipeFeedbackView(feedback: swipeFeedback)
+                            .padding(.horizontal, CLSpacing.screenHorizontal)
+                            .padding(.top, CLSpacing.sm)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .allowsHitTesting(false)
+                            .zIndex(2)
+                    }
+                }
                 .navigationTitle("Connect")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -106,6 +119,10 @@ struct ConnectView: View {
                 }
                 .task {
                     await viewModel.loadIfNeeded()
+                }
+                .onDisappear {
+                    swipeFeedbackDismissTask?.cancel()
+                    swipeFeedbackDismissTask = nil
                 }
                 .refreshable {
                     await viewModel.load()
@@ -248,9 +265,14 @@ struct ConnectView: View {
                     isSendingConnect: viewModel.isSendingConnect,
                     onPass: { userId in
                         viewModel.passCandidate(userId: userId)
+                        showSwipeFeedback(.passed(name: top.displayName))
                     },
                     onSayHi: { userId in
-                        viewModel.sayHi(to: userId)
+                        let didStart = viewModel.sayHi(to: userId)
+                        if didStart {
+                            showSwipeFeedback(.saidHi(name: top.displayName))
+                        }
+                        return didStart
                     }
                 )
             } else {
@@ -260,6 +282,23 @@ struct ConnectView: View {
                     message: "Pull to refresh for more people."
                 )
             }
+        }
+    }
+
+    private func showSwipeFeedback(_ feedback: ConnectSwipeFeedback) {
+        swipeFeedbackDismissTask?.cancel()
+        withAnimation(.easeOut(duration: 0.2)) {
+            swipeFeedback = feedback
+        }
+        UIAccessibility.post(notification: .announcement, argument: feedback.accessibilityMessage)
+
+        swipeFeedbackDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeIn(duration: 0.2)) {
+                swipeFeedback = nil
+            }
+            swipeFeedbackDismissTask = nil
         }
     }
 
@@ -288,6 +327,64 @@ struct ConnectView: View {
             displayName: user.displayName,
             mode: .match
         )
+    }
+}
+
+private enum ConnectSwipeFeedback: Equatable {
+    case passed(name: String)
+    case saidHi(name: String)
+
+    var message: String {
+        switch self {
+        case let .passed(name): return "Passed \(name)"
+        case let .saidHi(name): return "Say Hi sent to \(name)"
+        }
+    }
+
+    var accessibilityMessage: String { message }
+
+    var systemImage: String {
+        switch self {
+        case .passed: return "arrow.left"
+        case .saidHi: return "hand.wave.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .passed: return CLColor.inkSecondary
+        case .saidHi: return CLColor.primary
+        }
+    }
+}
+
+private struct ConnectSwipeFeedbackView: View {
+    let feedback: ConnectSwipeFeedback
+
+    var body: some View {
+        HStack(spacing: CLSpacing.sm) {
+            Image(systemName: feedback.systemImage)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(feedback.tint)
+
+            Text(feedback.message)
+                .font(CLTypography.footnote.weight(.semibold))
+                .foregroundStyle(CLColor.ink)
+                .lineLimit(2)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, CLSpacing.md)
+        .padding(.vertical, CLSpacing.sm)
+        .background(CLColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
+                .stroke(CLColor.hairline, lineWidth: 1)
+        }
+        .shadow(color: CLColor.ink.opacity(0.08), radius: 10, y: 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(feedback.accessibilityMessage)
     }
 }
 

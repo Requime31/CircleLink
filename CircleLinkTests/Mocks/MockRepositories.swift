@@ -862,6 +862,10 @@ final class MockUserRepository: UserRepository, @unchecked Sendable {
     var lastConfirmedBirthDate: Date?
     var updateProfileCallCount = 0
     var lastUpdatedUser: User?
+    private(set) var observeProfilesCallCount = 0
+    private(set) var observedProfileIDs: Set<String> = []
+    private let profileObservationLock = NSLock()
+    private var profileObservationContinuation: AsyncThrowingStream<User, Error>.Continuation?
     var requestAccountDeletionCallCount = 0
     var restoreAccountCallCount = 0
     var accountDeletionError: Error?
@@ -894,6 +898,45 @@ final class MockUserRepository: UserRepository, @unchecked Sendable {
         throw NSError(domain: "MockUserRepository", code: 404, userInfo: [
             NSLocalizedDescriptionKey: "Profile not found"
         ])
+    }
+
+    func observeProfiles(userIds: Set<String>) -> AsyncThrowingStream<User, Error> {
+        AsyncThrowingStream { continuation in
+            profileObservationLock.lock()
+            observeProfilesCallCount += 1
+            observedProfileIDs = userIds
+            profileObservationContinuation = continuation
+            profileObservationLock.unlock()
+
+            continuation.onTermination = { @Sendable [weak self] _ in
+                guard let self else { return }
+                self.profileObservationLock.lock()
+                self.profileObservationContinuation = nil
+                self.profileObservationLock.unlock()
+            }
+        }
+    }
+
+    func emitProfileChange(_ user: User) {
+        profileObservationLock.lock()
+        let shouldEmit = observedProfileIDs.contains(user.id)
+        let continuation = profileObservationContinuation
+        profileObservationLock.unlock()
+        if shouldEmit {
+            continuation?.yield(user)
+        }
+    }
+
+    func finishProfileObservation(throwing error: Error? = nil) {
+        profileObservationLock.lock()
+        let continuation = profileObservationContinuation
+        profileObservationContinuation = nil
+        profileObservationLock.unlock()
+        if let error {
+            continuation?.finish(throwing: error)
+        } else {
+            continuation?.finish()
+        }
     }
 
     func updateProfile(_ user: User) async throws {

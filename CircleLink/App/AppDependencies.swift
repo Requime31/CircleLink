@@ -168,6 +168,7 @@ final class AppDependencies {
     func makeChatsViewModel() -> ChatsViewModel {
         ChatsViewModel(
             chatRepository: chatRepository,
+            userRepository: userRepository,
             currentUserId: authRepository.currentUser?.id ?? ""
         )
     }
@@ -193,6 +194,7 @@ final class AppDependencies {
             chatRepository: chatRepository,
             chatTitle: title,
             peerUserId: peerUserId,
+            userRepository: userRepository,
             moderationRepository: peerUserId == nil ? nil : moderationRepository,
             onPeerBlocked: onPeerBlocked
         )

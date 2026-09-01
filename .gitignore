@@ -45,10 +45,6 @@ SupabaseSecrets.plist
 .secrets/*
 !.secrets/*.example
 
-# Node (Cloud Functions)
-functions/node_modules/
-functions/lib/
-
 # macOS
 .DS_Store
 .AppleDouble
@@ -56,13 +52,6 @@ functions/lib/
 
 # SwiftLint
 .swiftlint-cache/
-
-# Cursor / IDE (share project subagents and skills; keep other local state out of git)
-.cursor/*
-!.cursor/agents/
-!.cursor/agents/**
-!.cursor/skills/
-!.cursor/skills/**
 
 # Fastlane
 fastlane/report.xml

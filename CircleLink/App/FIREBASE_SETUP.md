@@ -64,10 +64,10 @@ Public profile fields:
 Account deletion request atomically changes `accountState` to `deactivated`, records the
 request time, and schedules cleanup 30 Gregorian UTC calendar days later. Restore changes
 the state back to `active` and removes the lifecycle marker. Only the authenticated owner may
-change these fields. Physical cleanup and Firebase Auth deletion are handled outside the
-iOS client. The external worker adds server-only `cleanupClaimedAt` immediately before
-destructive work; this closes the restore/delete race and leaves a retry marker after a
-partial failure. See `websocket-server/README.md` for its scheduler contract.
+change these fields. Physical cleanup and Firebase Auth deletion cannot be performed by the
+iOS client. No physical-cleanup worker is included in this repository, so deactivated accounts
+remain recoverable until an external cleanup service is provided. The rules reserve the
+server-only `cleanupClaimedAt` field for such a future service.
 
 Private account document path: `users/{userId}/private/account`
 
@@ -194,11 +194,11 @@ Create a test user in Firebase Console → Authentication → Users → Add user
 - On grant: APNs device token → FCM → `users/{userId}/private/account.fcmToken`
 - Notification tap is routed only through `AppCoordinator` (Chat / Connect)
 
-### Cloud Functions
+### Push sender
 
-**Not used.** CircleLink stays on the Firebase **Spark** plan. FCM is sent by the Node push worker in `websocket-server` (Firestore `onSnapshot` → Admin Messaging). See [`websocket-server/README.md`](../../websocket-server/README.md).
-
-The `functions/` folder is kept only as an unused Blaze-era reference — do not deploy it.
+CircleLink stays on the Firebase **Spark** plan and does not include Cloud Functions or another
+server-side FCM sender. The app registers tokens and handles notification taps, but background
+push delivery requires a separately operated sender.
 
 ## Security notes (Phase 2)
 
