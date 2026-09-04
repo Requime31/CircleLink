@@ -3,6 +3,8 @@ import SwiftUI
 /// Shared empty / soft-error placeholder for list screens.
 /// Keeps icon + title + optional message + optional primary action consistent.
 struct CLEmptyState: View {
+    enum Layout: Equatable { case fill, compact }
+
     let systemImage: String
     let title: String
     var message: String? = nil
@@ -10,6 +12,7 @@ struct CLEmptyState: View {
     var actionAccessibilityLabel: String? = nil
     var titleAccessibilityLabel: String? = nil
     var action: (() -> Void)? = nil
+    var layout: Layout = .fill
 
     var body: some View {
         VStack(spacing: CLSpacing.md) {
@@ -42,14 +45,15 @@ struct CLEmptyState: View {
                     .accessibilityLabel(actionAccessibilityLabel ?? actionTitle)
             }
         }
-        .padding(CLSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(layout == .fill ? CLSpacing.lg : CLSpacing.md)
+        .frame(maxWidth: .infinity, maxHeight: layout == .fill ? .infinity : nil)
     }
 }
 
 /// Calm full-screen loading — one shared pattern for list / hub screens.
 struct CLLoadingState: View {
     var message: String? = nil
+    var isCompact = false
 
     var body: some View {
         Group {
@@ -61,7 +65,8 @@ struct CLLoadingState: View {
         }
         .tint(CLColor.primary)
         .foregroundStyle(CLColor.inkMuted)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(isCompact ? CLSpacing.sm : CLSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: isCompact ? nil : .infinity)
         .accessibilityLabel(message ?? "Loading")
     }
 }
