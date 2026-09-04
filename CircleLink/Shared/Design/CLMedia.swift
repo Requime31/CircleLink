@@ -51,13 +51,18 @@ struct CLMediaThumbnail: View {
         case .intrinsic:
             image
         case let .aspectRatio(ratio):
-            GeometryReader { proxy in
-                image
-                    .frame(width: proxy.size.width, height: proxy.size.height)
-                    .clipped()
-            }
+            Color.clear
             .aspectRatio(ratio, contentMode: .fit)
             .background(CLColor.surfaceSoft)
+            .overlay {
+                GeometryReader { proxy in
+                    image
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
+                        .allowsHitTesting(false)
+                }
+            }
+            .clipped()
         }
     }
 

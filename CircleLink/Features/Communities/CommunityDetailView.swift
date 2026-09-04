@@ -185,7 +185,7 @@ struct CommunityDetailView: View {
         HStack(spacing: 0) {
             ForEach(CommunityDetailTab.allCases) { tab in
                 Button {
-                    withAnimation(CLMotion.soft) { selectedTab = tab }
+                    selectedTab = tab
                 } label: {
                     VStack(spacing: CLSpacing.sm) {
                         Text(tab.title)
@@ -293,6 +293,8 @@ struct CommunityDetailView: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
+                                .contentShape(Rectangle())
+                                .clipped()
                                 .accessibilityElement(children: .ignore)
                                 .accessibilityLabel(galleryAccessibilityLabel(for: post))
                             }
