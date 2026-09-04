@@ -465,8 +465,11 @@ struct ChatInfoView: View {
                                 destination = .media
                             }
                         } label: {
-                            CLMediaThumbnail(url: message.imageURL, accessibilityLabel: "Shared photo")
-                                .aspectRatio(1, contentMode: .fit)
+                            CLMediaThumbnail(
+                                url: message.imageURL,
+                                accessibilityLabel: "Shared photo",
+                                sizing: .aspectRatio(1)
+                            )
                         }
                         .buttonStyle(.plain)
                         .frame(maxWidth: .infinity)

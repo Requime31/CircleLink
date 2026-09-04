@@ -114,8 +114,12 @@ struct CommunityPostCard: View {
 struct CommunityPostImage: View {
     let url: URL
     var body: some View {
-        CLMediaThumbnail(url: url, accessibilityLabel: "Post photo", cornerRadius: CLRadius.md)
-            .aspectRatio(4 / 3, contentMode: .fit)
+        CLMediaThumbnail(
+            url: url,
+            accessibilityLabel: "Post photo",
+            cornerRadius: CLRadius.md,
+            sizing: .aspectRatio(4 / 3)
+        )
         .contentShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
         .accessibilityHidden(true)
     }
