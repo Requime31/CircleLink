@@ -87,7 +87,7 @@ final class AppCoordinator: ObservableObject {
                 if let accountRecoveryViewModel {
                     AccountRecoveryView(viewModel: accountRecoveryViewModel)
                 } else {
-                    ProgressView("Loading…")
+                    CLLoadingState(message: "Loading…")
                 }
             case .ageGate:
                 NavigationStack {

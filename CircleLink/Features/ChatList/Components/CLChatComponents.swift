@@ -24,17 +24,25 @@ struct CLChatParticipantRow<Trailing: View>: View {
     let name: String
     var detail: String? = nil
     var avatarURL: URL? = nil
+    var avatarBase64: String? = nil
     private let trailing: Trailing
 
-    init(name: String, detail: String? = nil, avatarURL: URL? = nil, @ViewBuilder trailing: () -> Trailing) {
+    init(
+        name: String,
+        detail: String? = nil,
+        avatarURL: URL? = nil,
+        avatarBase64: String? = nil,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
         self.name = name
         self.detail = detail
         self.avatarURL = avatarURL
+        self.avatarBase64 = avatarBase64
         self.trailing = trailing()
     }
 
     var body: some View {
-        CLPersonRow(name: name, detail: detail, avatarURL: avatarURL) { trailing }
+        CLPersonRow(name: name, detail: detail, avatarURL: avatarURL, avatarBase64: avatarBase64) { trailing }
     }
 }
 

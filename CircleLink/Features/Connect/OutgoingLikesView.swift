@@ -20,12 +20,10 @@ struct OutgoingLikesView: View {
                     message: "People you say hi to will appear here while you wait for a response."
                 )
             case let .error(message):
-                CLEmptyState(
-                    systemImage: "exclamationmark.triangle",
+                CLErrorState(
                     title: "Couldn’t load people",
                     message: message,
-                    actionTitle: "Retry",
-                    actionAccessibilityLabel: "Retry loading people you liked"
+                    retryTitle: "Retry"
                 ) {
                     Task { await viewModel.loadOutgoingPending() }
                 }
@@ -85,35 +83,28 @@ private struct OutgoingLikeRow: View {
     let onUndo: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: CLSpacing.sm) {
-            Button(action: onOpen) {
-                rowContent
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(item.peer.displayNameWithAge), waiting for response")
-            .accessibilityHint("Opens profile")
-
-            Button(action: onUndo) {
-                if isCancelling {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Image(systemName: "arrow.uturn.backward")
+        CLCard {
+            HStack(alignment: .center, spacing: CLSpacing.sm) {
+                Button(action: onOpen) {
+                    rowContent
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(item.peer.displayNameWithAge), waiting for response")
+                .accessibilityHint("Opens profile")
+
+                Button(action: onUndo) {
+                    if isCancelling {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(CLColor.inkSecondary)
+                .disabled(isCancelling)
+                .accessibilityLabel("Undo like for \(item.peer.displayName)")
             }
-            .buttonStyle(.bordered)
-            .tint(CLColor.inkSecondary)
-            .disabled(isCancelling)
-            .accessibilityLabel("Undo like for \(item.peer.displayName)")
         }
-        .padding(CLSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(CLColor.surface)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous)
-                .stroke(CLColor.hairline, lineWidth: 1)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous))
     }
 
     private var rowContent: some View {

@@ -1,6 +1,16 @@
 import PhotosUI
 import SwiftUI
 
+struct CLPhotoPickerConfiguration: Equatable {
+    let title: String
+    var actionTitle = "Add Photo"
+    var removeTitle: String? = nil
+    var isDisabled = false
+
+    var canPick: Bool { isDisabled == false }
+    var canRemove: Bool { isDisabled == false && removeTitle != nil }
+}
+
 struct CLPlaceholderMedia: View {
     var systemImage = "photo"
     var label = "No photo"
@@ -44,6 +54,8 @@ struct CLPhotoPickerSection<Preview: View>: View {
     var actionTitle = "Add Photo"
     var isDisabled = false
     var errorMessage: String? = nil
+    var removeTitle: String? = nil
+    var onRemove: (() -> Void)? = nil
     private let preview: Preview
 
     init(
@@ -52,6 +64,8 @@ struct CLPhotoPickerSection<Preview: View>: View {
         actionTitle: String = "Add Photo",
         isDisabled: Bool = false,
         errorMessage: String? = nil,
+        removeTitle: String? = nil,
+        onRemove: (() -> Void)? = nil,
         @ViewBuilder preview: () -> Preview
     ) {
         _selection = selection
@@ -59,22 +73,38 @@ struct CLPhotoPickerSection<Preview: View>: View {
         self.actionTitle = actionTitle
         self.isDisabled = isDisabled
         self.errorMessage = errorMessage
+        self.removeTitle = removeTitle
+        self.onRemove = onRemove
         self.preview = preview()
     }
 
     var body: some View {
         CLFormSection(title) {
             preview
-            PhotosPicker(selection: $selection, matching: .images) {
-                Label(actionTitle, systemImage: "photo")
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: CLSpacing.sm) { actions }
+                VStack(spacing: CLSpacing.sm) { actions }
             }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .disabled(isDisabled)
-            .accessibilityLabel(actionTitle)
 
             if let errorMessage { CLValidationMessage(message: errorMessage) }
+        }
+    }
+
+    @ViewBuilder private var actions: some View {
+        PhotosPicker(selection: $selection, matching: .images) {
+            Label(actionTitle, systemImage: "photo")
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+        }
+        .buttonStyle(CLSecondaryButtonStyle())
+        .disabled(isDisabled)
+        .accessibilityLabel(actionTitle)
+
+        if let removeTitle, let onRemove {
+            Button(removeTitle, role: .destructive, action: onRemove)
+                .buttonStyle(CLSecondaryButtonStyle())
+                .disabled(isDisabled)
+                .accessibilityLabel(removeTitle)
         }
     }
 }
@@ -184,5 +214,20 @@ struct CLPostComposerLayout<Media: View, Submit: View>: View {
             if let validationMessage { CLValidationMessage(message: validationMessage) }
             submit
         }
+    }
+}
+
+struct CLPostComposerConfiguration: Equatable {
+    let characterLimit: Int?
+
+    func validationMessage(for text: String) -> String? {
+        guard let characterLimit, text.count > characterLimit else { return nil }
+        return "Post text must be \(characterLimit) characters or fewer."
+    }
+
+    func canSubmit(text: String, hasMedia: Bool, isSubmitting: Bool) -> Bool {
+        isSubmitting == false
+            && (text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false || hasMedia)
+            && validationMessage(for: text) == nil
     }
 }

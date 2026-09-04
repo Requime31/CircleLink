@@ -11,20 +11,8 @@ struct ProfileSetupView: View {
                     header
                     ProfileFormFields(viewModel: viewModel, mode: .setup)
 
-                    if case .loading = viewModel.saveState {
-                        ProgressView("Saving profile…")
-                            .tint(CLColor.primary)
-                            .foregroundStyle(CLColor.inkMuted)
-                            .frame(maxWidth: .infinity)
-                    }
-
                     if case let .error(message) = viewModel.saveState {
-                        Text(message)
-                            .font(CLTypography.footnote)
-                            .foregroundStyle(CLColor.error)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .accessibilityLabel("Error: \(message)")
+                        CLStatusBanner(message: message, style: .error, accessibilityPrefix: "Error")
                     }
                 }
                 .padding(.horizontal, CLSpacing.screenHorizontal)
@@ -69,13 +57,15 @@ struct ProfileSetupView: View {
     }
 
     private var saveButton: some View {
-        Button {
-            Task { await viewModel.saveProfile() }
-        } label: {
-            Text("Continue")
+        CLAsyncButton(
+            configuration: .init(
+                title: "Continue",
+                loadingTitle: "Saving profile…",
+                accessibilityLabel: "Continue to main app after completing profile"
+            ),
+            isDisabled: !viewModel.canSave || viewModel.saveState == .loading
+        ) {
+            await viewModel.saveProfile()
         }
-        .buttonStyle(CLPrimaryButtonStyle())
-        .disabled(!viewModel.canSave || viewModel.saveState == .loading)
-        .accessibilityLabel("Continue to main app after completing profile")
     }
 }

@@ -77,25 +77,16 @@ struct ComposeProfilePostSheet: View {
                     photoSection
 
                     if let errorMessage = bannerError {
-                        Text(errorMessage)
-                            .font(CLTypography.footnote)
-                            .foregroundStyle(CLColor.error)
-                            .padding(CLSpacing.sm)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(CLColor.errorSoft)
-                            .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
-                            .accessibilityLabel("Post error: \(errorMessage)")
+                        CLStatusBanner(message: errorMessage, style: .error, accessibilityPrefix: "Post error")
                     }
 
                     if !isEditing {
-                        Button {
-                            Task { await submit() }
-                        } label: {
-                            submitLabel(title: "Post")
+                        CLAsyncButton(
+                            configuration: .init(title: "Post", loadingTitle: "Posting…", accessibilityLabel: "Publish post"),
+                            isDisabled: !canSubmit
+                        ) {
+                            await submit()
                         }
-                        .buttonStyle(CLPrimaryButtonStyle())
-                        .disabled(!canSubmit)
-                        .accessibilityLabel("Publish post")
                     }
                 }
                 .padding(CLSpacing.md)
@@ -147,48 +138,22 @@ struct ComposeProfilePostSheet: View {
 
     @ViewBuilder
     private var photoSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            if showsPhotoChrome {
+        CLPhotoPickerSection(
+            selection: $selectedPhotoItem,
+            title: "Photo",
+            actionTitle: showsPhotoChrome ? (isEditing ? "Replace Photo" : "Change Photo") : "Add Photo",
+            isDisabled: isLoadingPhoto || viewModel.isPosting,
+            removeTitle: showsPhotoChrome ? "Remove Photo" : nil,
+            onRemove: clearPhoto
+        ) {
+            Group {
+                if showsPhotoChrome {
                 photoPreview
-
-                HStack(spacing: CLSpacing.sm) {
-                    PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                        Text(isEditing ? "Replace Photo" : "Change Photo")
-                            .font(CLTypography.button)
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-                    }
-                    .buttonStyle(CLSecondaryButtonStyle())
-                    .disabled(isLoadingPhoto || viewModel.isPosting)
-                    .accessibilityLabel(isEditing ? "Replace post photo" : "Change post photo")
-
-                    Button("Remove Photo") {
-                        clearPhoto()
-                    }
-                    .buttonStyle(CLSecondaryButtonStyle())
-                    .disabled(isLoadingPhoto || viewModel.isPosting)
-                    .accessibilityLabel("Remove post photo")
-                }
-            } else if isLoadingPhoto {
-                ZStack {
-                    CLColor.surfaceSoft
-                    ProgressView()
-                        .tint(CLColor.primary)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: previewHeight)
-                .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-                .accessibilityLabel("Loading photo")
-            } else {
-                PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                    Label("Add Photo", systemImage: "photo")
-                        .font(CLTypography.button)
+                } else if isLoadingPhoto {
+                    CLLoadingState(message: "Loading photo", isCompact: true)
                         .frame(maxWidth: .infinity)
-                        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                        .frame(minHeight: previewHeight)
                 }
-                .buttonStyle(CLSecondaryButtonStyle())
-                .disabled(viewModel.isPosting)
-                .accessibilityLabel("Add post photo")
             }
         }
     }

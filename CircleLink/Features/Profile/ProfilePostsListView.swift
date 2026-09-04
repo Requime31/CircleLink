@@ -93,33 +93,28 @@ private struct ProfilePostCardView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            header
+        CLSurface(variant: .outlined, radius: CLRadius.lg) {
+            VStack(alignment: .leading, spacing: CLSpacing.sm) {
+                header
 
-            Group {
-                if let trimmedText {
-                    Text(trimmedText)
-                        .font(CLTypography.body)
-                        .foregroundStyle(CLColor.ink)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .lineLimit(8)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Group {
+                    if let trimmedText {
+                        Text(trimmedText)
+                            .font(CLTypography.body)
+                            .foregroundStyle(CLColor.ink)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .lineLimit(8)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
-                if let url = post.imageURL {
-                    ProfilePostImageView(url: url)
+                    if let url = post.imageURL {
+                        ProfilePostImageView(url: url)
+                    }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(contentAccessibilityLabel)
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(contentAccessibilityLabel)
         }
-        .padding(CLSpacing.md)
-        .background(CLColor.surface)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous)
-                .stroke(CLColor.hairline, lineWidth: 1)
-        )
     }
 
     private var header: some View {

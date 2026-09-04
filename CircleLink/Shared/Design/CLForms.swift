@@ -214,18 +214,21 @@ struct CLSearchField: View {
     let prompt: String
     @Binding var text: String
     var accessibilityLabel = "Search"
+    var focus: FocusState<Bool>.Binding? = nil
+    var onClear: (() -> Void)? = nil
+    var onSubmit: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: CLSpacing.xs) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(CLColor.inkMuted)
                 .accessibilityHidden(true)
-            TextField(prompt, text: $text)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .accessibilityLabel(accessibilityLabel)
+            searchTextField
             if text.isEmpty == false {
-                Button { text = "" } label: {
+                Button {
+                    text = ""
+                    onClear?()
+                } label: {
                     Image(systemName: "xmark.circle.fill")
                         .frame(
                             width: AccessibilityHelpers.minimumTouchTarget,
@@ -242,6 +245,22 @@ struct CLSearchField: View {
         .background(CLColor.surface)
         .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous).stroke(CLColor.hairline))
+    }
+
+    @ViewBuilder private var searchTextField: some View {
+        if let focus {
+            baseTextField.focused(focus)
+        } else {
+            baseTextField
+        }
+    }
+
+    private var baseTextField: some View {
+        TextField(prompt, text: $text)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .onSubmit { onSubmit?() }
+            .accessibilityLabel(accessibilityLabel)
     }
 }
 
@@ -278,6 +297,14 @@ struct CLAsyncButtonConfiguration: Equatable {
     var accessibilityHint: String? = nil
     var style: Style = .primary
     var fillsWidth = true
+
+    func displayedTitle(isRunning: Bool) -> String {
+        isRunning ? loadingTitle ?? title : title
+    }
+
+    func isInteractionDisabled(isRunning: Bool, isDisabled: Bool) -> Bool {
+        isRunning || isDisabled
+    }
 }
 
 struct CLAsyncButton: View {
@@ -299,12 +326,12 @@ struct CLAsyncButton: View {
         } label: {
             HStack(spacing: CLSpacing.xs) {
                 if isRunning { ProgressView().tint(foreground) }
-                Text(isRunning ? configuration.loadingTitle ?? configuration.title : configuration.title)
+                Text(configuration.displayedTitle(isRunning: isRunning))
             }
             .frame(maxWidth: configuration.fillsWidth ? .infinity : nil)
         }
         .buttonStyle(AnyCLButtonStyle(style: configuration.style, fillsWidth: configuration.fillsWidth))
-        .disabled(isDisabled || isRunning)
+        .disabled(configuration.isInteractionDisabled(isRunning: isRunning, isDisabled: isDisabled))
         .accessibilityLabel(configuration.accessibilityLabel ?? configuration.title)
         .accessibilityValue(isRunning ? "In progress" : "")
         .modifier(CLAccessibilityHint(hint: configuration.accessibilityHint))

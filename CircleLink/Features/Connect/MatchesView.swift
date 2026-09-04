@@ -19,12 +19,10 @@ struct MatchesView: View {
                     message: "Accept someone from Liked you, or connect from Discover."
                 )
             case let .error(message):
-                CLEmptyState(
-                    systemImage: "exclamationmark.triangle",
+                CLErrorState(
                     title: "Couldn’t load matches",
                     message: message,
-                    actionTitle: "Retry",
-                    actionAccessibilityLabel: "Retry loading matches"
+                    retryTitle: "Retry"
                 ) {
                     Task { await viewModel.load() }
                 }
@@ -75,7 +73,8 @@ struct MatchedConnectionCardView: View {
     let onSelectPeer: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
+        CLCard {
+            VStack(alignment: .leading, spacing: CLSpacing.sm) {
             Button(action: onSelectPeer) {
                 HStack(spacing: CLSpacing.sm) {
                     AvatarImageView(
@@ -117,7 +116,7 @@ struct MatchedConnectionCardView: View {
             .buttonStyle(CLPrimaryButtonStyle())
             .disabled(isOpening)
             .accessibilityLabel("Open chat with \(item.peer.displayName)")
+            }
         }
-        .clCardStyle()
     }
 }

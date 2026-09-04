@@ -114,18 +114,8 @@ struct CommunityPostCard: View {
 struct CommunityPostImage: View {
     let url: URL
     var body: some View {
-        Color.clear
+        CLMediaThumbnail(url: url, accessibilityLabel: "Post photo", cornerRadius: CLRadius.md)
             .aspectRatio(4 / 3, contentMode: .fit)
-            .overlay {
-                AsyncImage(url: url) { phase in
-                    if case let .success(image) = phase {
-                        image.resizable().scaledToFill()
-                    } else {
-                        CLColor.surfaceSoft.overlay { ProgressView().tint(CLColor.primary) }
-                    }
-                }
-            }
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
         .accessibilityHidden(true)
     }

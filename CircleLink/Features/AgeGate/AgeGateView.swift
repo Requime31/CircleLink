@@ -91,24 +91,25 @@ struct AgeGateView: View {
             .foregroundStyle(CLColor.ink)
             .padding(.vertical, CLSpacing.sm)
             .padding(.horizontal, CLSpacing.md)
-            .frame(minHeight: 56)
+            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
             .background(CLColor.surface)
             .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
-                    .stroke(fieldBorderColor, lineWidth: 1)
-            )
+            .overlay(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous).stroke(fieldBorderColor))
             .accessibilityHint("Choose your full date of birth. You must be at least 18.")
 
-            Button {
-                Task { await viewModel.confirmAge() }
-            } label: {
-                Text("Continue")
+            CLAsyncButton(
+                configuration: .init(
+                    title: "Continue",
+                    loadingTitle: "Saving…",
+                    accessibilityLabel: "Continue after confirming age",
+                    accessibilityHint: viewModel.canContinue
+                        ? "Saves your date of birth and confirms you are 18 or older"
+                        : "Choose a valid date of birth first"
+                ),
+                isDisabled: !viewModel.canContinue || isBusy
+            ) {
+                await viewModel.confirmAge()
             }
-            .buttonStyle(CLPrimaryButtonStyle())
-            .disabled(!viewModel.canContinue || isBusy)
-            .accessibilityLabel("Continue after confirming age")
-            .accessibilityHint(viewModel.canContinue ? "Saves your date of birth and confirms you are 18 or older" : "Choose a valid date of birth first")
             .clSoftSpring(value: viewModel.canContinue)
 
             statusBlock
@@ -149,18 +150,8 @@ struct AgeGateView: View {
 
     @ViewBuilder
     private var statusBlock: some View {
-        if case .loading = viewModel.state {
-            ProgressView("Saving…")
-                .tint(CLColor.primary)
-                .foregroundStyle(CLColor.inkMuted)
-        }
-
         if case let .error(message) = viewModel.state {
-            Text(message)
-                .font(CLTypography.footnote)
-                .foregroundStyle(CLColor.error)
-                .multilineTextAlignment(.center)
-                .accessibilityLabel("Error: \(message)")
+            CLStatusBanner(message: message, style: .error, presentation: .inline, accessibilityPrefix: "Error")
         }
     }
 

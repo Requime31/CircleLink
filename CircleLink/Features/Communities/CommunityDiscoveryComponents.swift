@@ -6,37 +6,12 @@ struct CommunitySearchField: View {
     var isFocused: FocusState<Bool>.Binding
 
     var body: some View {
-        HStack(spacing: CLSpacing.xs) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(CLColor.inkMuted)
-                .accessibilityHidden(true)
-
-            TextField("Search communities…", text: $query)
-                .font(CLTypography.body)
-                .foregroundStyle(CLColor.ink)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .focused(isFocused)
-                .accessibilityLabel("Search communities")
-
-            if !query.isEmpty {
-                Button {
-                    query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(CLColor.inkMuted)
-                        .frame(
-                            minWidth: AccessibilityHelpers.minimumTouchTarget,
-                            minHeight: AccessibilityHelpers.minimumTouchTarget
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .clTextFieldChrome(isFocused: isFocused.wrappedValue)
+        CLSearchField(
+            prompt: "Search communities…",
+            text: $query,
+            accessibilityLabel: "Search communities",
+            focus: isFocused
+        )
         .padding(.horizontal, CLSpacing.screenHorizontal)
     }
 }
@@ -91,14 +66,7 @@ struct CommunitySectionHeader: View {
     }
 
     var body: some View {
-        HStack(spacing: CLSpacing.md) {
-            Text(title)
-                .font(CLTypography.title)
-                .foregroundStyle(CLColor.ink)
-                .accessibilityAddTraits(.isHeader)
-
-            Spacer(minLength: CLSpacing.xs)
-
+        CLSectionHeader(title) {
             if let onSeeAll {
                 Button("See all", action: onSeeAll)
                     .font(CLTypography.callout.weight(.medium))

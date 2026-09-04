@@ -66,17 +66,20 @@ struct CLSettingsRow<Trailing: View>: View {
     let title: String
     var subtitle: String? = nil
     var systemImage: String? = nil
+    var role: ButtonRole? = nil
     private let trailing: Trailing
 
     init(
         title: String,
         subtitle: String? = nil,
         systemImage: String? = nil,
+        role: ButtonRole? = nil,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.title = title
         self.subtitle = subtitle
         self.systemImage = systemImage
+        self.role = role
         self.trailing = trailing()
     }
 
@@ -84,7 +87,7 @@ struct CLSettingsRow<Trailing: View>: View {
         CLListRow(title: title, subtitle: subtitle) {
             if let systemImage {
                 Image(systemName: systemImage)
-                    .foregroundStyle(CLColor.primary)
+                    .foregroundStyle(role == .destructive ? CLColor.error : CLColor.primary)
                     .frame(width: AccessibilityHelpers.minimumTouchTarget)
                     .accessibilityHidden(true)
             }
@@ -92,6 +95,12 @@ struct CLSettingsRow<Trailing: View>: View {
             trailing
         }
         .padding(.horizontal, CLSpacing.md)
+    }
+}
+
+extension CLSettingsRow where Trailing == EmptyView {
+    init(title: String, subtitle: String? = nil, systemImage: String? = nil, role: ButtonRole? = nil) {
+        self.init(title: title, subtitle: subtitle, systemImage: systemImage, role: role) { EmptyView() }
     }
 }
 

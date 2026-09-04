@@ -57,10 +57,7 @@ struct ChatInfoView: View {
         Group {
             switch viewModel.state {
             case .idle, .loading:
-                ProgressView("Loading…")
-                    .tint(CLColor.primary)
-                    .foregroundStyle(CLColor.inkMuted)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                CLLoadingState(message: "Loading…")
             case .empty:
                 emptyState(message: "Chat info unavailable.")
             case let .error(message):
@@ -372,28 +369,7 @@ struct ChatInfoView: View {
         title: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            VStack(spacing: CLSpacing.xs) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(CLColor.primary)
-                Text(title)
-                    .font(CLTypography.footnote)
-                    .foregroundStyle(CLColor.ink)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, CLSpacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
-                    .fill(CLColor.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
-                            .stroke(CLColor.hairline, lineWidth: 1)
-                    )
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        CLChatInfoActionTile(title: title, systemImage: systemImage, action: action)
     }
 
     private func muteRow(_ info: ChatInfo) -> some View {
@@ -489,7 +465,8 @@ struct ChatInfoView: View {
                                 destination = .media
                             }
                         } label: {
-                            mediaThumbnail(for: message)
+                            CLMediaThumbnail(url: message.imageURL, accessibilityLabel: "Shared photo")
+                                .aspectRatio(1, contentMode: .fit)
                         }
                         .buttonStyle(.plain)
                         .frame(maxWidth: .infinity)
@@ -499,32 +476,6 @@ struct ChatInfoView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func mediaThumbnail(for message: Message) -> some View {
-        let shape = RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
-        return Color.clear
-            .aspectRatio(1, contentMode: .fit)
-            .frame(maxWidth: .infinity)
-            .overlay {
-                if let url = message.imageURL {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case let .success(image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        default:
-                            CLColor.surfaceSoft
-                        }
-                    }
-                } else {
-                    CLColor.surfaceSoft
-                }
-            }
-            .clipped()
-            .clipShape(shape)
-            .overlay(shape.stroke(CLColor.hairline, lineWidth: 1))
     }
 
     @ViewBuilder

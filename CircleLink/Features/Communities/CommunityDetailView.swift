@@ -129,25 +129,16 @@ struct CommunityDetailView: View {
 
     @ViewBuilder
     private var membershipButton: some View {
-        Button {
+        CLMembershipButton(
+            state: viewModel.isMembershipActionInFlight ? .loading : viewModel.isMember ? .joined : .join
+        ) {
             if viewModel.isMember {
                 showLeaveConfirmation = true
             } else {
                 Task { await viewModel.join() }
             }
-        } label: {
-            membershipButtonLabel(
-                title: viewModel.isMember ? "Joined" : "Join",
-                isLoading: viewModel.isMembershipActionInFlight
-            )
-            .id(viewModel.isMembershipActionInFlight ? "loading" : viewModel.isMember ? "joined" : "join")
-            .transition(.opacity.combined(with: .scale(scale: 0.92)))
         }
-        .buttonStyle(CLPrimaryButtonStyle())
         .frame(width: 112, height: AccessibilityHelpers.minimumTouchTarget)
-        .disabled(viewModel.isMembershipActionInFlight)
-        .animation(CLMotion.soft, value: viewModel.isMember)
-        .animation(CLMotion.micro, value: viewModel.isMembershipActionInFlight)
         .accessibilityLabel(
             viewModel.isMember
                 ? "Joined. Double tap to leave community"
@@ -184,14 +175,7 @@ struct CommunityDetailView: View {
     @ViewBuilder
     private var membershipError: some View {
         if let message = viewModel.membershipErrorMessage {
-            Text(message)
-                .font(CLTypography.footnote)
-                .foregroundStyle(CLColor.error)
-                .padding(CLSpacing.sm)
-                .frame(maxWidth: .infinity)
-                .background(CLColor.errorSoft)
-                .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
-                .accessibilityLabel("Membership error: \(message)")
+            CLStatusBanner(message: message, style: .error, accessibilityPrefix: "Membership error")
         }
     }
 
@@ -254,10 +238,7 @@ struct CommunityDetailView: View {
 
             switch viewModel.postsState {
             case .idle, .loading:
-                ProgressView("Loading posts…")
-                    .tint(CLColor.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, CLSpacing.lg)
+                CLLoadingState(message: "Loading posts…", isCompact: true)
             case .empty:
                 placeholderTab(systemImage: "text.bubble", title: "No community posts yet", message: "Be the first to start the conversation.")
             case let .error(message):
@@ -287,10 +268,7 @@ struct CommunityDetailView: View {
         Group {
             switch viewModel.postsState {
             case .idle, .loading:
-                ProgressView("Loading photos…")
-                    .tint(CLColor.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, CLSpacing.lg)
+                CLLoadingState(message: "Loading photos…", isCompact: true)
             case .empty:
                 placeholderTab(systemImage: "photo.on.rectangle.angled", title: "No photos yet", message: "Photos from community posts will appear here.")
             case let .error(message):
@@ -306,7 +284,7 @@ struct CommunityDetailView: View {
                                 Button {
                                     presentedMedia = IdentifiedURL(imageURL)
                                 } label: {
-                                    CommunityGalleryThumbnail(url: imageURL)
+                                    CLMediaThumbnail(url: imageURL, accessibilityLabel: galleryAccessibilityLabel(for: post))
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityElement(children: .ignore)
@@ -320,12 +298,10 @@ struct CommunityDetailView: View {
     }
 
     private func postsErrorState(message: String) -> some View {
-        CLEmptyState(
-            systemImage: "exclamationmark.triangle",
-            title: "Couldn’t load posts",
+        CLErrorState(
+            title: "Couldn’t Load Posts",
             message: message,
-            actionTitle: "Retry",
-            actionAccessibilityLabel: "Retry loading community posts"
+            retryTitle: "Retry"
         ) {
             Task { await viewModel.reloadPosts() }
         }
@@ -340,19 +316,11 @@ struct CommunityDetailView: View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
             switch viewModel.membersState {
             case .idle, .loading:
-                ProgressView("Loading members…")
-                    .tint(CLColor.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, CLSpacing.lg)
+                CLLoadingState(message: "Loading members…", isCompact: true)
             case .empty:
                 placeholderTab(systemImage: "person.3", title: "No members yet", message: "Join to be the first member.")
             case let .error(message):
-                CLEmptyState(
-                    systemImage: "exclamationmark.triangle",
-                    title: message,
-                    actionTitle: "Retry",
-                    actionAccessibilityLabel: "Retry loading members"
-                ) {
+                CLErrorState(title: "Couldn’t Load Members", message: message, retryTitle: "Retry") {
                     Task { await viewModel.load() }
                 }
             case let .loaded(members):
@@ -363,7 +331,7 @@ struct CommunityDetailView: View {
                             Rectangle()
                                 .fill(CLColor.hairline)
                                 .frame(height: 1)
-                                .padding(.leading, MemberRowView.avatarSize + CLSpacing.sm)
+                                .padding(.leading, 44 + CLSpacing.sm)
                                 .accessibilityHidden(true)
                         }
                     }
@@ -378,12 +346,24 @@ struct CommunityDetailView: View {
         let displayName = member.displayName.isEmpty ? "Member" : member.displayName
 
         if isSelf {
-            MemberRowView(user: member, showsChevron: false)
+            CLPersonRow(
+                name: displayName,
+                avatarURL: member.avatarURL,
+                avatarBase64: member.avatarBase64,
+                avatarSize: 44
+            )
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("You, \(displayName)")
         } else {
             Button { presentedPeer = PeerSheetItem(userId: member.id) } label: {
-                MemberRowView(user: member, showsChevron: true)
+                CLPersonRow(
+                    name: displayName,
+                    avatarURL: member.avatarURL,
+                    avatarBase64: member.avatarBase64,
+                    avatarSize: 44
+                ) {
+                    CLDisclosureIndicator()
+                }
             }
             .buttonStyle(.plain)
             .accessibilityLabel("View profile for \(displayName)")
@@ -392,13 +372,7 @@ struct CommunityDetailView: View {
     }
 
     private func errorState(message: String) -> some View {
-        CLEmptyState(
-            systemImage: "exclamationmark.triangle",
-            title: message,
-            actionTitle: "Retry",
-            actionAccessibilityLabel: "Retry loading community",
-            titleAccessibilityLabel: "Error: \(message)"
-        ) {
+        CLErrorState(title: "Couldn’t Load Community", message: message, retryTitle: "Retry") {
             Task { await viewModel.load() }
         }
     }
@@ -547,52 +521,6 @@ private struct FullDescriptionHeightKey: PreferenceKey {
     }
 }
 
-private struct CommunityGalleryThumbnail: View {
-    let url: URL
-
-    var body: some View {
-        GeometryReader { proxy in
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case let .success(image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                case .failure:
-                    placeholder(systemImage: "photo.badge.exclamationmark")
-                case .empty:
-                    placeholder()
-                @unknown default:
-                    placeholder()
-                }
-            }
-            .frame(width: proxy.size.width, height: proxy.size.width)
-            .clipped()
-        }
-        .aspectRatio(1, contentMode: .fit)
-        .background(CLColor.surfaceSoft)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
-                .stroke(CLColor.hairline, lineWidth: 1)
-        }
-    }
-
-    private func placeholder(systemImage: String? = nil) -> some View {
-        ZStack {
-            CLColor.surfaceSoft
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .foregroundStyle(CLColor.inkMuted)
-            } else {
-                ProgressView()
-                    .tint(CLColor.primary)
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 private enum CommunityDetailTab: String, CaseIterable, Identifiable {
     case feed
     case members
@@ -601,39 +529,6 @@ private enum CommunityDetailTab: String, CaseIterable, Identifiable {
 
     var id: Self { self }
     var title: String { rawValue.capitalized }
-}
-
-private struct MemberRowView: View {
-    static let avatarSize: CGFloat = 44
-
-    let user: User
-    var showsChevron = true
-
-    var body: some View {
-        HStack(spacing: CLSpacing.sm) {
-            AvatarImageView(
-                localPreview: nil,
-                avatarBase64: user.avatarBase64,
-                avatarURL: user.avatarURL,
-                size: Self.avatarSize
-            )
-
-            Text(user.displayName.isEmpty ? "Member" : user.displayName)
-                .font(CLTypography.headline)
-                .foregroundStyle(CLColor.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(CLColor.inkMuted)
-                    .accessibilityHidden(true)
-            }
-        }
-        .padding(.vertical, CLSpacing.sm)
-        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-        .contentShape(Rectangle())
-    }
 }
 
 private struct PeerSheetItem: Identifiable {

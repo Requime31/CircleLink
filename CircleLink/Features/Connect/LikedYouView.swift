@@ -24,12 +24,10 @@ struct LikedYouView: View {
                     message: "When someone wants to connect, they’ll show up here."
                 )
             case let .error(message):
-                CLEmptyState(
-                    systemImage: "exclamationmark.triangle",
+                CLErrorState(
                     title: "Couldn’t load requests",
                     message: message,
-                    actionTitle: "Retry",
-                    actionAccessibilityLabel: "Retry loading requests"
+                    retryTitle: "Retry"
                 ) {
                     Task { await viewModel.load() }
                 }

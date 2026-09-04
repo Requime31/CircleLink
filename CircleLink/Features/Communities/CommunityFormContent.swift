@@ -61,19 +61,20 @@ struct CommunityFormContent: View {
     }
 
     private var coverSection: some View {
-        VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            sectionTitle("Cover")
+        CLPhotoPickerSection(
+            selection: $photoItem,
+            title: "Cover",
+            actionTitle: hasVisibleCover ? "Change Photo" : "Add Photo",
+            isDisabled: isBusy || isLoadingPhoto,
+            errorMessage: photoErrorMessage,
+            removeTitle: hasVisibleCover ? "Remove Photo" : nil,
+            onRemove: removeCover
+        ) {
             coverHero
                 .frame(maxWidth: .infinity)
                 .frame(height: 190)
                 .clipShape(RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: CLRadius.xl, style: .continuous).stroke(CLColor.hairline))
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: CLSpacing.sm) { coverActions }
-                VStack(alignment: .leading, spacing: CLSpacing.sm) { coverActions }
-            }
-            if let photoErrorMessage { errorText(photoErrorMessage, prefix: "Photo error") }
         }
     }
 
@@ -107,53 +108,28 @@ struct CommunityFormContent: View {
         .accessibilityElement(children: .combine)
     }
 
-    @ViewBuilder private var coverActions: some View {
-        PhotosPicker(selection: $photoItem, matching: .images) {
-            Label(hasVisibleCover ? "Change Photo" : "Add Photo", systemImage: "photo")
-                .frame(maxWidth: .infinity).frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-        }
-        .buttonStyle(CLSecondaryButtonStyle())
-        .disabled(isBusy || isLoadingPhoto)
-
-        if hasVisibleCover {
-            Button(role: .destructive) {
-                loadGeneration += 1
-                photoItem = nil
-                previewImage = nil
-                draft.selectedCoverData = nil
-                draft.removesExistingCover = draft.originalCoverURL != nil
-                photoErrorMessage = nil
-            } label: {
-                Label("Remove Photo", systemImage: "trash")
-                    .frame(maxWidth: .infinity).frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-            }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .disabled(isBusy || isLoadingPhoto)
-        }
-    }
-
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: CLSpacing.md) {
-            sectionTitle("Details")
-            fieldCard {
+            CLSectionHeader("Details")
+            CLFieldCard {
                 VStack(alignment: .leading, spacing: CLSpacing.xs) {
-                    Text("Name").font(CLTypography.footnote).foregroundStyle(CLColor.inkSecondary)
+                    CLFormLabel(title: "Name")
                     TextField("Community name", text: $draft.name, axis: .vertical)
                         .font(CLTypography.body).lineLimit(1 ... 3).accessibilityLabel("Community name")
-                    characterCounter(count: CommunityContentPolicy.trimmed(draft.name).count,
-                                     limit: CommunityContentPolicy.nameLimit, label: "Name")
+                    CLCharacterCounter(count: CommunityContentPolicy.trimmed(draft.name).count,
+                                       limit: CommunityContentPolicy.nameLimit, label: "Name")
                 }
             }
-            fieldCard {
+            CLFieldCard {
                 VStack(alignment: .leading, spacing: CLSpacing.xs) {
-                    Text("Description").font(CLTypography.footnote).foregroundStyle(CLColor.inkSecondary)
+                    CLFormLabel(title: "Description")
                     TextField("What brings this community together?", text: $draft.description, axis: .vertical)
                         .font(CLTypography.body).lineLimit(4 ... 12).accessibilityLabel("Community description")
-                    characterCounter(count: CommunityContentPolicy.trimmed(draft.description).count,
-                                     limit: CommunityContentPolicy.descriptionLimit, label: "Description")
+                    CLCharacterCounter(count: CommunityContentPolicy.trimmed(draft.description).count,
+                                       limit: CommunityContentPolicy.descriptionLimit, label: "Description")
                 }
             }
-            if let validationMessage { errorText(validationMessage, prefix: "Validation error") }
+            if let validationMessage { CLValidationMessage(message: validationMessage) }
         }
         .onChange(of: draft.name) { value in
             hasEditedName = true
@@ -168,8 +144,8 @@ struct CommunityFormContent: View {
 
     private var interestSection: some View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            sectionTitle("Interest")
-            fieldCard {
+            CLSectionHeader("Interest")
+            CLFieldCard {
                 Picker("Community interest", selection: $draft.interestTag) {
                     ForEach(ProfileInterests.presets, id: \.self) { Text($0).tag($0) }
                 }
@@ -180,6 +156,15 @@ struct CommunityFormContent: View {
 
     private var hasVisibleCover: Bool {
         previewImage != nil || (!draft.removesExistingCover && draft.originalCoverURL != nil)
+    }
+
+    private func removeCover() {
+        loadGeneration += 1
+        photoItem = nil
+        previewImage = nil
+        draft.selectedCoverData = nil
+        draft.removesExistingCover = draft.originalCoverURL != nil
+        photoErrorMessage = nil
     }
 
     private var validationMessage: String? {
@@ -210,28 +195,6 @@ struct CommunityFormContent: View {
         }
     }
 
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title).font(CLTypography.headline).foregroundStyle(CLColor.ink).accessibilityAddTraits(.isHeader)
-    }
-
-    private func fieldCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        content().padding(CLSpacing.md).frame(maxWidth: .infinity, alignment: .leading)
-            .background(CLColor.surface)
-            .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous).stroke(CLColor.hairline))
-    }
-
-    private func characterCounter(count: Int, limit: Int, label: String) -> some View {
-        Text("\(count)/\(limit)").font(CLTypography.caption)
-            .foregroundStyle(count > limit ? CLColor.error : CLColor.inkMuted)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .accessibilityLabel("\(label), \(count) of \(limit) characters")
-    }
-
-    private func errorText(_ message: String, prefix: String) -> some View {
-        Text(message).font(CLTypography.footnote).foregroundStyle(CLColor.error)
-            .fixedSize(horizontal: false, vertical: true).accessibilityLabel("\(prefix): \(message)")
-    }
 }
 
 private enum CommunityFormPhotoError: Error { case unreadable }

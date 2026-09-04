@@ -77,8 +77,11 @@ struct CLProfileStatsRow: View {
         HStack(alignment: .top, spacing: CLSpacing.sm) {
             ForEach(stats) { stat in
                 VStack(spacing: CLSpacing.xxs) {
-                    Text(stat.value).font(CLTypography.headline).foregroundStyle(CLColor.ink)
-                    Text(stat.label).font(CLTypography.caption).foregroundStyle(CLColor.inkMuted)
+                    Text(stat.value).font(CLTypography.title2).foregroundStyle(CLColor.primaryPressed)
+                    Text(stat.label.uppercased())
+                        .font(CLTypography.caption)
+                        .foregroundStyle(CLColor.inkMuted)
+                        .tracking(0.6)
                 }
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)

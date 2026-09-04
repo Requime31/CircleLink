@@ -254,7 +254,7 @@ struct ConnectDiscoverDeckView: View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
             sectionHeader("Interests")
 
-            FlowLayout(spacing: CLSpacing.sm) {
+            CLFlowLayout(horizontalSpacing: CLSpacing.sm, verticalSpacing: CLSpacing.sm) {
                 ForEach(interests, id: \.self) { interest in
                     CLChip(title: interest)
                 }
@@ -286,7 +286,7 @@ struct ConnectDiscoverDeckView: View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
             sectionHeader("Communities")
 
-            FlowLayout(spacing: CLSpacing.sm) {
+            CLFlowLayout(horizontalSpacing: CLSpacing.sm, verticalSpacing: CLSpacing.sm) {
                 ForEach(visibleCommunities) { community in
                     CLChip(
                         title: CommunityContentPolicy.safeDisplayName(community.name, limit: 24),
