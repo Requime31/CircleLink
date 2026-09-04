@@ -1,7 +1,33 @@
 import SwiftUI
 
 struct CLMembershipButton: View {
-    enum State: Equatable { case join, joined, pending, loading }
+    enum StableState: Equatable {
+        case join
+        case joined
+
+        var title: String { self == .join ? "Join" : "Joined" }
+    }
+
+    enum State: Equatable {
+        case join
+        case joined
+        case pending
+        case loading(previous: StableState)
+
+        var title: String {
+            switch self {
+            case .join: return "Join"
+            case .joined: return "Joined"
+            case .pending: return "Request Pending"
+            case let .loading(previous): return previous.title
+            }
+        }
+
+        var isLoading: Bool {
+            if case .loading = self { return true }
+            return false
+        }
+    }
 
     let state: State
     let action: () -> Void
@@ -9,23 +35,21 @@ struct CLMembershipButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: CLSpacing.xs) {
-                if state == .loading { ProgressView() }
-                Text(title)
+                if state.isLoading {
+                    ProgressView().accessibilityHidden(true)
+                }
+                Text(state.title)
             }
             .frame(maxWidth: .infinity)
         }
-        .buttonStyle(AnyCLButtonStyle(style: state == .join ? .emphasis : .secondary))
-        .disabled(state == .loading || state == .pending)
-        .accessibilityLabel(title)
+        .buttonStyle(AnyCLButtonStyle(style: usesEmphasisStyle ? .emphasis : .secondary))
+        .disabled(state.isLoading || state == .pending)
+        .accessibilityLabel(state.title)
+        .accessibilityValue(state.isLoading ? "In progress" : "")
     }
 
-    private var title: String {
-        switch state {
-        case .join: return "Join"
-        case .joined: return "Joined"
-        case .pending: return "Request Pending"
-        case .loading: return "Updating Membership"
-        }
+    private var usesEmphasisStyle: Bool {
+        state == .join || state == .loading(previous: .join)
     }
 }
 

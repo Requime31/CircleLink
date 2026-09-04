@@ -1,6 +1,11 @@
 import PhotosUI
 import SwiftUI
 
+enum CLMediaThumbnailSizing: Equatable {
+    case intrinsic
+    case aspectRatio(CGFloat)
+}
+
 struct CLPhotoPickerConfiguration: Equatable {
     let title: String
     var actionTitle = "Add Photo"
@@ -31,8 +36,29 @@ struct CLMediaThumbnail: View {
     let url: URL?
     var accessibilityLabel = "Photo"
     var cornerRadius: CGFloat = CLRadius.sm
+    var sizing: CLMediaThumbnailSizing = .intrinsic
 
     var body: some View {
+        thumbnail
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(CLColor.hairline))
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityIgnoresInvertColors()
+    }
+
+    @ViewBuilder private var thumbnail: some View {
+        switch sizing {
+        case .intrinsic:
+            image
+        case let .aspectRatio(ratio):
+            Color.clear
+                .aspectRatio(ratio, contentMode: .fit)
+                .overlay { image.frame(maxWidth: .infinity, maxHeight: .infinity) }
+                .clipped()
+        }
+    }
+
+    private var image: some View {
         AsyncImage(url: url) { phase in
             switch phase {
             case let .success(image): image.resizable().scaledToFill()
@@ -42,9 +68,6 @@ struct CLMediaThumbnail: View {
             }
         }
         .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(CLColor.hairline))
-        .accessibilityLabel(accessibilityLabel)
     }
 }
 

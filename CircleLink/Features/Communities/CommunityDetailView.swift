@@ -130,7 +130,9 @@ struct CommunityDetailView: View {
     @ViewBuilder
     private var membershipButton: some View {
         CLMembershipButton(
-            state: viewModel.isMembershipActionInFlight ? .loading : viewModel.isMember ? .joined : .join
+            state: viewModel.isMembershipActionInFlight
+                ? .loading(previous: viewModel.isMember ? .joined : .join)
+                : viewModel.isMember ? .joined : .join
         ) {
             if viewModel.isMember {
                 showLeaveConfirmation = true
@@ -284,7 +286,11 @@ struct CommunityDetailView: View {
                                 Button {
                                     presentedMedia = IdentifiedURL(imageURL)
                                 } label: {
-                                    CLMediaThumbnail(url: imageURL, accessibilityLabel: galleryAccessibilityLabel(for: post))
+                                    CLMediaThumbnail(
+                                        url: imageURL,
+                                        accessibilityLabel: galleryAccessibilityLabel(for: post),
+                                        sizing: .aspectRatio(1)
+                                    )
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityElement(children: .ignore)

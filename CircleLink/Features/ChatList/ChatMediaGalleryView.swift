@@ -97,8 +97,11 @@ struct ChatMediaGalleryView: View {
                                 Button {
                                     presentedMedia = IdentifiedURL(url)
                                 } label: {
-                                    CLMediaThumbnail(url: url, accessibilityLabel: "Shared photo")
-                                        .aspectRatio(1, contentMode: .fit)
+                                    CLMediaThumbnail(
+                                        url: url,
+                                        accessibilityLabel: "Shared photo",
+                                        sizing: .aspectRatio(1)
+                                    )
                                     .contentShape(
                                         RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
                                     )

@@ -1,3 +1,4 @@
+import CoreGraphics
 import Testing
 @testable import CircleLink
 
@@ -30,6 +31,21 @@ struct CLComponentInteractionTests {
         #expect(replaceable.canRemove)
         #expect(disabled.canPick == false)
         #expect(disabled.canRemove == false)
+    }
+
+    @Test func mediaThumbnailSizingKeepsExplicitGridAspectRatio() {
+        #expect(CLMediaThumbnailSizing.aspectRatio(1) == .aspectRatio(1))
+        #expect(CLMediaThumbnailSizing.intrinsic != .aspectRatio(1))
+    }
+
+    @Test func membershipLoadingKeepsPreviousVisibleAndAccessibleState() {
+        let joining = CLMembershipButton.State.loading(previous: .join)
+        let leaving = CLMembershipButton.State.loading(previous: .joined)
+
+        #expect(joining.title == "Join")
+        #expect(leaving.title == "Joined")
+        #expect(joining.isLoading)
+        #expect(leaving.isLoading)
     }
 
     @Test func composerAcceptsTextOrMediaAndRejectsOverflowOrRepeatedSubmit() {
