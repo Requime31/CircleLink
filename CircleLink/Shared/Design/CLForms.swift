@@ -347,16 +347,99 @@ struct AnyCLButtonStyle: ButtonStyle {
     let style: CLAsyncButtonConfiguration.Style
     var fillsWidth = true
 
-    @ViewBuilder func makeBody(configuration: Configuration) -> some View {
-        switch style {
-        case .primary: CLPrimaryButtonStyle(fillsWidth: fillsWidth).makeBody(configuration: configuration)
-        case .emphasis: CLEmphasisButtonStyle(fillsWidth: fillsWidth).makeBody(configuration: configuration)
-        case .secondary: CLSecondaryButtonStyle().makeBody(configuration: configuration)
-        case .destructive: CLDestructiveButtonStyle(fillsWidth: fillsWidth).makeBody(configuration: configuration)
-        }
+    func makeBody(configuration: Configuration) -> some View {
+        CLAnyButtonStyleBody(
+            label: configuration.label,
+            style: style,
+            fillsWidth: fillsWidth,
+            isPressed: configuration.isPressed
+        )
     }
 }
 
+private struct CLAnyButtonStyleBody<Label: View>: View {
+    let label: Label
+    let style: CLAsyncButtonConfiguration.Style
+    let fillsWidth: Bool
+    let isPressed: Bool
+
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @ViewBuilder var body: some View {
+        switch style {
+        case .primary:
+            label
+                .font(CLTypography.button)
+                .foregroundStyle(isEnabled ? CLColor.onPrimary : CLColor.inkDisabled)
+                .padding(.horizontal, fillsWidth ? 0 : CLSpacing.md)
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                .background(primaryBackground)
+                .clipShape(buttonShape)
+                .opacity(isPressed && isEnabled ? 0.92 : 1)
+                .animation(pressAnimation, value: isPressed)
+
+        case .emphasis:
+            label
+                .font(CLTypography.button)
+                .foregroundStyle(isEnabled ? CLColor.onPrimaryStrong : CLColor.inkDisabled)
+                .padding(.horizontal, fillsWidth ? 0 : CLSpacing.md)
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                .background(emphasisBackground)
+                .clipShape(buttonShape)
+                .opacity(isPressed && isEnabled ? 0.92 : 1)
+                .animation(pressAnimation, value: isPressed)
+
+        case .secondary:
+            label
+                .font(CLTypography.button)
+                .foregroundStyle(isEnabled ? CLColor.ink : CLColor.inkDisabled)
+                .padding(.horizontal, fillsWidth ? 0 : CLSpacing.md)
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                .background(secondaryBackground)
+                .overlay(buttonShape.stroke(isEnabled ? CLColor.hairlineStrong : CLColor.hairline, lineWidth: 1))
+                .clipShape(buttonShape)
+                .animation(reduceMotion ? .easeOut(duration: 0.15) : nil, value: isPressed)
+
+        case .destructive:
+            label
+                .font(CLTypography.button)
+                .foregroundStyle(isEnabled ? CLColor.onPrimaryStrong : CLColor.inkDisabled)
+                .padding(.horizontal, fillsWidth ? 0 : CLSpacing.md)
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
+                .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+                .background(isEnabled ? CLColor.error.opacity(isPressed ? 0.82 : 1) : CLColor.surfaceSoft)
+                .clipShape(buttonShape)
+                .animation(pressAnimation, value: isPressed)
+        }
+    }
+
+    private var buttonShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
+    }
+
+    private var primaryBackground: Color {
+        guard isEnabled else { return CLColor.surfaceSoft }
+        return isPressed ? CLColor.accentSoft.opacity(0.85) : CLColor.accentSoft
+    }
+
+    private var emphasisBackground: Color {
+        guard isEnabled else { return CLColor.surfaceSoft }
+        return isPressed ? CLColor.primaryPressed : CLColor.primary
+    }
+
+    private var secondaryBackground: Color {
+        guard isEnabled else { return CLColor.surfaceSoft }
+        return isPressed ? CLColor.surfaceSoft : CLColor.surface
+    }
+
+    private var pressAnimation: Animation? {
+        reduceMotion ? .easeOut(duration: 0.15) : CLMotion.micro
+    }
+}
 struct CLDestructiveButtonStyle: ButtonStyle {
     var fillsWidth = true
 
