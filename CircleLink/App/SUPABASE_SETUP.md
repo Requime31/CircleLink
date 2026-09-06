@@ -1,9 +1,11 @@
-# Supabase Storage Setup (Chat + Profile images)
+# Supabase Storage Setup (App Media)
 
-CircleLink uses **Supabase Storage for image binaries** (free tier): chat attachments and profile post photos.
+CircleLink uses **Supabase Storage for image binaries** (free tier): chat attachments,
+profile-post photos, community covers, and community-post photos.
 Auth and database stay on Firebase — Supabase is **not** used for login or Firestore.
 
-Firestore / profile-post documents store only the public `imageURL` — not the binary.
+Firestore message, profile-post, and community documents store only public image URLs — not
+the binary data.
 Firebase Storage is **not** required.
 
 > **Security:** uploads/downloads use HTTPS/TLS, but the current bucket and returned URLs are
@@ -79,7 +81,8 @@ cp CircleLink/SupabaseSecrets.plist.example CircleLink/SupabaseSecrets.plist
 
 3. Clean build (⇧⌘K) and run again.
 
-Without `SupabaseSecrets.plist`, **text chat works** but image upload fails with a clear error.
+Without `SupabaseSecrets.plist`, text chat and Firestore-backed features work, but all Supabase
+media uploads fail with a clear error.
 
 ## 5. File layout in Supabase
 
@@ -113,7 +116,17 @@ Profile post image:
     → ImageCompressor.compressForChat
     → SupabaseProfileImageStorage.uploadProfileImage
     → public URL → Firestore profilePosts { imageURL }
+
+Community cover or post image:
+  Admin/member selects image
+    → ImageCompressor
+    → SupabaseCommunityImageStorage.uploadCover / uploadPostImage
+    → public URL → Firestore community / communityPosts document
 ```
+
+Profile-post and community media deletion also removes the corresponding Storage object on a
+best-effort basis. Chat attachments currently expose upload only and are retained with their
+public object URL.
 
 ## Free tier limits (typical)
 

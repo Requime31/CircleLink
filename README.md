@@ -4,7 +4,7 @@ iOS community messenger MVP: interest-based communities, Connect matching, and c
 
 - **UI:** SwiftUI screens + UIKit chat thread
 - **Backend:** Firebase Auth + Firestore (Spark plan)
-- **Chat images:** Supabase Storage
+- **Media:** Supabase Storage for chat attachments, profile posts, and community images
 - **Realtime chat:** Firestore listeners (not WebSocket on iOS)
 - **Push:** the app registers FCM tokens and handles notification taps; no server-side sender is included
 
@@ -30,7 +30,7 @@ rewrite or delete `ui-redisign`; it remains the traceable source of the redesign
 | macOS + [Xcode](https://developer.apple.com/xcode/) (recent) | Build and run the app |
 | Apple ID / signing | Simulator usually works; device needs a team |
 | Firebase project | Auth, Firestore, FCM — see setup below |
-| Supabase project (optional for text-only) | Chat image uploads |
+| Supabase project (optional for text-only use) | Chat, profile-post, and community image uploads |
 
 ---
 
@@ -58,13 +58,15 @@ cp CircleLink/GoogleService-Info.plist.example CircleLink/GoogleService-Info.pli
 
 Fill `GoogleService-Info.plist` from [Firebase Console](https://console.firebase.google.com) (see [FIREBASE_SETUP.md](CircleLink/App/FIREBASE_SETUP.md)).
 
-2. (Optional) Chat images — copy and fill Supabase secrets:
+2. (Optional) Media uploads — copy and fill Supabase secrets:
 
 ```bash
 cp CircleLink/SupabaseSecrets.plist.example CircleLink/SupabaseSecrets.plist
 ```
 
-See [SUPABASE_SETUP.md](CircleLink/App/SUPABASE_SETUP.md). Without this file, **text chat still works**; image upload fails with a clear error.
+See [SUPABASE_SETUP.md](CircleLink/App/SUPABASE_SETUP.md). Without this file, text chat and
+Firestore-backed features still work, but chat attachments, profile-post photos, and community
+cover/post uploads fail with a clear error.
 
 3. In Xcode: press **⌘R** (Run).
 
@@ -77,7 +79,7 @@ On launch, console should show: `[CircleLink] Firebase configured.`
 | Topic | Doc |
 |---|---|
 | Firebase Auth, Firestore, FCM, rules | [CircleLink/App/FIREBASE_SETUP.md](CircleLink/App/FIREBASE_SETUP.md) |
-| Supabase Storage (`chat-images`) | [CircleLink/App/SUPABASE_SETUP.md](CircleLink/App/SUPABASE_SETUP.md) |
+| Supabase Storage media bucket (`chat-images`) | [CircleLink/App/SUPABASE_SETUP.md](CircleLink/App/SUPABASE_SETUP.md) |
 **Important:** stay on Firebase **Spark**. No Cloud Functions or other push backend is included.
 
 ---
@@ -110,8 +112,9 @@ More detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 | Connect | Discover, incoming/outgoing requests, matches, direct-chat entry, report/block |
 | Profile/settings | Profile posts, appearance, reminders, notifications, legal/help/rating, blocked people |
 | Account lifecycle | Soft deactivation and recovery; no physical-cleanup worker is included |
-| Backend | Firestore realtime, Supabase image storage, hardened rules/indexes |
-| Quality | Swift Testing coverage for ViewModels, data policies and navigation helpers |
+| Backend | Firestore realtime, Supabase media storage, hardened rules/indexes |
+| UI system | Sunset Parchment tokens plus reusable forms, rows, surfaces, media, navigation, and state components |
+| Quality | Swift Testing coverage for ViewModels, repositories/mappers, policies, navigation, and reusable UI behavior |
 
 ---
 
@@ -120,5 +123,7 @@ More detail: [ARCHITECTURE.md](ARCHITECTURE.md).
 | Doc | For |
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Layers, realtime, push, rules |
+| [DESIGN.md](DESIGN.md) | Canonical visual tokens and component rules |
 | [CircleLink/App/FIREBASE_SETUP.md](CircleLink/App/FIREBASE_SETUP.md) | Firebase Auth / Firestore / FCM |
-| [CircleLink/App/SUPABASE_SETUP.md](CircleLink/App/SUPABASE_SETUP.md) | Chat image storage |
+| [CircleLink/App/SUPABASE_SETUP.md](CircleLink/App/SUPABASE_SETUP.md) | Supabase media storage |
+| [UI_COMPONENTS_MIGRATION_CHECKLIST.md](UI_COMPONENTS_MIGRATION_CHECKLIST.md) | Completed reusable-component adoption audit |

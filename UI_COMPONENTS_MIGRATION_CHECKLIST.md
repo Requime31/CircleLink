@@ -1,6 +1,10 @@
 # UI Components Adoption Checklist
 
-Base: `codex/ui-components-foundation` (`b50de64`). Contextual guides and spotlight are out of scope.
+Status: **complete** on `codex/ui-components-adoption`.
+
+Foundation: `codex/ui-components-foundation` (`b50de64`). The adoption pass introduced shared
+primitives under `Shared/Design` and feature-specific components under each feature's
+`Components` directory. Contextual guides and spotlight remain out of scope.
 
 ## App and Auth
 

@@ -1,4 +1,4 @@
-# Firebase Setup (Phase 1+)
+# Firebase Setup
 
 CircleLink uses Firebase for **Auth**, **Firestore**, and **FCM** (Messaging).
 **Spark plan is enough** — do not deploy Cloud Functions / Blaze.
@@ -12,7 +12,7 @@ Already configured in `CircleLink.xcodeproj`:
 - `FirebaseCore`
 - `FirebaseAuth`
 - `FirebaseFirestore`
-- `FirebaseMessaging` (Phase 9 push)
+- `FirebaseMessaging`
 
 If packages are missing locally: **File → Packages → Resolve Package Versions**.
 
@@ -84,15 +84,15 @@ in one Firestore batch. Legacy profiles without `birthDate` continue using the p
 field and an existing `ageConfirmedAt`; no migration job is required. Never copy `birthDate`
 into connection, chat, or other public profile documents.
 
-### Avatars (Phase 3, no Storage required)
+### Avatars (no Storage required)
 
 Avatars are stored as **compressed JPEG base64** in Firestore field `avatarBase64`.
 This works on the free Spark plan — Firebase Storage is **not** required.
 
-### Chat images (Phase 6 — Supabase Storage)
+### App media (Supabase Storage)
 
-Chat image attachments are stored in **Supabase Storage** (free tier).
-Firestore message documents store only `imageURL`.
+Chat attachments, profile-post photos, community covers, and community-post photos are stored
+in **Supabase Storage** (free tier). Firestore documents store only their public image URLs.
 
 See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for bucket and API key setup.
 
@@ -133,7 +133,7 @@ Signed-in users create a community in the app (`CreateCommunitySheet`). The crea
 
 `join` / `leave` update the member subcollection and increment/decrement `memberCount` atomically via batch write.
 
-### Firestore Security Rules (required for Phase 5)
+### Firestore Security Rules
 
 If the app shows **"Missing or insufficient permissions"**, use the failing path in the Xcode
 console to identify the relevant rule. A failure under `users/{uid}/chatRefs/{chatId}` can indicate
@@ -174,7 +174,7 @@ On launch, check Xcode console:
 
 Create a test user in Firebase Console → Authentication → Users → Add user.
 
-## 8. Push Notifications / FCM (Phase 9)
+## 8. Push Notifications / FCM
 
 ### Xcode / Apple Developer
 
@@ -200,7 +200,7 @@ CircleLink stays on the Firebase **Spark** plan and does not include Cloud Funct
 server-side FCM sender. The app registers tokens and handles notification taps, but background
 push delivery requires a separately operated sender.
 
-## Security notes (Phase 2)
+## Security notes
 
 - Firebase ID tokens stored in **Keychain** via `KeychainTokenStorage`
 - **No tokens in UserDefaults**

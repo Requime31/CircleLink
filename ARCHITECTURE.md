@@ -10,7 +10,7 @@ Community messenger MVP (iOS 16+, SwiftUI + UIKit Chat).
 | **Presentation** | UI rendering, user input | SwiftUI Views, `ChatViewController` |
 | **Domain** | Business models, repository protocols | `User`, `ChatRepository` |
 | **Data** | Firebase, Supabase, Keychain implementations | `FirestoreChatRepository`, `SupabaseChatImageStorage` |
-| **Shared** | Cross-cutting utilities | `ViewState`, `ImageLoader` |
+| **Shared** | Cross-cutting utilities and the reusable UI system | `ViewState`, `ImageLoader`, `CLTheme`, `CLAsyncContent` |
 
 ## Dependency Direction
 
@@ -57,7 +57,7 @@ View → ViewModel → Repository protocol ← Data implementation
 
 Listeners do **not** replace push. If the process is dead, delivery waits for FCM.
 
-### Push / deep links (Phase 9)
+### Push / deep links
 
 ```
 FCM tap
@@ -88,12 +88,19 @@ CircleLink/
   Domain/        — Models, Repository protocols
   Data/
     Firebase/    — Auth + Firestore repos/mappers
-    Supabase/    — chat image upload only
+    Supabase/    — chat, profile-post, and community image storage
     Keychain/    — token storage
     Stubs/       — stub repos
-  Shared/        — ViewState, helpers
+  Shared/
+    Design/      — Sunset Parchment tokens and reusable SwiftUI components
+    Avatar/      — shared avatar presentation
+    …            — ViewState, image loading, accessibility, helpers
 CircleLinkTests/ — Swift Testing suites + mocks
 ```
+
+Feature-specific reusable components stay next to their feature under
+`Features/<Feature>/Components`; cross-feature primitives belong in `Shared/Design`.
+`DESIGN.md` is the visual contract, while the `CL*` types are its implementation.
 
 ## State Management
 
@@ -148,7 +155,8 @@ Observation starts in `ChatViewModel.onAppear` and stops in `onDisappear` / `dei
 
 ## Testing
 
-- ViewModel and policy tests live in `CircleLinkTests/` (Swift Testing + mock repositories)
+- ViewModel, repository/mapper, policy, navigation, and reusable-component tests live in
+  `CircleLinkTests/` (Swift Testing + mock repositories)
 - Mock repository protocols — no Firebase needed for ViewModel tests
 - Protocol-based design keeps UI and network out of unit tests
 
@@ -175,4 +183,5 @@ change a direct-chat destination.
   exact timestamp equality and Firestore nanoseconds may otherwise be lost.
 - Message `text` and `lastMessageText` are stored as plaintext fields; CircleLink does **not**
   currently provide end-to-end encryption.
-- Supabase chat images currently use returned public URLs.
+- Supabase chat, profile-post, community-cover, and community-post images currently use
+  returned public URLs from the shared `chat-images` bucket.
