@@ -36,6 +36,8 @@ struct User: Codable, Equatable, Sendable, Identifiable {
     var accountState: AccountState
     var deletionRequestedAt: Date?
     var scheduledDeletionAt: Date?
+    /// Owner-only, versioned contextual-guide completion markers.
+    var contextualGuideCompletions: [String: Int]
 
     init(
         id: String,
@@ -49,7 +51,8 @@ struct User: Codable, Equatable, Sendable, Identifiable {
         ageConfirmedAt: Date? = nil,
         accountState: AccountState = .active,
         deletionRequestedAt: Date? = nil,
-        scheduledDeletionAt: Date? = nil
+        scheduledDeletionAt: Date? = nil,
+        contextualGuideCompletions: [String: Int] = [:]
     ) {
         self.id = id
         self.displayName = displayName
@@ -63,6 +66,7 @@ struct User: Codable, Equatable, Sendable, Identifiable {
         self.accountState = accountState
         self.deletionRequestedAt = deletionRequestedAt
         self.scheduledDeletionAt = scheduledDeletionAt
+        self.contextualGuideCompletions = contextualGuideCompletions
     }
 
     var isSociallyAvailable: Bool { accountState == .active }

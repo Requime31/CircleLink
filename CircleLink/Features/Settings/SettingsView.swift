@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum SettingsDestination: Hashable, CaseIterable {
-    case faq, support, blockedPeople, privacy, terms, deleteAccount
+    case faq, support, appGuide, blockedPeople, privacy, terms, deleteAccount
 }
 
 enum SettingsPresentation {
@@ -153,6 +153,9 @@ struct SettingsView: View {
             NavigationLink(value: SettingsDestination.support) {
                 CLSettingsRow(title: "Contact Support", systemImage: "envelope")
             }
+            NavigationLink(value: SettingsDestination.appGuide) {
+                CLSettingsRow(title: "App Guide", systemImage: "sparkles.rectangle.stack")
+            }
             Button { viewModel.requestAppRating() } label: {
                 CLSettingsRow(title: "Rate CircleLink", systemImage: "star")
             }
@@ -209,6 +212,7 @@ struct SettingsView: View {
         switch route {
         case .faq: FAQView()
         case .support: SupportView(viewModel: makeSupportViewModel())
+        case .appGuide: AppGuideHubView()
         case .blockedPeople: BlockedPeopleView(viewModel: makeBlockedPeopleViewModel())
         case .privacy: LegalDocumentView(document: LegalDocuments.privacyPolicy)
         case .terms: LegalDocumentView(document: LegalDocuments.termsOfService)

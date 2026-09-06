@@ -6,7 +6,7 @@ import Testing
 struct SettingsPresentationTests {
     @Test func routeMapContainsOnlyImplementedDestinations() {
         #expect(SettingsDestination.allCases == [
-            .faq, .support, .blockedPeople, .privacy, .terms, .deleteAccount
+            .faq, .support, .appGuide, .blockedPeople, .privacy, .terms, .deleteAccount
         ])
     }
 

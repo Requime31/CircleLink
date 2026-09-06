@@ -26,9 +26,12 @@ protocol UserRepository: Sendable {
 
     /// Clears the stored FCM token (e.g. on sign-out).
     func clearFCMToken() async throws
+    /// Merges only newer owner-specific guide versions into private account data.
+    func completeContextualGuides(_ versionsByTipID: [String: Int]) async throws
 }
 
 extension UserRepository {
+    func completeContextualGuides(_ versionsByTipID: [String: Int]) async throws {}
     /// Keeps lightweight preview and test repositories source-compatible when live updates
     /// are not relevant to their scenario.
     func observeProfiles(userIds: Set<String>) -> AsyncThrowingStream<User, Error> {

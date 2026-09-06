@@ -80,6 +80,23 @@ service cloud.firestore {
       return getAfter(/databases/$(database)/documents/users/$(userId)/private/account);
     }
 
+    function validContextualGuideCompletions(data) {
+      let versions = data.get('contextualGuideCompletions', {});
+      return versions is map
+        && versions.keys().hasOnly([
+          'connect-card', 'community-join', 'community-post', 'community-reactions',
+          'chat-unread', 'chat-jump', 'profile-post', 'profile-edit'
+        ])
+        && versions.get('connect-card', 0) is int && versions.get('connect-card', 0) >= 0
+        && versions.get('community-join', 0) is int && versions.get('community-join', 0) >= 0
+        && versions.get('community-post', 0) is int && versions.get('community-post', 0) >= 0
+        && versions.get('community-reactions', 0) is int && versions.get('community-reactions', 0) >= 0
+        && versions.get('chat-unread', 0) is int && versions.get('chat-unread', 0) >= 0
+        && versions.get('chat-jump', 0) is int && versions.get('chat-jump', 0) >= 0
+        && versions.get('profile-post', 0) is int && versions.get('profile-post', 0) >= 0
+        && versions.get('profile-edit', 0) is int && versions.get('profile-edit', 0) >= 0;
+    }
+
     function birthdayHasOccurredThisYear(birthDate) {
       return birthDate.month() < request.time.month()
         || (
@@ -453,10 +470,11 @@ service cloud.firestore {
           && privateDocument == 'account'
           && request.resource.data.keys().hasOnly([
             'birthDate', 'fcmToken', 'fcmTokenUpdatedAt',
-            'accountState', 'deletionRequestedAt'
+            'accountState', 'deletionRequestedAt', 'contextualGuideCompletions'
           ])
           && (!('birthDate' in request.resource.data) || request.resource.data.birthDate is timestamp)
           && (!('fcmToken' in request.resource.data) || request.resource.data.fcmToken is string)
+          && validContextualGuideCompletions(request.resource.data)
           && (
             !request.resource.data.keys().hasAny(['accountState', 'deletionRequestedAt'])
             || (
@@ -471,12 +489,13 @@ service cloud.firestore {
           && privateDocument == 'account'
           && request.resource.data.keys().hasOnly([
             'birthDate', 'fcmToken', 'fcmTokenUpdatedAt',
-            'accountState', 'deletionRequestedAt'
+            'accountState', 'deletionRequestedAt', 'contextualGuideCompletions'
           ])
           && (!('birthDate' in request.resource.data) || request.resource.data.birthDate is timestamp)
           && (!resource.data.keys().hasAny(['birthDate'])
             || request.resource.data.birthDate == resource.data.birthDate)
           && (!('fcmToken' in request.resource.data) || request.resource.data.fcmToken is string)
+          && validContextualGuideCompletions(request.resource.data)
           && (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny([
               'accountState', 'deletionRequestedAt'

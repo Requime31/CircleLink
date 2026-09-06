@@ -32,6 +32,7 @@ final class AppCoordinator: ObservableObject {
     private let communitiesViewModel: CommunitiesViewModel
     private let chatsViewModel: ChatsViewModel
     private let profileViewModel: ProfileViewModel
+    private let guideManager: ContextualGuideManager
     private var accountRecoveryViewModel: AccountRecoveryViewModel?
 
     private lazy var connectViewModel: ConnectViewModel = dependencies.makeConnectViewModel { [weak self] chatId, title in
@@ -62,6 +63,7 @@ final class AppCoordinator: ObservableObject {
         self.communitiesViewModel = dependencies.makeCommunitiesViewModel()
         self.chatsViewModel = dependencies.makeChatsViewModel()
         self.profileViewModel = dependencies.makeProfileViewModel()
+        self.guideManager = ContextualGuideManager(repository: dependencies.userRepository)
 
         dependencies.pushNotificationHandler.onDeepLink = { [weak self] deepLink in
             self?.handleDeepLink(deepLink)
@@ -104,57 +106,60 @@ final class AppCoordinator: ObservableObject {
                     )
                 }
             case .mainTab:
-                MainTabView(
-                    selectedTab: Binding(
-                        get: { self.selectedTab },
-                        set: { self.selectedTab = $0 }
-                    ),
-                    pendingChatRoute: Binding(
-                        get: { self.pendingChatRoute },
-                        set: { self.pendingChatRoute = $0 }
-                    ),
-                    communitiesViewModel: communitiesViewModel,
-                    chatsViewModel: chatsViewModel,
-                    connectViewModel: connectViewModel,
-                    profileViewModel: profileViewModel,
-                    makeCommunityDetailViewModel: dependencies.makeCommunityDetailViewModel,
-                    makeChatViewModel: { chatId, title in
-                        self.dependencies.makeChatViewModel(
-                            chatId: chatId,
-                            title: title,
-                            onPeerBlocked: { [weak self] in
-                                guard let self,
-                                      let peerId = DirectChatPeer.peerUserId(
-                                        chatId: chatId,
-                                        currentUserId: self.dependencies.authRepository.currentUser?.id ?? ""
-                                      ) else { return }
-                                self.connectViewModel.handlePeerBlocked(userId: peerId)
+                CLGuideHost(manager: guideManager) {
+                    MainTabView(
+                        selectedTab: Binding(
+                            get: { self.selectedTab },
+                            set: { self.selectedTab = $0 }
+                        ),
+                        pendingChatRoute: Binding(
+                            get: { self.pendingChatRoute },
+                            set: { self.pendingChatRoute = $0 }
+                        ),
+                        communitiesViewModel: communitiesViewModel,
+                        chatsViewModel: chatsViewModel,
+                        connectViewModel: connectViewModel,
+                        profileViewModel: profileViewModel,
+                        makeCommunityDetailViewModel: dependencies.makeCommunityDetailViewModel,
+                        makeChatViewModel: { chatId, title in
+                            self.dependencies.makeChatViewModel(
+                                chatId: chatId,
+                                title: title,
+                                onPeerBlocked: { [weak self] in
+                                    guard let self,
+                                          let peerId = DirectChatPeer.peerUserId(
+                                            chatId: chatId,
+                                            currentUserId: self.dependencies.authRepository.currentUser?.id ?? ""
+                                          ) else { return }
+                                    self.connectViewModel.handlePeerBlocked(userId: peerId)
+                                }
+                            )
+                        },
+                        makeChatInfoViewModel: dependencies.makeChatInfoViewModel,
+                        makePeerProfileSheet: { userId, mode in
+                            self.dependencies.makePeerProfileSheet(
+                                userId: userId,
+                                mode: mode,
+                                onBlocked: { [weak self] blockedId in
+                                    self?.connectViewModel.handlePeerBlocked(userId: blockedId)
+                                },
+                                onOpenChat: self.openDirectChat
+                            )
+                        },
+                        makeSettingsViewModel: dependencies.makeSettingsViewModel,
+                        makeSupportViewModel: dependencies.makeSupportViewModel,
+                        onCommunitySelected: onCommunitySelected,
+                        onOpenGroupChat: onOpenGroupChat,
+                        onSignOut: signOut,
+                        makeAccountDeletionViewModel: {
+                            return self.dependencies.makeAccountDeletionViewModel {
+                                await self.performSignOut(expectedUserID: $0)
                             }
-                        )
-                    },
-                    makeChatInfoViewModel: dependencies.makeChatInfoViewModel,
-                    makePeerProfileSheet: { userId, mode in
-                        self.dependencies.makePeerProfileSheet(
-                            userId: userId,
-                            mode: mode,
-                            onBlocked: { [weak self] blockedId in
-                                self?.connectViewModel.handlePeerBlocked(userId: blockedId)
-                            },
-                            onOpenChat: self.openDirectChat
-                        )
-                    },
-                    makeSettingsViewModel: dependencies.makeSettingsViewModel,
-                    makeSupportViewModel: dependencies.makeSupportViewModel,
-                    onCommunitySelected: onCommunitySelected,
-                    onOpenGroupChat: onOpenGroupChat,
-                    onSignOut: signOut,
-                    makeAccountDeletionViewModel: {
-                        return self.dependencies.makeAccountDeletionViewModel {
-                            await self.performSignOut(expectedUserID: $0)
-                        }
-                    },
-                    makeBlockedPeopleViewModel: dependencies.makeBlockedPeopleViewModel
-                )
+                        },
+                        makeBlockedPeopleViewModel: dependencies.makeBlockedPeopleViewModel
+                    )
+                    .environmentObject(guideManager)
+                }
             }
         }
         .task {
@@ -213,6 +218,7 @@ final class AppCoordinator: ObservableObject {
     }
 
     func handleSignedOut() {
+        guideManager.configure(user: nil)
         currentProfile = nil
         accountRecoveryViewModel = nil
         pendingDeepLink = nil
@@ -255,6 +261,7 @@ final class AppCoordinator: ObservableObject {
 
     private func applyRoute(for user: User) {
         currentProfile = user
+        guideManager.configure(user: user)
 
         if Self.route(for: user) == .accountRecovery {
             pendingDeepLink = nil

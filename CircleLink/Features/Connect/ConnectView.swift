@@ -166,6 +166,7 @@ struct ConnectView: View {
                         }
                     )
                 }
+                .clGuidePresentationBlocked(presentedPeer != nil || reportTarget != nil || blockTarget != nil)
         }
     }
 
@@ -275,6 +276,7 @@ struct ConnectView: View {
                         return didStart
                     }
                 )
+                .clGuideTarget(.connectCard, instance: top.id)
             } else {
                 CLEmptyState(
                     systemImage: "person.2",

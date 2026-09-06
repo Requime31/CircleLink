@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @EnvironmentObject private var guideManager: ContextualGuideManager
     @Binding var selectedTab: AppCoordinator.MainTab
     @Binding var pendingChatRoute: ChatThreadRoute?
 
@@ -72,5 +73,16 @@ struct MainTabView: View {
         .tint(CLColor.primary)
         .toolbarBackground(CLColor.canvas, for: .tabBar)
         .toolbarBackground(.visible, for: .tabBar)
+        .onAppear { guideManager.visit(guideSeries(for: selectedTab)) }
+        .onChange(of: selectedTab) { tab in guideManager.visit(guideSeries(for: tab)) }
+    }
+
+    private func guideSeries(for tab: AppCoordinator.MainTab) -> CLGuideSeries {
+        switch tab {
+        case .communities: return .communities
+        case .chats: return .chats
+        case .connect: return .connect
+        case .profile: return .profile
+        }
     }
 }

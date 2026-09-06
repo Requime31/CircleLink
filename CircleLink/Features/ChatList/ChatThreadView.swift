@@ -92,6 +92,9 @@ struct ChatThreadView: View {
                 }
             )
         }
+        .clGuidePresentationBlocked(
+            presentedPeer != nil || presentedMedia != nil || showBlockConfirmation
+        )
     }
 }
 

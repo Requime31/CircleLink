@@ -63,6 +63,7 @@ enum CLColor {
     static let errorSoft = dynamic(light: 0xFFDAD6, dark: 0x4D2927)
     static let success = dynamic(light: 0x3D9B6E, dark: 0x75D6A6)
     static let warning = dynamic(light: 0xD4A017, dark: 0xF4C95D)
+    static let guideScrim = dynamic(light: 0x000000, dark: 0x000000).opacity(0.56)
 
     private static func dynamic(
         light: UInt32,

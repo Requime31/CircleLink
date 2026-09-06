@@ -51,6 +51,7 @@ struct ProfileView: View {
             .task {
                 await viewModel.loadProfile()
             }
+            .clGuidePresentationBlocked(isEditing || composeMode != nil)
         }
     }
 
@@ -122,6 +123,7 @@ struct ProfileView: View {
             }
             .buttonStyle(CLPrimaryButtonStyle())
             .accessibilityLabel("Edit profile")
+            .clGuideTarget(.profileEdit)
 
             ShareLink(item: shareText) {
                 Text("Share")
@@ -169,6 +171,7 @@ struct ProfileView: View {
                     viewModel.clearPostError()
                     composeMode = .create
                 }
+                .clGuideTarget(.profilePost)
             }
 
             if viewModel.posts.isEmpty {

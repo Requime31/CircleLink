@@ -80,6 +80,10 @@ struct CommunityDetailView: View {
         .fullScreenCover(item: $presentedMedia) { item in
             ChatMediaFullscreenView(url: item.url)
         }
+        .clGuidePresentationBlocked(
+            presentedPeer != nil || showLeaveConfirmation || composeMode != nil
+                || isCreatingPost || showsCommunityEditor || presentedMedia != nil
+        )
     }
 
     private func detailContent(community: Community) -> some View {
@@ -146,6 +150,7 @@ struct CommunityDetailView: View {
                 ? "Joined. Double tap to leave community"
                 : "Join community"
         )
+        .clGuideTarget(.communityJoin, instance: viewModel.communityState.loadedValue?.id)
     }
 
     private func aboutSection(community: Community) -> some View {
@@ -232,6 +237,7 @@ struct CommunityDetailView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(CLPrimaryButtonStyle())
+                .clGuideTarget(.communityPost, instance: viewModel.communityState.loadedValue?.id)
             }
 
             if let message = viewModel.postErrorMessage {
