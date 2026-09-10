@@ -149,7 +149,7 @@ final class InputBarView: UIView {
         let enabled = canSend
         sendButton.isEnabled = enabled
         if enabled {
-            // Solid clay CTA → light label (DESIGN.md onPrimaryStrong).
+            // Solid clay CTA → light label (wiki design-system onPrimaryStrong).
             sendButton.tintColor = ChatAppearance.onPrimaryStrong
             sendButton.backgroundColor = ChatAppearance.primary
         } else {

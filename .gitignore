@@ -62,3 +62,6 @@ fastlane/test_output
 # Local Firebase Functions dependencies and emulator output
 functions/node_modules/
 *-debug.log
+
+# Obsidian vault settings are personal; the Markdown wiki is versioned.
+/wiki/.obsidian/

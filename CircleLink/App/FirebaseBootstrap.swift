@@ -30,7 +30,7 @@ enum FirebaseBootstrap {
                 [CircleLink] GoogleService-Info.plist not found in app bundle.
                 Add the file from Firebase Console to the CircleLink target.
                 Filename must be exactly: GoogleService-Info.plist
-                See App/FIREBASE_SETUP.md
+                See wiki/backend/firebase.md
                 """
             )
             #endif
@@ -54,7 +54,7 @@ enum FirebaseBootstrap {
         print(
             """
             [CircleLink] Firebase SDK not linked.
-            Add Firebase iOS SDK via SPM — see App/FIREBASE_SETUP.md.
+            Add Firebase iOS SDK via SPM — see wiki/backend/firebase.md.
             """
         )
         #endif

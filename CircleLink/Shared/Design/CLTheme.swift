@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// CircleLink design tokens from local `DESIGN.md` (Sunset Parchment).
+/// CircleLink design tokens from `wiki/design/design-system.md` (Sunset Parchment).
 /// View chrome only — no Domain / networking.
 
 // MARK: - Color
@@ -43,7 +43,7 @@ enum CLColor {
         darkHighContrast: 0xFFAD91
     )
     static let primaryPressed = dynamic(light: 0x9B442A, dark: 0xE67E5F)
-    /// Quieter soft CTA fill (DESIGN.md default). Prefer over `primarySoft` for buttons.
+    /// Quieter soft CTA fill (wiki design-system default). Prefer over `primarySoft` for buttons.
     static let accentSoft = dynamic(light: 0xF8E6E0, dark: 0x4B2E28)
     /// Selected chips / stronger soft highlight (`primary-fixed`).
     static let primarySoft = dynamic(light: 0xFFDBD1, dark: 0x5B342B)
@@ -119,7 +119,7 @@ enum CLSpacing {
     static let lg: CGFloat = 24
     static let xl: CGFloat = 32
     static let xxl: CGFloat = 48
-    /// Default mobile side margin — use on every screen (DESIGN.md §0).
+    /// Default mobile side margin — use on every screen (wiki design system).
     static let screenHorizontal: CGFloat = 20
 }
 
@@ -148,7 +148,7 @@ enum CLShadow {
 }
 
 enum CLAvatar {
-    /// Shared avatar corner radius (DESIGN.md §0).
+    /// Shared avatar corner radius (wiki design system).
     static let cornerRadius: CGFloat = CLRadius.md
 
     /// Avatar shape used throughout the app, including Chats.
@@ -183,7 +183,7 @@ enum CLMotion {
 
 // MARK: - Button styles
 
-/// Default CTA: quieter `accentSoft` + ink (DESIGN.md). Prefer over solid clay.
+/// Default CTA: quieter `accentSoft` + ink (wiki design system). Prefer over solid clay.
 /// - `fillsWidth: true` (default) — full-width CTAs
 /// - `fillsWidth: false` — compact row CTAs
 struct CLPrimaryButtonStyle: ButtonStyle {

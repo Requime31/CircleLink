@@ -1,0 +1,43 @@
+name: Wiki Lint
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "wiki/**"
+      - "AGENTS.md"
+      - "README.md"
+      - "ARCHITECTURE.md"
+      - "DESIGN.md"
+      - "UI_COMPONENTS_MIGRATION_CHECKLIST.md"
+      - "CircleLink/App/FIREBASE_SETUP.md"
+      - "CircleLink/App/SUPABASE_SETUP.md"
+      - "docs/POST_LIKES.md"
+      - ".github/workflows/wiki-lint.yml"
+  push:
+    branches: [main, develop, integration]
+    paths:
+      - "wiki/**"
+      - "AGENTS.md"
+      - "README.md"
+      - "ARCHITECTURE.md"
+      - "DESIGN.md"
+      - "UI_COMPONENTS_MIGRATION_CHECKLIST.md"
+      - "CircleLink/App/FIREBASE_SETUP.md"
+      - "CircleLink/App/SUPABASE_SETUP.md"
+      - "docs/POST_LIKES.md"
+      - ".github/workflows/wiki-lint.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Wiki Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node wiki/tools/lint-wiki.js
