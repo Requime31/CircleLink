@@ -24,9 +24,8 @@ struct EditCommunitySheet: View {
                 CommunityFormContent(draft: $draft, showsInterest: false, isBusy: viewModel.isSavingCommunity)
                     .padding(.horizontal, CLSpacing.screenHorizontal).padding(.vertical, CLSpacing.lg)
                 if let error = viewModel.communityEditErrorMessage {
-                    Text(error).font(CLTypography.callout).foregroundStyle(CLColor.error)
+                    CLStatusBanner(message: error, style: .error, presentation: .inline, accessibilityPrefix: "Save error")
                         .padding(.horizontal, CLSpacing.screenHorizontal).padding(.bottom, CLSpacing.lg)
-                        .accessibilityLabel("Save error: \(error)")
                 }
             }
             .scrollDismissesKeyboard(.interactively).clCanvasBackground()
@@ -42,7 +41,8 @@ struct EditCommunitySheet: View {
             }
             .overlay {
                 if viewModel.isSavingCommunity {
-                    ProgressView("Saving…").padding(CLSpacing.md)
+                    CLLoadingState(message: "Saving…", isCompact: true)
+                        .padding(CLSpacing.md)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CLRadius.md))
                 }
             }

@@ -149,7 +149,7 @@ struct PeerProfileView: View {
                 .font(CLTypography.title)
                 .foregroundStyle(CLColor.ink)
 
-            FlowLayout(spacing: CLSpacing.sm) {
+            CLFlowLayout(horizontalSpacing: CLSpacing.sm, verticalSpacing: CLSpacing.sm) {
                 ForEach(interests, id: \.self) { interest in
                     CLChip(title: interest)
                 }
@@ -187,7 +187,7 @@ struct PeerProfileView: View {
                 .font(CLTypography.title)
                 .foregroundStyle(CLColor.ink)
 
-            FlowLayout(spacing: CLSpacing.sm) {
+            CLFlowLayout(horizontalSpacing: CLSpacing.sm, verticalSpacing: CLSpacing.sm) {
                 ForEach(viewModel.visibleCommunities) { community in
                     CLChip(
                         title: CommunityContentPolicy.safeDisplayName(community.name, limit: 24),
@@ -398,12 +398,9 @@ struct PeerProfileView: View {
     }
 
     private func errorState(message: String) -> some View {
-        CLEmptyState(
-            systemImage: "exclamationmark.triangle",
+        CLErrorState(
             title: message,
-            actionTitle: "Retry",
-            actionAccessibilityLabel: "Retry loading profile",
-            titleAccessibilityLabel: "Error: \(message)"
+            retryTitle: "Retry"
         ) {
             Task { await viewModel.load() }
         }

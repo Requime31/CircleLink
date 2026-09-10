@@ -3,10 +3,14 @@ import FirebaseFirestore
 import Foundation
 
 final class FirestoreCommunityPostRepository: CommunityPostRepository, @unchecked Sendable {
+    let likes: PostLikeService
     private let imageStorage: CommunityImageStorage
     private var db: Firestore { Firestore.firestore() }
 
-    init(imageStorage: CommunityImageStorage) { self.imageStorage = imageStorage }
+    init(imageStorage: CommunityImageStorage, likes: PostLikeService = FirestorePostLikeService()) {
+        self.imageStorage = imageStorage
+        self.likes = likes
+    }
 
     func fetchPosts(communityId: String, limit: Int, before: Date?) async throws -> [CommunityPost] {
         var query: Query = postsRef(communityId).order(by: "createdAt", descending: true).limit(to: max(1, limit))
@@ -44,7 +48,7 @@ final class FirestoreCommunityPostRepository: CommunityPostRepository, @unchecke
         updates["imageURL"] = imageURL?.absoluteString as Any? ?? FieldValue.delete()
         try await postsRef(post.communityId).document(post.id).updateData(updates)
         if removeImage, image == nil, post.imageURL != nil { try? await imageStorage.deletePostImage(communityId: post.communityId, postId: post.id) }
-        return CommunityPost(id: post.id, communityId: post.communityId, authorId: post.authorId, text: trimmed?.isEmpty == false ? trimmed : nil, imageURL: imageURL, createdAt: post.createdAt)
+        return CommunityPost(id: post.id, communityId: post.communityId, authorId: post.authorId, text: trimmed?.isEmpty == false ? trimmed : nil, imageURL: imageURL, likeCount: post.likeCount, createdAt: post.createdAt)
     }
 
     func deletePost(_ post: CommunityPost) async throws {

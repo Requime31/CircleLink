@@ -28,7 +28,7 @@ enum ChatAppearance {
 
     /// Mine: soft clay + dark ink
     static let outgoingBubble = primarySoft
-    /// Theirs: muted parchment group (DESIGN.md)
+    /// Theirs: muted parchment group (wiki design system).
     static let incomingBubble = surfaceSoft
 
     // MARK: Geometry (single source of truth)
@@ -45,9 +45,9 @@ enum ChatAppearance {
     static let sideGutter: CGFloat = 16
     static let oppositeGutter: CGFloat = 64
 
-    /// Gap between consecutive bubbles from the same sender (DESIGN.md).
+    /// Gap between consecutive bubbles from the same sender (wiki design system).
     static let sameSenderGap: CGFloat = 4
-    /// Gap between different senders / thread edges (DESIGN.md).
+    /// Gap between different senders / thread edges (wiki design system).
     static let differentSenderGap: CGFloat = 16
 
     /// Fixed media width so image-only bubbles don’t collapse to the timestamp width.

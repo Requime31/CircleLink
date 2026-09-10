@@ -25,21 +25,16 @@ struct AccountRecoveryView: View {
                 }
 
                 if case let .error(message) = viewModel.state {
-                    Text(message).font(CLTypography.footnote).foregroundStyle(CLColor.error)
+                    CLStatusBanner(message: message, style: .error, accessibilityPrefix: "Error")
                 }
 
                 if viewModel.canRestore {
-                    Button { Task { await viewModel.restore() } } label: {
-                        HStack {
-                            if viewModel.state == .restoring { ProgressView() }
-                            Text("Restore Account")
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 48)
+                    CLAsyncButton(
+                        configuration: .init(title: "Restore Account", loadingTitle: "Restoring…", style: .emphasis),
+                        isDisabled: viewModel.state == .restoring
+                    ) {
+                        await viewModel.restore()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(CLColor.accentSoft)
-                    .foregroundStyle(CLColor.ink)
-                    .disabled(viewModel.state == .restoring)
                 } else if isExpired {
                     Button("Contact Support") {
                         if let url = URL(string: "mailto:support@circlelink.app?subject=Account%20recovery") { openURL(url) }
@@ -47,15 +42,16 @@ struct AccountRecoveryView: View {
                     .buttonStyle(.bordered)
                 }
 
-                Button(role: .destructive) {
-                    Task { await viewModel.signOut() }
-                } label: {
-                    HStack {
-                        if viewModel.isSigningOut { ProgressView() }
-                        Text("Sign Out — keep deletion scheduled")
-                    }
+                CLAsyncButton(
+                    configuration: .init(
+                        title: "Sign Out — keep deletion scheduled",
+                        loadingTitle: "Signing out…",
+                        style: .destructive
+                    ),
+                    isDisabled: viewModel.state == .restoring || viewModel.isSigningOut
+                ) {
+                    await viewModel.signOut()
                 }
-                .disabled(viewModel.state == .restoring || viewModel.isSigningOut)
             }
             .padding(.horizontal, CLSpacing.screenHorizontal)
             .padding(.vertical, CLSpacing.xxl)

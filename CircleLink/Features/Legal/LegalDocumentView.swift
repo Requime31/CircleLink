@@ -56,23 +56,17 @@ struct LegalDocumentView: View {
     }
 
     private var draftBanner: some View {
-        Label {
-            Text("Draft for product review. Legal approval is required before production release.")
-                .fixedSize(horizontal: false, vertical: true)
-        } icon: {
-            Image(systemName: "doc.badge.clock")
-                .accessibilityHidden(true)
+        CLSurface(variant: .selected, radius: CLRadius.md) {
+            Label {
+                Text("Draft for product review. Legal approval is required before production release.")
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "doc.badge.clock")
+                    .accessibilityHidden(true)
+            }
+            .font(CLTypography.callout)
+            .foregroundStyle(CLColor.ink)
+            .accessibilityElement(children: .combine)
         }
-        .font(CLTypography.callout)
-        .foregroundStyle(CLColor.ink)
-        .padding(CLSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(CLColor.primarySoft)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous)
-                .stroke(CLColor.hairlineStrong, lineWidth: 1)
-        )
-        .accessibilityElement(children: .combine)
     }
 }

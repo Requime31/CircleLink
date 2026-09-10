@@ -24,13 +24,10 @@ struct ConversationPeekPreview: View {
                 .background(CLColor.hairline)
 
             if isLoading && messages.isEmpty {
-                ProgressView()
-                    .tint(CLColor.primary)
+                CLLoadingState(isCompact: true)
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else if messages.isEmpty {
-                Text("No messages yet")
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkSecondary)
+                CLEmptyState(systemImage: "bubble.left", title: "No Messages Yet", layout: .compact)
                     .frame(maxWidth: .infinity, minHeight: 80, alignment: .center)
             } else {
                 // Fixed stack — no ScrollView (gesture conflicts with context menu).

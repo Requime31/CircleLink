@@ -37,6 +37,7 @@ struct ChatListView: View {
                     }
                 }
             }
+            .clGuideScreen(.chats)
             .clCanvasBackground()
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
@@ -140,29 +141,12 @@ struct ChatListView: View {
     }
 
     private var chatSearchField: some View {
-        HStack(spacing: CLSpacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(CLColor.inkMuted)
-
-            TextField("Search chats", text: $viewModel.searchText)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .focused($isSearchFocused)
-
-            if !viewModel.searchText.isEmpty {
-                Button {
-                    viewModel.searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(CLColor.inkMuted)
-                }
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, CLSpacing.md)
-        .frame(minHeight: 44)
-        .background(CLColor.surfaceSoft)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+        CLSearchField(
+            prompt: "Search chats",
+            text: $viewModel.searchText,
+            accessibilityLabel: "Search chats",
+            focus: $isSearchFocused
+        )
         .padding(.horizontal, CLSpacing.screenHorizontal)
         .padding(.bottom, CLSpacing.sm)
     }

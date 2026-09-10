@@ -36,8 +36,20 @@ enum FirestoreUserMapper {
             ageConfirmedAt: (data["ageConfirmedAt"] as? Timestamp)?.dateValue(),
             accountState: AccountState(rawValue: data["accountState"] as? String ?? "") ?? .active,
             deletionRequestedAt: deletionRequestedAt,
-            scheduledDeletionAt: deletionRequestedAt.flatMap(AccountDeletionPolicy.scheduledDeletionDate)
+            scheduledDeletionAt: deletionRequestedAt.flatMap(AccountDeletionPolicy.scheduledDeletionDate),
+            contextualGuideCompletions: integerMap(from: data["contextualGuideCompletions"])
         )
+    }
+
+    static func integerMap(from value: Any?) -> [String: Int] {
+        guard let values = value as? [String: Any] else { return [:] }
+        return values.reduce(into: [:]) { result, entry in
+            let version: Int?
+            if let raw = entry.value as? Int { version = raw }
+            else if let raw = entry.value as? NSNumber { version = raw.intValue }
+            else { version = nil }
+            if let version, version >= 0 { result[entry.key] = version }
+        }
     }
 
     static func birthDate(from data: [String: Any]) -> Date? {

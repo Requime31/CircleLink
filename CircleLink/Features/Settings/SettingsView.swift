@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum SettingsDestination: Hashable, CaseIterable {
-    case faq, support, blockedPeople, privacy, terms, deleteAccount
+    case faq, support, appGuide, blockedPeople, privacy, terms, deleteAccount
 }
 
 enum SettingsPresentation {
@@ -82,7 +82,7 @@ struct SettingsView: View {
     private var preferencesSection: some View {
         Section("Preferences") {
             VStack(alignment: .leading, spacing: CLSpacing.sm) {
-                SettingsRowLabel(systemImage: "circle.lefthalf.filled", title: "Appearance")
+                CLSettingsRow(title: "Appearance", systemImage: "circle.lefthalf.filled")
                 Picker("Appearance", selection: $appearanceStore.appearance) {
                     ForEach(AppAppearance.allCases, id: \.self) { appearance in
                         Text(appearance.displayName).tag(appearance)
@@ -92,8 +92,7 @@ struct SettingsView: View {
                 .accessibilityLabel("Appearance")
             }
             Toggle(isOn: notificationsBinding) {
-                SettingsRowLabel(systemImage: "bell", title: "Notifications",
-                                 description: viewModel.notificationHint)
+                CLSettingsRow(title: "Notifications", subtitle: viewModel.notificationHint, systemImage: "bell")
             }
             .tint(CLColor.primary)
             .disabled(viewModel.isUpdatingNotifications)
@@ -106,10 +105,10 @@ struct SettingsView: View {
     private var remindersSection: some View {
         Section("Reminders") {
             Toggle(isOn: remindersBinding) {
-                SettingsRowLabel(
-                    systemImage: "checkmark.circle",
+                CLSettingsRow(
                     title: "Enable Reminders",
-                    description: viewModel.reminderHint ?? "A daily reminder to check Connect activity."
+                    subtitle: viewModel.reminderHint ?? "A daily reminder to check Connect activity.",
+                    systemImage: "checkmark.circle"
                 )
             }
             .tint(CLColor.primary)
@@ -121,7 +120,7 @@ struct SettingsView: View {
                     selection: reminderTimeBinding,
                     displayedComponents: .hourAndMinute
                 ) {
-                    SettingsRowLabel(systemImage: "clock", title: "Reminder Time")
+                    CLSettingsRow(title: "Reminder Time", systemImage: "clock")
                 }
                 .tint(CLColor.primary)
                 .disabled(viewModel.isUpdatingReminders)
@@ -129,10 +128,7 @@ struct SettingsView: View {
 
             if viewModel.isUpdatingReminders {
                 HStack(spacing: CLSpacing.sm) {
-                    ProgressView()
-                    Text("Updating reminder…")
-                        .font(CLTypography.footnote)
-                        .foregroundStyle(CLColor.inkMuted)
+                    CLLoadingState(message: "Updating reminder…", isCompact: true)
                 }
                 .accessibilityElement(children: .combine)
             }
@@ -152,13 +148,16 @@ struct SettingsView: View {
     private var helpSection: some View {
         Section {
             NavigationLink(value: SettingsDestination.faq) {
-                SettingsRowLabel(systemImage: "questionmark.circle", title: "FAQ")
+                CLSettingsRow(title: "FAQ", systemImage: "questionmark.circle")
             }
             NavigationLink(value: SettingsDestination.support) {
-                SettingsRowLabel(systemImage: "envelope", title: "Contact Support")
+                CLSettingsRow(title: "Contact Support", systemImage: "envelope")
+            }
+            NavigationLink(value: SettingsDestination.appGuide) {
+                CLSettingsRow(title: "App Guide", systemImage: "sparkles.rectangle.stack")
             }
             Button { viewModel.requestAppRating() } label: {
-                SettingsRowLabel(systemImage: "star", title: "Rate CircleLink")
+                CLSettingsRow(title: "Rate CircleLink", systemImage: "star")
             }
             .buttonStyle(.plain)
         } header: {
@@ -173,10 +172,10 @@ struct SettingsView: View {
     private var legalSection: some View {
         Section("Legal") {
             NavigationLink(value: SettingsDestination.privacy) {
-                SettingsRowLabel(systemImage: "hand.raised", title: "Privacy Policy")
+                CLSettingsRow(title: "Privacy Policy", systemImage: "hand.raised")
             }
             NavigationLink(value: SettingsDestination.terms) {
-                SettingsRowLabel(systemImage: "doc.text", title: "Terms of Service")
+                CLSettingsRow(title: "Terms of Service", systemImage: "doc.text")
             }
         }
         .listRowBackground(CLColor.surface)
@@ -185,10 +184,10 @@ struct SettingsView: View {
     private var accountSection: some View {
         Section {
             NavigationLink(value: SettingsDestination.blockedPeople) {
-                SettingsRowLabel(systemImage: "person.crop.circle.badge.xmark", title: "Blocked People")
+                CLSettingsRow(title: "Blocked People", systemImage: "person.crop.circle.badge.xmark")
             }
             NavigationLink(value: SettingsDestination.deleteAccount) {
-                SettingsRowLabel(systemImage: "trash", title: "Delete Account", isDestructive: true)
+                CLSettingsRow(title: "Delete Account", systemImage: "trash", role: .destructive)
             }
             .accessibilityHint("Opens account deletion information and confirmation")
         } header: {
@@ -202,7 +201,9 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section("About") {
-            SettingsRowLabel(systemImage: "info.circle", title: "CircleLink", value: viewModel.appVersionLabel)
+            CLSettingsRow(title: "CircleLink", systemImage: "info.circle") {
+                Text(viewModel.appVersionLabel).font(CLTypography.subheadline).foregroundStyle(CLColor.inkMuted)
+            }
         }
         .listRowBackground(CLColor.surface)
     }
@@ -211,6 +212,7 @@ struct SettingsView: View {
         switch route {
         case .faq: FAQView()
         case .support: SupportView(viewModel: makeSupportViewModel())
+        case .appGuide: AppGuideHubView()
         case .blockedPeople: BlockedPeopleView(viewModel: makeBlockedPeopleViewModel())
         case .privacy: LegalDocumentView(document: LegalDocuments.privacyPolicy)
         case .terms: LegalDocumentView(document: LegalDocuments.termsOfService)
@@ -221,7 +223,11 @@ struct SettingsView: View {
     private func unavailableRow(
         systemImage: String, title: String, value: String? = nil, description: String
     ) -> some View {
-        SettingsRowLabel(systemImage: systemImage, title: title, value: value, description: description)
+        CLSettingsRow(title: title, subtitle: description, systemImage: systemImage) {
+            if let value {
+                Text(value).font(CLTypography.subheadline).foregroundStyle(CLColor.inkMuted)
+            }
+        }
             .foregroundStyle(CLColor.inkMuted)
             .accessibilityValue([value, description, "Unavailable"].compactMap { $0 }.joined(separator: ", "))
     }
@@ -241,38 +247,5 @@ struct SettingsView: View {
             get: { viewModel.reminderTime.date() },
             set: { date in Task { await viewModel.setReminderTime(.init(date: date)) } }
         )
-    }
-}
-
-private struct SettingsRowLabel: View {
-    let systemImage: String
-    let title: String
-    var value: String? = nil
-    var description: String? = nil
-    var isDestructive = false
-
-    var body: some View {
-        HStack(alignment: .center, spacing: CLSpacing.md) {
-            Image(systemName: systemImage)
-                .font(.body)
-                .foregroundStyle(isDestructive ? CLColor.error : CLColor.inkSecondary)
-                .frame(width: 24)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
-                Text(title).font(CLTypography.body)
-                    .foregroundStyle(isDestructive ? CLColor.error : CLColor.ink)
-                if let description {
-                    Text(description).font(CLTypography.footnote).foregroundStyle(CLColor.inkMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if let value {
-                Text(value).font(CLTypography.subheadline).foregroundStyle(CLColor.inkMuted)
-                    .multilineTextAlignment(.trailing)
-            }
-        }
-        .padding(.vertical, CLSpacing.xxs)
-        .accessibilityElement(children: .combine)
     }
 }

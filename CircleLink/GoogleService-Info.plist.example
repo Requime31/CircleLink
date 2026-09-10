@@ -3,7 +3,7 @@
 <!--
   Copy this file to GoogleService-Info.plist and replace values
   from Firebase Console → Project settings → Your apps → iOS app.
-  See App/FIREBASE_SETUP.md
+  See ../wiki/backend/firebase.md
 -->
 <plist version="1.0">
 <dict>

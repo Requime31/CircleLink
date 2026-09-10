@@ -4,6 +4,9 @@ import Foundation
 /// No Firebase / Keychain instances should be created outside this type.
 @MainActor
 final class AppDependencies {
+    let postActivityRepository: FirestorePostActivityRepository
+    let postLikeService: PostLikeService
+    let postLikeStore: PostLikeStore
     let appearanceStore: AppAppearanceStore
     let authRepository: AuthRepository
     let tokenStorage: SecureTokenStorage
@@ -41,10 +44,14 @@ final class AppDependencies {
         supportMetadataProvider: SupportDeviceMetadataProviding? = nil,
         appRatingPresenter: AppRatingPresenting? = nil
     ) {
+        let resolvedLikes = FirestorePostLikeService()
+        self.postLikeService = resolvedLikes
+        self.postLikeStore = PostLikeStore(service: resolvedLikes)
         self.appearanceStore = appearanceStore ?? AppAppearanceStore()
         let resolvedTokenStorage = tokenStorage ?? KeychainTokenStorage()
         let resolvedUserRepository = userRepository ?? FirestoreUserRepository()
 
+        self.postActivityRepository = FirestorePostActivityRepository(users: resolvedUserRepository)
         self.tokenStorage = resolvedTokenStorage
         self.userRepository = resolvedUserRepository
         self.authRepository = authRepository ?? FirebaseAuthRepository(
@@ -60,12 +67,12 @@ final class AppDependencies {
         )
         self.moderationRepository = moderationRepository ?? FirestoreModerationRepository()
         self.profilePostRepository = profilePostRepository ?? FirestoreProfilePostRepository(
-            imageStorage: SupabaseProfileImageStorage()
+            imageStorage: SupabaseProfileImageStorage(), likes: resolvedLikes
         )
         let resolvedCommunityImageStorage = communityImageStorage ?? SupabaseCommunityImageStorage()
         self.communityImageStorage = resolvedCommunityImageStorage
         self.communityPostRepository = communityPostRepository ?? FirestoreCommunityPostRepository(
-            imageStorage: resolvedCommunityImageStorage
+            imageStorage: resolvedCommunityImageStorage, likes: resolvedLikes
         )
         self.pushNotificationHandler = pushNotificationHandler ?? PushNotificationHandler(
             userRepository: resolvedUserRepository,

@@ -174,23 +174,28 @@ struct AuthView: View {
                 .clTextFieldChrome(isFocused: focusedField == .password)
                 .accessibilityLabel("Password")
 
-            Button {
-                Task { await viewModel.signInWithEmail() }
-            } label: {
-                Text("Sign In with Email")
+            CLAsyncButton(
+                configuration: .init(
+                    title: "Sign In with Email",
+                    loadingTitle: "Signing in…",
+                    accessibilityLabel: "Sign in with email and password"
+                ),
+                isDisabled: isBusy
+            ) {
+                await viewModel.signInWithEmail()
             }
-            .buttonStyle(CLPrimaryButtonStyle())
-            .disabled(isBusy)
-            .accessibilityLabel("Sign in with email and password")
 
-            Button {
-                Task { await viewModel.signUpWithEmail() }
-            } label: {
-                Text("Create Account")
+            CLAsyncButton(
+                configuration: .init(
+                    title: "Create Account",
+                    loadingTitle: "Creating account…",
+                    accessibilityLabel: "Create account with email and password",
+                    style: .secondary
+                ),
+                isDisabled: isBusy
+            ) {
+                await viewModel.signUpWithEmail()
             }
-            .buttonStyle(CLSecondaryButtonStyle())
-            .disabled(isBusy)
-            .accessibilityLabel("Create account with email and password")
 
             Button {
                 setEmailFormVisible(false)
@@ -217,18 +222,8 @@ struct AuthView: View {
 
     @ViewBuilder
     private var statusBlock: some View {
-        if case .loading = viewModel.state {
-            ProgressView("Signing in…")
-                .tint(CLColor.primary)
-                .foregroundStyle(CLColor.inkMuted)
-        }
-
         if case let .error(message) = viewModel.state {
-            Text(message)
-                .font(CLTypography.footnote)
-                .foregroundStyle(CLColor.error)
-                .multilineTextAlignment(.center)
-                .accessibilityLabel("Error: \(message)")
+            CLStatusBanner(message: message, style: .error, presentation: .inline, accessibilityPrefix: "Error")
         }
     }
 

@@ -37,30 +37,12 @@ struct HiddenChatsView: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: CLSpacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(CLColor.inkMuted)
-                .accessibilityHidden(true)
-
-            TextField("Search hidden", text: $searchText)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .focused($isSearchFocused)
-
-            if !searchText.isEmpty {
-                Button {
-                    searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(CLColor.inkMuted)
-                }
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.horizontal, CLSpacing.md)
-        .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
-        .background(CLColor.surfaceSoft)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+        CLSearchField(
+            prompt: "Search hidden",
+            text: $searchText,
+            accessibilityLabel: "Search hidden chats",
+            focus: $isSearchFocused
+        )
         .padding(.horizontal, CLSpacing.screenHorizontal)
         .padding(.vertical, CLSpacing.sm)
     }

@@ -297,6 +297,7 @@ struct CommunityDetailViewModelTests {
 private enum TestPostError: Error { case failed }
 
 private final class MockCommunityPostRepository: CommunityPostRepository, @unchecked Sendable {
+    let likes: PostLikeService = StubPostLikeService()
     var posts: [CommunityPost] = []
     var updateCallCount = 0
     var updateError: Error?

@@ -82,26 +82,13 @@ struct ChatMediaGalleryView: View {
     var body: some View {
         Group {
             if viewModel.isLoading && viewModel.items.isEmpty {
-                ProgressView("Loading…")
-                    .tint(CLColor.primary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                CLLoadingState(message: "Loading…")
             } else if let errorMessage = viewModel.errorMessage, viewModel.items.isEmpty {
-                VStack(spacing: CLSpacing.sm) {
-                    Text(errorMessage)
-                        .font(CLTypography.body)
-                        .foregroundStyle(CLColor.inkSecondary)
-                        .multilineTextAlignment(.center)
-                    Button("Retry") {
-                        Task { await viewModel.loadInitial() }
-                    }
-                    .buttonStyle(CLSecondaryButtonStyle())
+                CLErrorState(title: "Couldn’t Load Media", message: errorMessage, retryTitle: "Retry") {
+                    Task { await viewModel.loadInitial() }
                 }
-                .padding(CLSpacing.lg)
             } else if viewModel.items.isEmpty {
-                Text("No shared media yet.")
-                    .font(CLTypography.body)
-                    .foregroundStyle(CLColor.inkSecondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                CLEmptyState(systemImage: "photo.on.rectangle.angled", title: "No Shared Media Yet")
             } else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: CLSpacing.xs) {
@@ -110,27 +97,13 @@ struct ChatMediaGalleryView: View {
                                 Button {
                                     presentedMedia = IdentifiedURL(url)
                                 } label: {
-                                    Color.clear
-                                        .aspectRatio(1, contentMode: .fit)
-                                        .overlay {
-                                            AsyncImage(url: url) { phase in
-                                                switch phase {
-                                                case let .success(image):
-                                                    image.resizable().scaledToFill()
-                                                default:
-                                                    CLColor.surfaceSoft
-                                                }
-                                            }
-                                        }
-                                    .clipShape(
-                                        RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
+                                    CLMediaThumbnail(
+                                        url: url,
+                                        accessibilityLabel: "Shared photo",
+                                        sizing: .aspectRatio(1)
                                     )
                                     .contentShape(
                                         RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous)
-                                            .stroke(CLColor.hairline, lineWidth: 1)
                                     )
                                 }
                                 .buttonStyle(.plain)

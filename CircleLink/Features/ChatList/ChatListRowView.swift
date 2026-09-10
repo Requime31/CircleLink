@@ -58,13 +58,8 @@ struct ChatListRowView: View {
                     Spacer(minLength: 0)
 
                     if chat.unreadCount > 0 {
-                        Text(chat.unreadCount >= 100 ? "99+" : "\(chat.unreadCount)")
-                            .font(CLTypography.caption)
-                            .foregroundStyle(CLColor.onPrimaryStrong)
-                            .lineLimit(1)
-                            .padding(.horizontal, 6)
-                            .frame(minWidth: 20, minHeight: 20)
-                            .background(Capsule().fill(CLColor.primaryStrong))
+                        CLUnreadBadge(count: chat.unreadCount)
+                            .clGuideTarget(.chatUnread, instance: chat.id)
                             .accessibilityHidden(true)
                     }
                 }

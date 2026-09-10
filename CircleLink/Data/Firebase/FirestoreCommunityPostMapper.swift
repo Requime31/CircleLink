@@ -13,12 +13,13 @@ enum FirestoreCommunityPostMapper {
         return CommunityPost(
             id: document.documentID, communityId: communityId, authorId: authorId,
             text: text?.isEmpty == false ? text : nil, imageURL: imageURL,
+            likeCount: max(0, data["likeCount"] as? Int ?? 0),
             createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
         )
     }
 
     static func data(authorId: String, text: String?, imageURL: URL?, createdAt: Date) -> [String: Any] {
-        var result: [String: Any] = ["authorId": authorId, "createdAt": Timestamp(date: createdAt)]
+        var result: [String: Any] = ["authorId": authorId, "createdAt": Timestamp(date: createdAt), "likeCount": 0]
         if let text, !text.isEmpty { result["text"] = text }
         if let imageURL { result["imageURL"] = imageURL.absoluteString }
         return result

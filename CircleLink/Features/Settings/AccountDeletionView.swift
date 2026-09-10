@@ -31,22 +31,13 @@ struct AccountDeletionView: View {
                 }
 
                 if let error = viewModel.errorMessage {
-                    Text(error)
-                        .font(CLTypography.footnote)
-                        .foregroundStyle(CLColor.error)
-                        .accessibilityLabel("Error: \(error)")
+                    CLStatusBanner(message: error, style: .error, accessibilityPrefix: "Error")
                 }
 
                 Button(role: .destructive) { showsConfirmation = true } label: {
-                    HStack {
-                        Spacer()
-                        if viewModel.isDeleting { ProgressView() } else { Text("Delete Account") }
-                        Spacer()
-                    }
-                    .frame(minHeight: 48)
+                    Text("Delete Account").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
-                .tint(CLColor.error)
+                .buttonStyle(CLDestructiveButtonStyle())
                 .disabled(viewModel.isDeleting || viewModel.isReauthenticating)
             }
             .padding(.horizontal, CLSpacing.screenHorizontal)
@@ -76,8 +67,7 @@ struct AccountDeletionView: View {
     @ViewBuilder
     private var reauthenticationSection: some View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
-            Text("Verify your identity")
-                .font(CLTypography.headline)
+            CLSectionHeader("Verify your identity")
             switch viewModel.reauthenticationMethod {
             case .apple:
                 SystemAppleSignInButton(isEnabled: !viewModel.isReauthenticating) {
@@ -87,13 +77,13 @@ struct AccountDeletionView: View {
                 .accessibilityLabel("Continue with Apple")
             case let .email(address):
                 Text(address).font(CLTypography.footnote).foregroundStyle(CLColor.inkMuted)
-                SecureField("Password", text: $viewModel.password)
-                    .textContentType(.password)
-                    .padding(CLSpacing.sm)
-                    .background(CLColor.surface, in: RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-                Button("Verify and Delete") { Task { await viewModel.reauthenticateAndRetry() } }
-                    .buttonStyle(.borderedProminent)
-                    .tint(CLColor.error)
+                CLSecureField(title: "Password", prompt: "Password", text: $viewModel.password)
+                CLAsyncButton(
+                    configuration: .init(title: "Verify and Delete", loadingTitle: "Verifying…", style: .destructive),
+                    isDisabled: viewModel.isReauthenticating
+                ) {
+                    await viewModel.reauthenticateAndRetry()
+                }
             case .unavailable:
                 Text("Sign out and sign in again, then retry.")
                     .font(CLTypography.body)

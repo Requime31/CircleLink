@@ -18,12 +18,9 @@ struct CreateCommunitySheet: View {
                     .padding(.vertical, CLSpacing.lg)
 
                 if let error = viewModel.createErrorMessage {
-                    Text(error)
-                        .font(CLTypography.callout)
-                        .foregroundStyle(CLColor.error)
+                    CLStatusBanner(message: error, style: .error, presentation: .inline, accessibilityPrefix: "Create error")
                         .padding(.horizontal, CLSpacing.screenHorizontal)
                         .padding(.bottom, CLSpacing.lg)
-                        .accessibilityLabel("Create error: \(error)")
                 }
             }
             .scrollDismissesKeyboard(.interactively)
@@ -44,7 +41,10 @@ struct CreateCommunitySheet: View {
             }
             .overlay {
                 if viewModel.isCreating {
-                    ProgressView(viewModel.hasPendingCreatedCommunity ? "Saving cover…" : "Creating…")
+                    CLLoadingState(
+                        message: viewModel.hasPendingCreatedCommunity ? "Saving cover…" : "Creating…",
+                        isCompact: true
+                    )
                         .padding(CLSpacing.md)
                         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CLRadius.md))
                 }

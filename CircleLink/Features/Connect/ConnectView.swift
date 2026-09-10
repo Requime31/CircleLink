@@ -4,6 +4,8 @@ import UIKit
 /// Connect tab root = Discover (inline profile + swipe).
 /// Liked you / Matches are push destinations.
 struct ConnectView: View {
+    @EnvironmentObject private var guideManager: ContextualGuideManager
+    @EnvironmentObject private var tutorial: ConnectTutorialController
     @ObservedObject var viewModel: ConnectViewModel
     let makePeerProfileSheet: (String, PeerProfileMode) -> PeerProfileSheet
 
@@ -16,6 +18,7 @@ struct ConnectView: View {
     var body: some View {
         NavigationStack {
             discoverContent
+                .clGuideScreen(.connect)
                 .clCanvasBackground()
                 .overlay(alignment: .top) {
                     if let swipeFeedback {
@@ -37,6 +40,7 @@ struct ConnectView: View {
                             Image(systemName: "arrow.uturn.backward")
                         }
                         .disabled(!viewModel.canUndoPass)
+                        .disabled(tutorial.isActive)
                         .accessibilityLabel("Undo last pass")
                     }
 
@@ -70,6 +74,7 @@ struct ConnectView: View {
                             )
                         }
                         .accessibilityLabel(connectUpdatesAccessibilityLabel)
+                        .disabled(tutorial.isActive)
                     }
                 }
                 .navigationDestination(for: ConnectDestination.self) { destination in
@@ -123,6 +128,10 @@ struct ConnectView: View {
                 .onDisappear {
                     swipeFeedbackDismissTask?.cancel()
                     swipeFeedbackDismissTask = nil
+                    if tutorial.isActive {
+                        guideManager.releaseSuspendedGuide(id: "connect-card")
+                    }
+                    tutorial.cancel()
                 }
                 .refreshable {
                     await viewModel.load()
@@ -166,6 +175,9 @@ struct ConnectView: View {
                         }
                     )
                 }
+                .clGuidePresentationBlocked(
+                    tutorial.isActive || presentedPeer != nil || reportTarget != nil || blockTarget != nil
+                )
         }
     }
 
@@ -263,6 +275,8 @@ struct ConnectView: View {
                     following: viewModel.followingCandidate,
                     communities: viewModel.topCandidateCommunities,
                     isSendingConnect: viewModel.isSendingConnect,
+                    tutorial: tutorial,
+                    onCompleteTutorial: completeTutorial,
                     onPass: { userId in
                         viewModel.passCandidate(userId: userId)
                         showSwipeFeedback(.passed(name: top.displayName))
@@ -283,6 +297,11 @@ struct ConnectView: View {
                 )
             }
         }
+    }
+
+    private func completeTutorial() {
+        guideManager.completeGuide(id: "connect-card", version: 2)
+        tutorial.complete()
     }
 
     private func showSwipeFeedback(_ feedback: ConnectSwipeFeedback) {

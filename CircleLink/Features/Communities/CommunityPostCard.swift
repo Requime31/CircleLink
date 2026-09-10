@@ -55,6 +55,8 @@ struct CommunityPostCard: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Open post photo")
             }
+
+            PostLikeBar(post: post.reference)
         }
         .padding(CLSpacing.md)
         .background(CLColor.surface)
@@ -114,18 +116,12 @@ struct CommunityPostCard: View {
 struct CommunityPostImage: View {
     let url: URL
     var body: some View {
-        Color.clear
-            .aspectRatio(4 / 3, contentMode: .fit)
-            .overlay {
-                AsyncImage(url: url) { phase in
-                    if case let .success(image) = phase {
-                        image.resizable().scaledToFill()
-                    } else {
-                        CLColor.surfaceSoft.overlay { ProgressView().tint(CLColor.primary) }
-                    }
-                }
-            }
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+        CLMediaThumbnail(
+            url: url,
+            accessibilityLabel: "Post photo",
+            cornerRadius: CLRadius.md,
+            sizing: .aspectRatio(4 / 3)
+        )
         .contentShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
         .accessibilityHidden(true)
     }

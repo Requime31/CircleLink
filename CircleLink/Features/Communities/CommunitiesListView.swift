@@ -115,12 +115,8 @@ struct CommunitiesListView: View {
     }
 
     private var loadingSections: some View {
-        ProgressView("Loading communities…")
-            .font(CLTypography.callout)
-            .foregroundStyle(CLColor.inkMuted)
-            .tint(CLColor.primary)
+        CLLoadingState(message: "Loading communities…", isCompact: true)
             .padding(.vertical, CLSpacing.xxl)
-            .accessibilityLabel("Loading communities")
     }
 
     private var hasActiveFilters: Bool {
@@ -243,13 +239,10 @@ struct CommunitiesListView: View {
     }
 
     private var errorState: some View {
-        CLEmptyState(
-            systemImage: "exclamationmark.triangle",
-            title: "Couldn’t load communities",
+        CLErrorState(
+            title: "Couldn’t Load Communities",
             message: "Check your connection and try again.",
-            actionTitle: "Try again",
-            actionAccessibilityLabel: "Try loading communities again",
-            titleAccessibilityLabel: "Couldn’t load communities"
+            retryTitle: "Try Again"
         ) {
             Task { await viewModel.loadCommunities() }
         }
@@ -521,40 +514,5 @@ private struct CarouselViewportWidthPreferenceKey: PreferenceKey {
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
-    }
-}
-
-private struct CommunityRowView: View {
-    let community: Community
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    var body: some View {
-        HStack(spacing: CLSpacing.md) {
-            CommunityArtworkView(community: community, cornerRadius: CLRadius.sm)
-                .frame(width: 64, height: 64)
-
-            VStack(alignment: .leading, spacing: CLSpacing.xxs) {
-                Text(CommunityContentPolicy.safeDisplayName(community.name))
-                    .font(CLTypography.headline)
-                    .foregroundStyle(CLColor.ink)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(memberCountLabel)
-                    .font(CLTypography.callout)
-                    .foregroundStyle(CLColor.inkSecondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(CLSpacing.sm)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(CLColor.surface)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous).stroke(CLColor.hairline, lineWidth: 1))
-        .contentShape(Rectangle())
-    }
-
-    private var memberCountLabel: String {
-        community.memberCount == 1 ? "1 member" : "\(community.memberCount) members"
     }
 }

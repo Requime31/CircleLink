@@ -194,25 +194,12 @@ struct ChatMessageSearchView: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: CLSpacing.xs) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(CLColor.inkMuted)
-            TextField("Search messages", text: $viewModel.query)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .foregroundStyle(CLColor.ink)
-            if !viewModel.query.isEmpty {
-                Button {
-                    viewModel.query = ""
-                    viewModel.scheduleSearch()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(CLColor.inkMuted)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .padding(.vertical, CLSpacing.xxs)
+        CLSearchField(
+            prompt: "Search messages",
+            text: $viewModel.query,
+            accessibilityLabel: "Search messages",
+            onClear: viewModel.scheduleSearch,
+            onSubmit: viewModel.scheduleSearch
+        )
     }
 }

@@ -16,12 +16,10 @@ struct BlockedPeopleView: View {
             case .empty:
                 emptyState
             case let .error(message):
-                CLEmptyState(
-                    systemImage: "exclamationmark.triangle",
+                CLErrorState(
                     title: "Couldn’t load blocked people",
                     message: message,
-                    actionTitle: "Retry",
-                    actionAccessibilityLabel: "Retry loading blocked people"
+                    retryTitle: "Retry"
                 ) {
                     Task { await viewModel.load() }
                 }

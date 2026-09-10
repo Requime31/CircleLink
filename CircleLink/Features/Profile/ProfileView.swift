@@ -29,6 +29,7 @@ struct ProfileView: View {
                     profileContent(user: user)
                 }
             }
+            .clGuideScreen(.profile)
             .clCanvasBackground()
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)
@@ -51,6 +52,7 @@ struct ProfileView: View {
             .task {
                 await viewModel.loadProfile()
             }
+            .clGuidePresentationBlocked(isEditing || composeMode != nil)
         }
     }
 
@@ -100,27 +102,13 @@ struct ProfileView: View {
 
     /// Avatar + name + member subtitle (design: my_profile).
     private func profileHero(user: User) -> some View {
-        VStack(spacing: CLSpacing.md) {
-            AvatarImageView(
-                localPreview: viewModel.localAvatarPreview,
-                avatarBase64: user.avatarBase64,
-                avatarURL: user.avatarURL,
-                size: 112
-            )
-            .accessibilityLabel("Profile photo")
-
-            VStack(spacing: CLSpacing.xxs) {
-                Text(displayName(for: user))
-                    .font(CLTypography.title)
-                    .foregroundStyle(CLColor.ink)
-                    .multilineTextAlignment(.center)
-                    .accessibilityLabel("Display name: \(displayName(for: user))")
-
-                Text(memberSubtitle(for: user))
-                    .font(CLTypography.subheadline)
-                    .foregroundStyle(CLColor.inkMuted)
-            }
-        }
+        CLProfileIdentity(
+            name: displayName(for: user),
+            detail: memberSubtitle(for: user),
+            avatarURL: user.avatarURL,
+            avatarBase64: user.avatarBase64,
+            avatarSize: 112
+        )
         .frame(maxWidth: .infinity)
         .padding(.horizontal, CLSpacing.screenHorizontal)
         .padding(.top, CLSpacing.xl)
@@ -136,6 +124,7 @@ struct ProfileView: View {
             }
             .buttonStyle(CLPrimaryButtonStyle())
             .accessibilityLabel("Edit profile")
+            .clGuideTarget(.profileEdit)
 
             ShareLink(item: shareText) {
                 Text("Share")
@@ -156,97 +145,34 @@ struct ProfileView: View {
     }
 
     private var statsRow: some View {
-        HStack(spacing: 0) {
-            statCell(
-                value: ProfileViewModel.formattedCount(viewModel.circlesCount),
-                label: "Circles"
-            )
-            Divider()
-                .frame(height: 36)
-                .overlay(CLColor.hairline)
-            statCell(
-                value: ProfileViewModel.formattedCount(viewModel.connectsCount),
-                label: "Connects"
-            )
-            Divider()
-                .frame(height: 36)
-                .overlay(CLColor.hairline)
-            statCell(
-                value: ProfileViewModel.formattedCount(viewModel.postsCount),
-                label: "Posts"
-            )
+        CLCard(variant: .outlined) {
+            CLProfileStatsRow(stats: [
+                .init(id: "circles", value: ProfileViewModel.formattedCount(viewModel.circlesCount), label: "Circles"),
+                .init(id: "connects", value: ProfileViewModel.formattedCount(viewModel.connectsCount), label: "Connects"),
+                .init(id: "posts", value: ProfileViewModel.formattedCount(viewModel.postsCount), label: "Posts")
+            ])
         }
-        .padding(.vertical, CLSpacing.md)
-        .frame(maxWidth: .infinity)
-        .background(CLColor.surface)
-        .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous)
-                .stroke(CLColor.hairline, lineWidth: 1)
-        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "\(viewModel.circlesCount) circles, \(viewModel.connectsCount) connects, \(viewModel.postsCount) posts"
         )
     }
 
-    private func statCell(value: String, label: String) -> some View {
-        VStack(spacing: CLSpacing.xxs) {
-            Text(value)
-                .font(CLTypography.title2)
-                .foregroundStyle(CLColor.primaryPressed)
-            Text(label.uppercased())
-                .font(CLTypography.caption)
-                .foregroundStyle(CLColor.inkMuted)
-                .tracking(0.6)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
     private func myInterestsSection(user: User) -> some View {
         VStack(alignment: .leading, spacing: CLSpacing.md) {
-            HStack {
-                Text("My Interests")
-                    .font(CLTypography.headline)
-                    .foregroundStyle(CLColor.ink)
-                    .accessibilityAddTraits(.isHeader)
-
-                Spacer(minLength: CLSpacing.xs)
-
-//                Button("Edit") {
-//                    isEditing = true
-//                }
-//                .font(CLTypography.subheadline.weight(.semibold))
-//                .foregroundStyle(CLColor.primaryPressed)
-//                .accessibilityLabel("Edit interests")
-            }
-
+            CLSectionHeader("My Interests")
             publicInterests(user.interests)
         }
     }
 
     private func myPostsSection(user: User) -> some View {
         VStack(alignment: .leading, spacing: CLSpacing.md) {
-            HStack {
-                Text("My Posts")
-                    .font(CLTypography.headline)
-                    .foregroundStyle(CLColor.ink)
-                    .accessibilityAddTraits(.isHeader)
-
-                Spacer(minLength: CLSpacing.xs)
-
-                Button {
+            CLSectionHeader("My Posts") {
+                CLIconButton(systemImage: "plus", accessibilityLabel: "Create new post") {
                     viewModel.clearPostError()
                     composeMode = .create
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(CLColor.primaryPressed)
-                        .frame(minWidth: AccessibilityHelpers.minimumTouchTarget,
-                               minHeight: AccessibilityHelpers.minimumTouchTarget)
-                        .contentShape(Rectangle())
                 }
-                .accessibilityLabel("Create new post")
+                .clGuideTarget(.profilePost)
             }
 
             if viewModel.posts.isEmpty {
@@ -329,7 +255,7 @@ struct ProfileView: View {
                 .font(CLTypography.subheadline)
                 .foregroundStyle(CLColor.inkMuted)
         } else {
-            FlowLayout(spacing: CLSpacing.xs) {
+            CLFlowLayout(horizontalSpacing: CLSpacing.xs, verticalSpacing: CLSpacing.xs) {
                 ForEach(interests, id: \.self) { interest in
                     CLChip(title: interest)
                 }
@@ -339,46 +265,17 @@ struct ProfileView: View {
 
     private var accountSection: some View {
         VStack(spacing: CLSpacing.sm) {
-            Text("Account")
-                .font(CLTypography.caption)
-                .foregroundStyle(CLColor.inkMuted)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, CLSpacing.xxs)
-                .accessibilityAddTraits(.isHeader)
+            CLSectionHeader("Account")
 
             Button {
                 path.append(SettingsRoute())
             } label: {
-                HStack(spacing: CLSpacing.sm) {
-                    Image(systemName: "gearshape")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(CLColor.primaryPressed)
-                        .frame(width: 28, alignment: .center)
-                        .accessibilityHidden(true)
-
-                    Text("Settings")
-                        .font(CLTypography.body)
-                        .foregroundStyle(CLColor.ink)
-
-                    Spacer(minLength: CLSpacing.xs)
-
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(CLColor.inkDisabled)
-                        .accessibilityHidden(true)
-                }
-                .padding(.horizontal, CLSpacing.md)
-                .padding(.vertical, CLSpacing.sm)
-                .frame(maxWidth: .infinity, minHeight: AccessibilityHelpers.minimumTouchTarget)
-                .contentShape(Rectangle())
+                CLSettingsRow(title: "Settings", systemImage: "gearshape")
             }
             .buttonStyle(.plain)
             .background(CLColor.surface)
             .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous)
-                    .stroke(CLColor.hairline, lineWidth: 1)
-            )
+            .overlay(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous).stroke(CLColor.hairline))
             .accessibilityLabel("Settings")
             .accessibilityHint("Opens notifications and about")
 
@@ -434,13 +331,7 @@ struct ProfileView: View {
     }
 
     private func errorState(message: String) -> some View {
-        CLEmptyState(
-            systemImage: "exclamationmark.triangle",
-            title: message,
-            actionTitle: "Retry",
-            actionAccessibilityLabel: "Retry loading profile",
-            titleAccessibilityLabel: "Error: \(message)"
-        ) {
+        CLErrorState(title: "Couldn’t Load Profile", message: message, retryTitle: "Retry") {
             Task { await viewModel.loadProfile() }
         }
     }

@@ -9,11 +9,15 @@ struct ConnectDiscoverDeckView: View {
     let following: User?
     let communities: [Community]
     let isSendingConnect: Bool
+    @ObservedObject var tutorial: ConnectTutorialController
+    let onCompleteTutorial: () -> Void
     let onPass: (String) -> Void
     let onSayHi: (String) -> Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    @State private var readyHeroID: String?
     @State private var dragOffsetX: CGFloat = 0
     @State private var isExiting = false
     @State private var exitTask: Task<Void, Never>?
@@ -31,6 +35,8 @@ struct ConnectDiscoverDeckView: View {
         following: User?,
         communities: [Community],
         isSendingConnect: Bool,
+        tutorial: ConnectTutorialController,
+        onCompleteTutorial: @escaping () -> Void,
         onPass: @escaping (String) -> Void,
         onSayHi: @escaping (String) -> Bool
     ) {
@@ -39,6 +45,8 @@ struct ConnectDiscoverDeckView: View {
         self.following = following
         self.communities = communities
         self.isSendingConnect = isSendingConnect
+        self.tutorial = tutorial
+        self.onCompleteTutorial = onCompleteTutorial
         self.onPass = onPass
         self.onSayHi = onSayHi
     }
@@ -63,29 +71,39 @@ struct ConnectDiscoverDeckView: View {
         GeometryReader { geometry in
             let collapsedCardHeight = max(480, geometry.size.height - CLSpacing.lg)
 
-            ScrollView {
-                heroDeck(height: collapsedCardHeight)
-                    .id(ScrollAnchor.hero)
-                    .background {
-                        GeometryReader { contentGeometry in
-                            Color.clear.preference(
-                                key: DiscoverScrollOffsetPreferenceKey.self,
-                                value: contentGeometry.frame(in: .named("connectDiscoverScroll")).minY
-                            )
+            ZStack {
+                ScrollView {
+                    heroDeck(height: collapsedCardHeight)
+                        .id(ScrollAnchor.hero)
+                        .background {
+                            GeometryReader { contentGeometry in
+                                Color.clear.preference(
+                                    key: DiscoverScrollOffsetPreferenceKey.self,
+                                    value: contentGeometry.frame(in: .named("connectDiscoverScroll")).minY
+                                )
+                            }
                         }
-                    }
-                    .padding(.horizontal, CLSpacing.screenHorizontal)
-                    .padding(.top, CLSpacing.sm)
-                    .padding(.bottom, CLSpacing.xxl)
-            }
-            .id(top.id)
-            .coordinateSpace(name: "connectDiscoverScroll")
-            .scrollIndicators(.hidden)
-            .onPreferenceChange(DiscoverScrollOffsetPreferenceKey.self) { minY in
-                scrollOffset = max(0, CLSpacing.sm - minY)
-            }
-            .onChange(of: top.id) { _ in
-                resetForNewTopCard()
+                        .padding(.horizontal, CLSpacing.screenHorizontal)
+                        .padding(.top, CLSpacing.sm)
+                        .padding(.bottom, CLSpacing.xxl)
+                }
+                .scrollDisabled(tutorial.isActive)
+                .id(top.id)
+                .coordinateSpace(name: "connectDiscoverScroll")
+                .clGuideViewport()
+                .scrollIndicators(.hidden)
+                .onPreferenceChange(DiscoverScrollOffsetPreferenceKey.self) { minY in
+                    scrollOffset = max(0, CLSpacing.sm - minY)
+                }
+                .onChange(of: top.id) { _ in
+                    resetForNewTopCard()
+                }
+
+                if tutorial.isActive {
+                    tutorialChrome
+                        .transition(.opacity)
+                        .zIndex(3)
+                }
             }
         }
         .onDisappear {
@@ -94,6 +112,9 @@ struct ConnectDiscoverDeckView: View {
         }
         .task(id: preloadTaskID) {
             await preloadUpcomingImages()
+        }
+        .task(id: tutorial.phase) {
+            await runTutorialAnimationIfNeeded()
         }
     }
 
@@ -126,7 +147,10 @@ struct ConnectDiscoverDeckView: View {
 
     private func heroCard(height: CGFloat) -> some View {
         VStack(spacing: 0) {
-            DiscoverCardHero(user: top, height: height)
+            DiscoverCardHero(user: top, height: height) { ready in
+                readyHeroID = ready ? top.id : nil
+            }
+                .clGuideTarget(.connectCard, instance: top.id, enabled: readyHeroID == top.id)
                 .overlay {
                     swipeActionIndicators
                 }
@@ -160,22 +184,29 @@ struct ConnectDiscoverDeckView: View {
             .offset(x: dragOffsetX)
             .rotationEffect(.degrees(Double(min(max(dragOffsetX / 24, -8), 8))))
             .modifier(HorizontalDragModifier(
-                isEnabled: !isExiting && scrollOffset < expansionThreshold,
+                isEnabled: tutorial.isActive
+                    ? tutorial.expectedDirection != nil
+                    : !isExiting && scrollOffset < expansionThreshold,
                 onChanged: { translation in
                     // Horizontal-only: ignore vertical-dominant moves so ScrollView can scroll.
                     guard abs(translation.width) >= abs(translation.height) else { return }
                     // Follow the finger with no animation — interrupting snap-back
                     // would recreate the "Invalid sample AnimatablePair" crash.
-                    withoutAnimation {
-                        dragOffsetX = translation.width
-                    }
-                    updateSwipeThresholdFeedback(for: translation.width)
+                    updateDragOffset(translation.width)
+                    updateSwipeThresholdFeedback(for: dragOffsetX)
                 },
                 onEnded: { translation, predictedTranslation in
-                    handleDragEnded(translation, predictedTranslation: predictedTranslation)
+                    if tutorial.isActive {
+                        handleTutorialDragEnded(translation, predictedTranslation: predictedTranslation)
+                    } else {
+                        handleDragEnded(translation, predictedTranslation: predictedTranslation)
+                    }
                 }
             ))
             .frame(maxWidth: .infinity)
+            .modifier(TutorialAccessibilityActionModifier(direction: tutorial.expectedDirection) {
+                completeExpectedTutorialPractice()
+            })
     }
 
     private var swipeActionIndicators: some View {
@@ -223,8 +254,99 @@ struct ConnectDiscoverDeckView: View {
         .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
         .background(.black.opacity(0.24), in: Capsule())
         .padding(.bottom, CLSpacing.sm)
-        .opacity(1 - expansionProgress)
+        .opacity(tutorial.isActive ? 0 : 1 - expansionProgress)
         .accessibilityHidden(expansionProgress > 0.5)
+    }
+
+    @ViewBuilder
+    private var tutorialChrome: some View {
+        VStack(spacing: CLSpacing.md) {
+            if tutorial.phase != .ready {
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .trailing, spacing: CLSpacing.sm) {
+                            tutorialSkipButton
+                            tutorialInstruction
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    } else {
+                        HStack(alignment: .top) {
+                            tutorialInstruction
+                            Spacer(minLength: CLSpacing.sm)
+                            tutorialSkipButton
+                        }
+                    }
+                }
+                .padding(.horizontal, CLSpacing.screenHorizontal)
+                .padding(.top, CLSpacing.md)
+            }
+
+            Spacer(minLength: 0)
+
+            if tutorial.phase == .ready {
+                VStack(alignment: .leading, spacing: CLSpacing.sm) {
+                    Text("You’re ready")
+                        .font(CLTypography.headline)
+                        .foregroundStyle(CLColor.ink)
+                    Text("Start discovering new people.")
+                        .font(CLTypography.body)
+                        .foregroundStyle(CLColor.inkSecondary)
+                    Button("Start connecting", action: onCompleteTutorial)
+                        .buttonStyle(CLPrimaryButtonStyle())
+                }
+                .padding(CLSpacing.md)
+                .background(CLColor.surface)
+                .clipShape(RoundedRectangle(cornerRadius: CLRadius.lg, style: .continuous))
+                .clFloatingShadow()
+                .padding(.horizontal, CLSpacing.screenHorizontal)
+                .padding(.bottom, CLSpacing.md)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? nil : CLMotion.soft, value: tutorial.phase)
+    }
+
+    private var tutorialSkipButton: some View {
+        Button("Skip", action: onCompleteTutorial)
+            .font(CLTypography.callout.weight(.semibold))
+            .foregroundStyle(CLColor.ink)
+            .padding(.horizontal, CLSpacing.md)
+            .frame(minHeight: AccessibilityHelpers.minimumTouchTarget)
+            .background(.ultraThinMaterial, in: Capsule())
+    }
+
+    private var tutorialInstruction: some View {
+        HStack(spacing: CLSpacing.sm) {
+            Image(systemName: tutorialDirection == .pass ? "arrow.left" : "arrow.right")
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tutorialDirection == .pass ? "Swipe left to pass" : "Swipe right to say hi")
+                    .font(CLTypography.headline)
+                Text(tutorialInstructionDetail)
+                    .font(CLTypography.caption)
+                    .foregroundStyle(CLColor.inkSecondary)
+            }
+        }
+        .foregroundStyle(CLColor.ink)
+        .padding(.horizontal, CLSpacing.md)
+        .padding(.vertical, CLSpacing.sm)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CLRadius.lg))
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var tutorialDirection: ConnectTutorialController.Direction {
+        switch tutorial.phase {
+        case .demonstratingPass, .practicingPass: .pass
+        default: .sayHi
+        }
+    }
+
+    private var tutorialInstructionDetail: String {
+        switch tutorial.phase {
+        case .practicingPass, .practicingSayHi: "Try it now"
+        case .ready: "Practice complete"
+        default: "Watch the card"
+        }
     }
 
     // MARK: - Profile details (same screen)
@@ -254,7 +376,7 @@ struct ConnectDiscoverDeckView: View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
             sectionHeader("Interests")
 
-            FlowLayout(spacing: CLSpacing.sm) {
+            CLFlowLayout(horizontalSpacing: CLSpacing.sm, verticalSpacing: CLSpacing.sm) {
                 ForEach(interests, id: \.self) { interest in
                     CLChip(title: interest)
                 }
@@ -286,7 +408,7 @@ struct ConnectDiscoverDeckView: View {
         VStack(alignment: .leading, spacing: CLSpacing.sm) {
             sectionHeader("Communities")
 
-            FlowLayout(spacing: CLSpacing.sm) {
+            CLFlowLayout(horizontalSpacing: CLSpacing.sm, verticalSpacing: CLSpacing.sm) {
                 ForEach(visibleCommunities) { community in
                     CLChip(
                         title: CommunityContentPolicy.safeDisplayName(community.name, limit: 24),
@@ -334,6 +456,97 @@ struct ConnectDiscoverDeckView: View {
         } else {
             snapCardBack()
         }
+    }
+
+    private func updateDragOffset(_ proposedOffset: CGFloat) {
+        let offset: CGFloat
+        switch tutorial.expectedDirection {
+        case .pass:
+            offset = min(0, proposedOffset)
+        case .sayHi:
+            offset = max(0, proposedOffset)
+        case nil:
+            offset = proposedOffset
+        }
+        withoutAnimation { dragOffsetX = offset }
+    }
+
+    private func handleTutorialDragEnded(
+        _ translation: CGSize,
+        predictedTranslation: CGSize
+    ) {
+        guard let expected = tutorial.expectedDirection else {
+            snapCardBack()
+            return
+        }
+        let dx = translation.width
+        let dy = translation.height
+        let projectedDX = dx + (predictedTranslation.width - dx) * 0.35
+        guard abs(dx) >= abs(dy) else {
+            snapCardBack()
+            return
+        }
+        let crossedThreshold: Bool
+        switch expected {
+        case .pass:
+            crossedThreshold = dx <= -swipeThreshold || projectedDX <= -swipeThreshold * 1.15
+        case .sayHi:
+            crossedThreshold = dx >= swipeThreshold || projectedDX >= swipeThreshold * 1.15
+        }
+        didCrossSwipeThreshold = false
+        snapCardBack()
+        guard crossedThreshold else { return }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.8)
+        tutorial.practiceCompleted(expected)
+    }
+
+    private func completeExpectedTutorialPractice() {
+        guard let expected = tutorial.expectedDirection else { return }
+        resetDragWithoutAnimation()
+        tutorial.practiceCompleted(expected)
+    }
+
+    private func runTutorialAnimationIfNeeded() async {
+        let direction: ConnectTutorialController.Direction
+        switch tutorial.phase {
+        case .demonstratingPass:
+            direction = .pass
+        case .demonstratingSayHi:
+            direction = .sayHi
+        default:
+            return
+        }
+
+        resetDragWithoutAnimation()
+        let signedOffset: CGFloat = direction == .pass ? -96 : 96
+        if reduceMotion {
+            withoutAnimation { dragOffsetX = signedOffset * 0.35 }
+        } else {
+            withAnimation(.easeInOut(duration: 0.5)) { dragOffsetX = signedOffset }
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: reduceMotion ? 450_000_000 : 650_000_000)
+            try Task.checkCancellation()
+        } catch {
+            resetDragWithoutAnimation()
+            return
+        }
+
+        if reduceMotion {
+            resetDragWithoutAnimation()
+        } else {
+            withAnimation(.easeOut(duration: 0.32)) { dragOffsetX = 0 }
+        }
+
+        do {
+            try await Task.sleep(nanoseconds: reduceMotion ? 150_000_000 : 380_000_000)
+            try Task.checkCancellation()
+        } catch {
+            resetDragWithoutAnimation()
+            return
+        }
+        tutorial.demonstrationFinished(direction)
     }
 
     private func snapCardBack() {
@@ -415,6 +628,23 @@ struct ConnectDiscoverDeckView: View {
     }
 }
 
+private struct TutorialAccessibilityActionModifier: ViewModifier {
+    let direction: ConnectTutorialController.Direction?
+    let action: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch direction {
+        case .pass:
+            content.accessibilityAction(named: Text("Practice pass"), action)
+        case .sayHi:
+            content.accessibilityAction(named: Text("Practice say hi"), action)
+        case nil:
+            content
+        }
+    }
+}
+
 private enum ScrollAnchor: Hashable {
     case hero
     case details
@@ -469,10 +699,12 @@ private struct DiscoverCardView: View {
 private struct DiscoverCardHero: View {
     let user: User
     let height: CGFloat?
+    let onReadinessChange: ((Bool) -> Void)?
 
-    init(user: User, height: CGFloat? = nil) {
+    init(user: User, height: CGFloat? = nil, onReadinessChange: ((Bool) -> Void)? = nil) {
         self.user = user
         self.height = height
+        self.onReadinessChange = onReadinessChange
     }
 
     @ViewBuilder
@@ -493,7 +725,8 @@ private struct DiscoverCardHero: View {
             .overlay {
                 ProfileHeroImageView(
                     avatarBase64: user.avatarBase64,
-                    avatarURL: user.avatarURL
+                    avatarURL: user.avatarURL,
+                    onReadinessChange: onReadinessChange
                 )
             }
             .overlay {

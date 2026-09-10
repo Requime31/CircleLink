@@ -1,0 +1,28 @@
+name: Wiki Impact Gate
+
+on:
+  pull_request:
+    branches: [main, develop, integration]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  impact:
+    name: Wiki Impact Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check wiki impact
+        run: >-
+          node wiki/tools/check-wiki-impact.js
+          --base=${{ github.event.pull_request.base.sha }}
+          --head=${{ github.event.pull_request.head.sha }}
+          --labels=${{ join(github.event.pull_request.labels.*.name, ',') }}

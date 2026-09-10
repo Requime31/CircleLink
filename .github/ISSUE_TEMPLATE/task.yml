@@ -1,0 +1,33 @@
+name: Product or engineering task
+description: Define a feature, refactor, research task, or maintenance outcome.
+title: "[Task]: "
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: User or engineering outcome
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: "- [ ] ..."
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+  - type: input
+    id: decision
+    attributes:
+      label: Related ADR or decision needed
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan

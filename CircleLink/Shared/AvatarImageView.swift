@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 /// Displays avatar from local preview, Firestore base64, or remote URL.
-/// Avatar shape is the shared squircle (`CLAvatar` / DESIGN.md), including Chats.
+/// Avatar shape follows `wiki/design/design-system.md`, including Chats.
 struct AvatarImageView: View {
     let localPreview: UIImage?
     let avatarBase64: String?
@@ -14,6 +14,7 @@ struct AvatarImageView: View {
 
     var body: some View {
         ZStack {
+            CLColor.surfaceSoft
             avatarContent
                 .frame(width: size, height: size)
         }
@@ -31,19 +32,19 @@ struct AvatarImageView: View {
         if let localPreview {
             Image(uiImage: localPreview)
                 .resizable()
-                .scaledToFill()
+                .scaledToFit()
         } else if let base64Image = decodeBase64(avatarBase64) {
             Image(uiImage: base64Image)
                 .resizable()
-                .scaledToFill()
+                .scaledToFit()
         } else if let remoteImage, remoteImageURL == avatarURL {
             Image(uiImage: remoteImage)
                 .resizable()
-                .scaledToFill()
+                .scaledToFit()
         } else if let avatarURL, let cached = ImageLoader.shared.cachedImage(for: avatarURL) {
             Image(uiImage: cached)
                 .resizable()
-                .scaledToFill()
+                .scaledToFit()
         } else if avatarURL != nil {
             ZStack {
                 CLColor.surfaceSoft

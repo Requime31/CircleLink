@@ -4,6 +4,12 @@ import Testing
 @testable import CircleLink
 
 struct FirestoreUserMapperTests {
+    @Test func decodesOnlyValidGuideCompletionVersions() {
+        let values = FirestoreUserMapper.integerMap(from: [
+            "valid": NSNumber(value: 2), "zero": 0, "negative": -1, "invalid": "1"
+        ])
+        #expect(values == ["valid": 2, "zero": 0])
+    }
     private var utc: TimeZone { TimeZone(secondsFromGMT: 0) ?? .current }
 
     @Test func birthDateConfirmationPayloadRoundTripsThroughMapper() throws {

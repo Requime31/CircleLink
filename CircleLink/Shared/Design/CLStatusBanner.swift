@@ -8,18 +8,31 @@ struct CLStatusBanner: View {
         case info
     }
 
+    enum Presentation: Equatable {
+        case banner
+        case compact
+        case inline
+    }
+
     let message: String
     var style: Style = .info
+    var presentation: Presentation = .banner
     var accessibilityPrefix: String? = nil
 
     var body: some View {
-        Text(message)
+        HStack(alignment: .firstTextBaseline, spacing: CLSpacing.xs) {
+            if presentation != .inline {
+                Image(systemName: style == .error ? "exclamationmark.circle" : "info.circle")
+                    .accessibilityHidden(true)
+            }
+            Text(message)
+        }
             .font(CLTypography.footnote)
             .foregroundStyle(foreground)
-            .padding(CLSpacing.sm)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(background)
-            .clipShape(RoundedRectangle(cornerRadius: CLRadius.md, style: .continuous))
+            .padding(presentation == .inline ? 0 : presentation == .compact ? CLSpacing.xs : CLSpacing.sm)
+            .frame(maxWidth: presentation == .compact ? nil : .infinity, alignment: .leading)
+            .background(presentation == .inline ? Color.clear : background)
+            .clipShape(RoundedRectangle(cornerRadius: presentation == .compact ? CLRadius.sm : CLRadius.md, style: .continuous))
             .accessibilityLabel(accessibilityLabel)
     }
 

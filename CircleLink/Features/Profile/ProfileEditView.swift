@@ -12,23 +12,8 @@ struct ProfileEditView: View {
 
                 saveButton
 
-                if case .loading = viewModel.saveState {
-                    ProgressView("Saving changes…")
-                        .tint(CLColor.primary)
-                        .foregroundStyle(CLColor.inkMuted)
-                        .frame(maxWidth: .infinity)
-                }
-
                 if case let .error(message) = viewModel.saveState {
-                    Text(message)
-                        .font(CLTypography.footnote)
-                        .foregroundStyle(CLColor.error)
-                        .multilineTextAlignment(.center)
-                        .padding(CLSpacing.sm)
-                        .frame(maxWidth: .infinity)
-                        .background(CLColor.errorSoft)
-                        .clipShape(RoundedRectangle(cornerRadius: CLRadius.sm, style: .continuous))
-                        .accessibilityLabel("Error: \(message)")
+                    CLStatusBanner(message: message, style: .error, accessibilityPrefix: "Error")
                 }
             }
             .padding(.horizontal, CLSpacing.screenHorizontal)

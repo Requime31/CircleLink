@@ -341,6 +341,36 @@ final class FirestoreUserRepository: UserRepository, @unchecked Sendable {
         )
     }
 
+    func completeContextualGuides(_ versionsByTipID: [String: Int]) async throws {
+        guard let userId = currentUserID() else { throw FirestoreUserError.notAuthenticated }
+        let positive = versionsByTipID.filter { $0.value > 0 }
+        guard !positive.isEmpty else { return }
+        let document = privateAccountDocument(userId: userId)
+        _ = try await db.runTransaction { transaction, errorPointer -> Any? in
+            do {
+                let snapshot = try transaction.getDocument(document)
+                var stored = FirestoreUserMapper.integerMap(
+                    from: snapshot.data()?["contextualGuideCompletions"]
+                )
+                for (id, version) in positive where version > (stored[id] ?? 0) {
+                    stored[id] = version
+                }
+                guard self.currentUserID() == userId else {
+                    throw NSError(domain: "FirestoreUserRepository.SessionChanged", code: 409)
+                }
+                transaction.setData(
+                    ["contextualGuideCompletions": stored],
+                    forDocument: document,
+                    merge: true
+                )
+            } catch {
+                errorPointer?.pointee = error as NSError
+            }
+            return nil
+        }
+        guard currentUserID() == userId else { throw FirestoreUserError.sessionChanged }
+    }
+
     private func privateAccountDocument(userId: String) -> DocumentReference {
         db.collection(usersCollection)
             .document(userId)
