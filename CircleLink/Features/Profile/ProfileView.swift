@@ -29,6 +29,7 @@ struct ProfileView: View {
                     profileContent(user: user)
                 }
             }
+            .clGuideScreen(.profile)
             .clCanvasBackground()
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.large)

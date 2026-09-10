@@ -1,6 +1,7 @@
 import Foundation
 
 final class StubProfilePostRepository: ProfilePostRepository, @unchecked Sendable {
+    let likes: PostLikeService = StubPostLikeService()
     private var postsByUser: [String: [ProfilePost]] = [:]
     private let stubAuthorId: String
 

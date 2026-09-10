@@ -4,35 +4,78 @@
       "collectionGroup": "private",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        { "fieldPath": "accountState", "order": "ASCENDING" },
-        { "fieldPath": "deletionRequestedAt", "order": "ASCENDING" }
+        {
+          "fieldPath": "accountState",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "deletionRequestedAt",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "connectionRequests",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "fromUserId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
+        {
+          "fieldPath": "fromUserId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "connectionRequests",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "fromUserId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
+        {
+          "fieldPath": "fromUserId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "connectionRequests",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "toUserId", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
+        {
+          "fieldPath": "toUserId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "likes",
+      "fieldPath": "createdAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "activity",
+      "fieldPath": "status",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    }
+  ]
 }

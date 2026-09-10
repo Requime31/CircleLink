@@ -616,6 +616,7 @@ final class MockCommunityRepository: CommunityRepository, @unchecked Sendable {
 // MARK: - Profile posts
 
 final class MockProfilePostRepository: ProfilePostRepository, @unchecked Sendable {
+    let likes: PostLikeService = StubPostLikeService()
     var posts: [ProfilePost] = []
     var createCallCount = 0
     var updateCallCount = 0

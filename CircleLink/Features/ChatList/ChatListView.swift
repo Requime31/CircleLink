@@ -37,6 +37,7 @@ struct ChatListView: View {
                     }
                 }
             }
+            .clGuideScreen(.chats)
             .clCanvasBackground()
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)

@@ -11,7 +11,6 @@ nonisolated enum CLGuideTarget: String, CaseIterable, Sendable {
     case communityPost
     case communityReactions
     case chatUnread
-    case chatJump
     case profilePost
     case profileEdit
 }
@@ -36,17 +35,15 @@ nonisolated struct CLGuideTip: Identifiable, Hashable, Sendable {
 
     static let catalog: [CLGuideTip] = [
         .init(id: "connect-card", series: .connect, target: .connectCard,
-              title: "Meet someone new", message: "Swipe right to connect or left to pass.", version: 1),
+              title: "Meet someone new", message: "Discover people you might want to connect with.", version: 2),
         .init(id: "community-join", series: .communities, target: .communityJoin,
               title: "Join a community", message: "Join to post and open the group chat.", version: 1),
         .init(id: "community-post", series: .communities, target: .communityPost,
               title: "Share with the community", message: "Create a post for everyone in this community.", version: 1),
         .init(id: "community-reactions", series: .communities, target: .communityReactions,
-              title: "React to posts", message: "Use these actions to take part in the conversation.", version: 1),
+              title: "Like a post", message: "Tap Like to show your support. Tap again to undo, or tap the count to see who liked the post.", version: 2),
         .init(id: "chat-unread", series: .chats, target: .chatUnread,
               title: "Unread messages", message: "This badge shows how many messages are waiting.", version: 1),
-        .init(id: "chat-jump", series: .chats, target: .chatJump,
-              title: "Return to new messages", message: "Jump back when newer messages are below.", version: 1),
         .init(id: "profile-post", series: .profile, target: .profilePost,
               title: "Create a profile post", message: "Share a photo or a thought from your profile.", version: 1),
         .init(id: "profile-edit", series: .profile, target: .profileEdit,
@@ -77,28 +74,35 @@ nonisolated enum CLGuideArrowEdge: Equatable, Sendable { case top, bottom }
 nonisolated enum CLGuidePlacementEngine {
     static func place(_ input: CLGuidePlacementInput) -> CLGuidePlacement {
         let horizontalInset = max(16, input.spacing)
-        let available = input.safeBounds.insetBy(dx: horizontalInset, dy: input.spacing)
-        let width = min(input.tooltipSize.width, available.width)
-        let height = input.tooltipSize.height
+        let bounds = input.safeBounds.intersection(input.viewport)
+        guard !bounds.isNull, bounds.width > 0, bounds.height > 0 else {
+            return .bottomPanel(frame: .zero)
+        }
+        let available = bounds.insetBy(
+            dx: min(horizontalInset, bounds.width / 2),
+            dy: min(max(10, input.spacing), bounds.height / 2)
+        )
+        let width = max(0, min(input.tooltipSize.width, available.width))
+        let height = max(0, input.tooltipSize.height)
         let aboveY = input.target.minY - input.spacing - height
         let belowY = input.target.maxY + input.spacing
         let centeredX = min(max(input.target.midX - width / 2, available.minX), available.maxX - width)
 
-        if aboveY >= available.minY {
+        if aboveY >= available.minY, aboveY + height <= available.maxY {
             let frame = CGRect(x: centeredX, y: aboveY, width: width, height: height)
             return .tooltip(frame: frame, arrowEdge: .bottom,
-                            arrowOffset: min(max(input.target.midX - frame.minX, 20), width - 20))
+                            arrowOffset: min(max(input.target.midX - frame.minX, min(20, width / 2)), max(width / 2, width - 20)))
         }
-        if belowY + height <= available.maxY {
+        if belowY >= available.minY, belowY + height <= available.maxY {
             let frame = CGRect(x: centeredX, y: belowY, width: width, height: height)
             return .tooltip(frame: frame, arrowEdge: .top,
-                            arrowOffset: min(max(input.target.midX - frame.minX, 20), width - 20))
+                            arrowOffset: min(max(input.target.midX - frame.minX, min(20, width / 2)), max(width / 2, width - 20)))
         }
         let panelHeight = min(height, available.height)
         return .bottomPanel(frame: CGRect(
-            x: available.minX,
+            x: centeredX,
             y: available.maxY - panelHeight,
-            width: available.width,
+            width: width,
             height: panelHeight
         ))
     }

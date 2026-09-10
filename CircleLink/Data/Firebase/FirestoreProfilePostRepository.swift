@@ -29,11 +29,13 @@ final class FirestoreProfilePostRepository: ProfilePostRepository, @unchecked Se
     private let usersCollection = "users"
     private let postsCollection = "profilePosts"
 
+    let likes: PostLikeService
     private let imageStorage: ProfileImageStorage
 
     private var db: Firestore { Firestore.firestore() }
 
-    init(imageStorage: ProfileImageStorage) {
+    init(imageStorage: ProfileImageStorage, likes: PostLikeService = FirestorePostLikeService()) {
+        self.likes = likes
         self.imageStorage = imageStorage
     }
 
@@ -176,7 +178,7 @@ final class FirestoreProfilePostRepository: ProfilePostRepository, @unchecked Se
             authorId: post.authorId,
             text: hasText ? trimmed : nil,
             imageURL: imageURL,
-            createdAt: post.createdAt
+            likeCount: post.likeCount, createdAt: post.createdAt
         )
     }
 

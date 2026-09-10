@@ -3,6 +3,7 @@ import Foundation
 /// Parsed remote-notification payload for AppCoordinator routing.
 struct PushDeepLink: Equatable, Sendable {
     enum Kind: String, Equatable, Sendable {
+        case postActivity = "post_activity"
         case newMessage = "new_message"
         case connectionRequest = "connection_request"
         case connectionAccepted = "connection_accepted"
@@ -13,6 +14,7 @@ struct PushDeepLink: Equatable, Sendable {
         case connect
     }
 
+    let post: PostReference?
     let kind: Kind
     let chatId: String?
     let requestId: String?
@@ -22,11 +24,13 @@ struct PushDeepLink: Equatable, Sendable {
 
     init(
         kind: Kind,
+        post: PostReference? = nil,
         chatId: String? = nil,
         requestId: String? = nil,
         tab: Tab? = nil,
         targetUserId: String? = nil
     ) {
+        self.post = post
         self.kind = kind
         self.chatId = chatId
         self.requestId = requestId
@@ -48,8 +52,18 @@ struct PushDeepLink: Equatable, Sendable {
         let tab = Self.nonEmpty(payload["tab"]).flatMap(Tab.init(rawValue:))
         let targetUserId = Self.nonEmpty(payload["targetUserId"])
 
+        let post: PostReference?
+        if kind == .postActivity {
+            guard let rawKind = payload["postKind"], let postKind = PostReference.Kind(rawValue: rawKind),
+                  let ownerId = Self.nonEmpty(payload["ownerId"]),
+                  let postId = Self.nonEmpty(payload["postId"]),
+                  !ownerId.contains("/"), !postId.contains("/"), targetUserId != nil else { return nil }
+            post = PostReference(kind: postKind, ownerId: ownerId, postId: postId)
+        } else { post = nil }
+
         return PushDeepLink(
             kind: kind,
+            post: post,
             chatId: chatId,
             requestId: requestId,
             tab: tab,

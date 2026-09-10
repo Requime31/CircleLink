@@ -23,6 +23,7 @@ final class AppCoordinator: ObservableObject {
     @Published private(set) var route: Route
     @Published private(set) var currentProfile: User?
     /// External entry (Connect / community / deep link) → Chats tab pushes this route.
+    @Published var activityPost: PostReference?
     @Published var pendingChatRoute: ChatThreadRoute?
     @Published var selectedTab: MainTab = .communities
 
@@ -33,6 +34,7 @@ final class AppCoordinator: ObservableObject {
     private let chatsViewModel: ChatsViewModel
     private let profileViewModel: ProfileViewModel
     private let guideManager: ContextualGuideManager
+    private let connectTutorial = ConnectTutorialController()
     private var accountRecoveryViewModel: AccountRecoveryViewModel?
 
     private lazy var connectViewModel: ConnectViewModel = dependencies.makeConnectViewModel { [weak self] chatId, title in
@@ -106,7 +108,14 @@ final class AppCoordinator: ObservableObject {
                     )
                 }
             case .mainTab:
-                CLGuideHost(manager: guideManager) {
+                CLGuideHost(manager: guideManager, customDismiss: { [weak self] tip in
+                    guard let self,
+                          case .automatic = self.guideManager.mode,
+                          tip.target == .connectCard else { return false }
+                    self.guideManager.suspendCurrent()
+                    self.connectTutorial.start()
+                    return true
+                }) {
                     MainTabView(
                         selectedTab: Binding(
                             get: { self.selectedTab },
@@ -159,9 +168,20 @@ final class AppCoordinator: ObservableObject {
                         makeBlockedPeopleViewModel: dependencies.makeBlockedPeopleViewModel
                     )
                     .environmentObject(guideManager)
+                    .environmentObject(connectTutorial)
+                    .clGuidePresentationBlocked(activityPost != nil)
                 }
             }
         }
+        .sheet(item: Binding(get: { self.activityPost }, set: { self.activityPost = $0 })) { reference in
+            PostActivityDetailView(reference: reference, repository: self.dependencies.postActivityRepository)
+        }
+        .environment(\.postLikeContext, PostLikeContext(
+            store: dependencies.postLikeStore, service: dependencies.postLikeService,
+            users: dependencies.userRepository, moderation: dependencies.moderationRepository,
+            currentUserId: { self.dependencies.authRepository.currentUser?.id },
+            peerProfile: { AnyView(self.dependencies.makePeerProfileSheet(userId: $0)) }
+        ))
         .task {
             await self.bootstrapIfNeeded()
         }
@@ -221,6 +241,7 @@ final class AppCoordinator: ObservableObject {
         guideManager.configure(user: nil)
         currentProfile = nil
         accountRecoveryViewModel = nil
+        activityPost = nil
         pendingDeepLink = nil
         pendingChatRoute = nil
         selectedTab = .communities
@@ -323,6 +344,9 @@ final class AppCoordinator: ObservableObject {
 
     private func apply(_ deepLink: PushDeepLink) {
         switch deepLink.kind {
+        case .postActivity:
+            activityPost = deepLink.post
+
         case .newMessage:
             if let chatId = deepLink.chatId {
                 selectedTab = .chats

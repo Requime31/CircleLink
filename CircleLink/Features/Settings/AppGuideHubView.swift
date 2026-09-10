@@ -13,6 +13,7 @@ struct AppGuideHubView: View {
                 }
             }
         }
+        .clGuideScreen(.profile)
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .clCanvasBackground()
@@ -47,9 +48,6 @@ struct AppGuideHubView: View {
             HStack {
                 CLUnreadBadge(count: 3)
                     .clGuideTarget(.chatUnread, instance: "manual")
-                Spacer()
-                CLIconButton(systemImage: "arrow.down", accessibilityLabel: "Jump to new messages", action: {})
-                    .clGuideTarget(.chatJump, instance: "manual")
             }
         case .profile:
             HStack {

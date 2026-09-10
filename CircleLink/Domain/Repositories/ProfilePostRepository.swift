@@ -2,6 +2,7 @@ import Foundation
 
 /// Owner profile posts — Firestore docs + optional Supabase image upload.
 protocol ProfilePostRepository: Sendable {
+    var likes: PostLikeService { get }
     /// Newest first. Pass `before` (oldest `createdAt` already loaded) for the next page.
     func fetchPosts(userId: String, limit: Int, before: Date?) async throws -> [ProfilePost]
 

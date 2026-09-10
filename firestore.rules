@@ -339,9 +339,40 @@ service cloud.firestore {
             && data.clearedAt >= request.time - duration.value(1, 'm')));
     }
 
+    function unblockedPeer(userId) {
+      return request.auth.uid == userId || (
+        !exists(/databases/$(database)/documents/users/$(request.auth.uid)/blocked/$(userId))
+        && !exists(/databases/$(database)/documents/users/$(userId)/blocked/$(request.auth.uid))
+      );
+    }
+
+    function canLikePost(postPath) {
+      return isSignedIn() && exists(postPath)
+        && isActiveUser(request.auth.uid)
+        && isActiveUser(get(postPath).data.authorId)
+        && unblockedPeer(get(postPath).data.authorId);
+    }
+
+    function validLikeCountChange(postPath) {
+      let likePath = /$(postPath)/likes/$(request.auth.uid);
+      let oldCount = resource.data.get('likeCount', 0);
+      let newCount = request.resource.data.get('likeCount', 0);
+      return canLikePost(postPath)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+        && newCount is int && newCount >= 0
+        && ((!exists(likePath) && existsAfter(likePath) && newCount == oldCount + 1)
+          || (exists(likePath) && !existsAfter(likePath) && newCount == oldCount - 1));
+    }
+
+    function validLikeWrite(postPath, likerId, delta) {
+      return canLikePost(postPath) && request.auth.uid == likerId
+        && existsAfter(postPath)
+        && getAfter(postPath).data.likeCount == get(postPath).data.get('likeCount', 0) + delta;
+    }
+
     function isValidCommunityPost() {
       return request.resource.data.keys().hasAll(['authorId', 'createdAt'])
-        && request.resource.data.keys().hasOnly(['authorId', 'text', 'imageURL', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['authorId', 'text', 'imageURL', 'createdAt', 'likeCount'])
         && request.resource.data.authorId is string
         && request.resource.data.createdAt is timestamp
         && ((request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000)
@@ -360,7 +391,7 @@ service cloud.firestore {
     // Shared create/update validation for users/{userId}/profilePosts/{postId}.
     function isValidProfilePostPayload() {
       return request.resource.data.keys().hasAll(['authorId', 'createdAt'])
-        && request.resource.data.keys().hasOnly(['authorId', 'text', 'imageURL', 'createdAt'])
+        && request.resource.data.keys().hasOnly(['authorId', 'text', 'imageURL', 'createdAt', 'likeCount'])
         && request.resource.data.authorId is string
         && request.resource.data.createdAt is timestamp
         && (
@@ -582,14 +613,39 @@ service cloud.firestore {
           && userId != blockedUid;
       }
 
+      // A read-only visibility probe; no documents are stored at this path.
+      // Successful missing-document get means both accounts are active and unblocked.
+      match /profileAccess/{viewerId} {
+        allow get: if isSignedIn() && request.auth.uid == viewerId
+          && isActiveUser(viewerId) && isActiveUser(userId) && unblockedPeer(userId);
+        allow list, write: if false;
+      }
+
       // Profile posts (separate from community feed). Signed-in read; owner create/update/delete.
       match /profilePosts/{postId} {
+        allow update: if isSignedIn() && validLikeCountChange(/databases/$(database)/documents/users/$(userId)/profilePosts/$(postId));
+        match /likes/{likerId} {
+          allow read: if canLikePost(/databases/$(database)/documents/users/$(userId)/profilePosts/$(postId));
+          allow create: if validLikeWrite(/databases/$(database)/documents/users/$(userId)/profilePosts/$(postId), likerId, 1)
+            && request.resource.data.keys().hasOnly(['createdAt'])
+            && request.resource.data.createdAt == request.time;
+          allow delete: if validLikeWrite(/databases/$(database)/documents/users/$(userId)/profilePosts/$(postId), likerId, -1);
+          allow update: if false;
+        }
+        // Server-only durable receipts and notification outbox; hidden with parent.
+        match /activity/{actorId} {
+          allow read: if canLikePost(/databases/$(database)/documents/users/$(userId)/profilePosts/$(postId))
+            && request.auth.uid == get(/databases/$(database)/documents/users/$(userId)/profilePosts/$(postId)).data.authorId;
+          allow write: if false;
+        }
+
         allow read: if isSignedIn();
 
         allow create: if isSignedIn()
           && request.auth.uid == userId
           && request.resource.data.authorId == request.auth.uid
-          && isValidProfilePostPayload();
+          && isValidProfilePostPayload()
+          && request.resource.data.get('likeCount', 0) == 0;
 
         // Owner-only. authorId + createdAt are immutable; payload must stay valid (text and/or imageURL).
         allow update: if isSignedIn()
@@ -597,7 +653,8 @@ service cloud.firestore {
           && resource.data.authorId == request.auth.uid
           && request.resource.data.authorId == resource.data.authorId
           && request.resource.data.createdAt == resource.data.createdAt
-          && isValidProfilePostPayload();
+          && isValidProfilePostPayload()
+          && request.resource.data.get('likeCount', 0) == resource.data.get('likeCount', 0);
 
         allow delete: if isSignedIn()
           && request.auth.uid == userId
@@ -692,15 +749,33 @@ service cloud.firestore {
         );
 
       match /posts/{postId} {
+        allow update: if isSignedIn() && isCommunityMember(communityId) && validLikeCountChange(/databases/$(database)/documents/communities/$(communityId)/posts/$(postId));
+        match /likes/{likerId} {
+          allow read: if canLikePost(/databases/$(database)/documents/communities/$(communityId)/posts/$(postId));
+          allow create: if validLikeWrite(/databases/$(database)/documents/communities/$(communityId)/posts/$(postId), likerId, 1) && isCommunityMember(communityId)
+            && request.resource.data.keys().hasOnly(['createdAt'])
+            && request.resource.data.createdAt == request.time;
+          allow delete: if validLikeWrite(/databases/$(database)/documents/communities/$(communityId)/posts/$(postId), likerId, -1) && isCommunityMember(communityId);
+          allow update: if false;
+        }
+        // Server-only durable receipts and notification outbox; hidden with parent.
+        match /activity/{actorId} {
+          allow read: if canLikePost(/databases/$(database)/documents/communities/$(communityId)/posts/$(postId))
+            && request.auth.uid == get(/databases/$(database)/documents/communities/$(communityId)/posts/$(postId)).data.authorId;
+          allow write: if false;
+        }
+
         allow read: if isSignedIn();
         allow create: if isCommunityMember(communityId)
           && request.auth.uid == request.resource.data.authorId
-          && isValidCommunityPost();
+          && isValidCommunityPost()
+          && request.resource.data.get('likeCount', 0) == 0;
         allow update: if isCommunityMember(communityId)
           && (request.auth.uid == resource.data.authorId || isCommunityCreator(communityId))
           && request.resource.data.authorId == resource.data.authorId
           && request.resource.data.createdAt == resource.data.createdAt
-          && isValidCommunityPost();
+          && isValidCommunityPost()
+          && request.resource.data.get('likeCount', 0) == resource.data.get('likeCount', 0);
         allow delete: if isCommunityMember(communityId)
           && (request.auth.uid == resource.data.authorId || isCommunityCreator(communityId));
       }

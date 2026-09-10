@@ -113,6 +113,8 @@ private struct ProfilePostCardView: View {
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(contentAccessibilityLabel)
+
+                PostLikeBar(post: post.reference)
             }
         }
     }

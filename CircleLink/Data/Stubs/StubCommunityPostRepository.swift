@@ -1,6 +1,7 @@
 import Foundation
 
 final class StubCommunityPostRepository: CommunityPostRepository, @unchecked Sendable {
+    let likes: PostLikeService = StubPostLikeService()
     private var posts: [CommunityPost] = []
     func fetchPosts(communityId: String, limit: Int, before: Date?) async throws -> [CommunityPost] {
         Array(posts.filter { $0.communityId == communityId }.sorted { $0.createdAt > $1.createdAt }.prefix(limit))

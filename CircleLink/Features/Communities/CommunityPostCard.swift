@@ -55,6 +55,8 @@ struct CommunityPostCard: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Open post photo")
             }
+
+            PostLikeBar(post: post.reference)
         }
         .padding(CLSpacing.md)
         .background(CLColor.surface)

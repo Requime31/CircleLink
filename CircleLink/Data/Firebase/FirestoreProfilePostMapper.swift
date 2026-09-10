@@ -37,6 +37,7 @@ enum FirestoreProfilePostMapper {
             authorId: resolvedAuthorId,
             text: normalizedText,
             imageURL: imageURL,
+            likeCount: max(0, data["likeCount"] as? Int ?? 0),
             createdAt: createdAt
         )
     }
@@ -48,6 +49,7 @@ enum FirestoreProfilePostMapper {
         createdAt: Date
     ) -> [String: Any] {
         var data: [String: Any] = [
+            "likeCount": 0,
             "authorId": authorId,
             "createdAt": Timestamp(date: createdAt)
         ]

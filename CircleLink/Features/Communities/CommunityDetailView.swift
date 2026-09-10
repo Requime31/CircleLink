@@ -29,6 +29,7 @@ struct CommunityDetailView: View {
                 detailContent(community: community)
             }
         }
+        .clGuideScreen(.communities)
         .clCanvasBackground()
         .navigationTitle(
             CommunityContentPolicy.safeDisplayName(
